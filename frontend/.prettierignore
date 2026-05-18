@@ -1,0 +1,20 @@
+# Ignore node_modules
+node_modules
+
+# Build output
+dist
+build
+android
+ios
+
+# Expo-specific folders
+.expo
+.expo-shared
+
+# Config files
+package-lock.json
+yarn.lock
+
+# IDE and OS files
+.vscode
+.DS_Store
