@@ -1,14 +1,14 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { B2B_AGREEMENTS_MODULE } from "../../../../modules/b2b-agreements";
-import B2BAgreementsModuleService from "../../../../modules/b2b-agreements/service";
+import B2bAgreementsModuleService from "../../../../modules/b2b-agreements/service";
 
 // GET /admin/b2b-agreements/:id — Get a specific B2B agreement
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
-        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2BAgreementsModuleService;
+        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2bAgreementsModuleService;
         const id = req.params.id;
 
-        const agreement = await b2bService.retrieveB2bAgreement(id);
+        const agreement = await b2bService.retrieveBusinessAgreement(id);
 
         if (!agreement) {
             return res.status(404).json({ error: "Convenio no encontrado." });
@@ -24,7 +24,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 // POST /admin/b2b-agreements/:id — Update a B2B agreement
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
-        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2BAgreementsModuleService;
+        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2bAgreementsModuleService;
         const id = req.params.id;
 
         const {
@@ -56,7 +56,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         if (valid_until !== undefined) updateData.valid_until = valid_until ? new Date(valid_until) : null;
         if (notes !== undefined) updateData.notes = notes || null;
 
-        const agreement = await b2bService.updateB2bAgreements(id, updateData);
+        // El método generado por MedusaService recibe UN objeto con el id
+        // dentro, no (id, data) como dos argumentos.
+        const agreement = await b2bService.updateBusinessAgreements({ id, ...updateData });
 
         res.json({ b2b_agreement: agreement });
     } catch (error: any) {
@@ -68,10 +70,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 // DELETE /admin/b2b-agreements/:id — Soft delete a B2B agreement
 export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
-        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2BAgreementsModuleService;
+        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2bAgreementsModuleService;
         const id = req.params.id;
 
-        await b2bService.deleteB2bAgreements(id);
+        await b2bService.deleteBusinessAgreements(id);
 
         res.status(200).json({ id, deleted: true });
     } catch (error: any) {

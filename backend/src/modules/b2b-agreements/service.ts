@@ -1,8 +1,8 @@
 import { MedusaService } from "@medusajs/framework/utils";
-import { B2BAgreement } from "./models/b2b-agreement";
+import { BusinessAgreement } from "./models/b2b-agreement";
 
-class B2BAgreementsModuleService extends MedusaService({
-    B2BAgreement,
+class B2bAgreementsModuleService extends MedusaService({
+    BusinessAgreement,
 }) {}
 
-export default B2BAgreementsModuleService;
+export default B2bAgreementsModuleService;

@@ -1,15 +1,15 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { B2B_AGREEMENTS_MODULE } from "../../../modules/b2b-agreements";
-import B2BAgreementsModuleService from "../../../modules/b2b-agreements/service";
+import B2bAgreementsModuleService from "../../../modules/b2b-agreements/service";
 
 // GET /admin/b2b-agreements — List all B2B agreements
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
-        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2BAgreementsModuleService;
+        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2bAgreementsModuleService;
         const searchTerm = (req.query as any).q;
         const statusFilter = (req.query as any).status;
 
-        let agreements = await b2bService.listB2bAgreements(
+        let agreements = await b2bService.listBusinessAgreements(
             {},
             { order: { company_name: "ASC" } }
         );
@@ -39,7 +39,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 // POST /admin/b2b-agreements — Create a new B2B agreement
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
-        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2BAgreementsModuleService;
+        const b2bService = req.scope.resolve(B2B_AGREEMENTS_MODULE) as B2bAgreementsModuleService;
 
         const {
             company_name,
@@ -60,7 +60,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             return res.status(400).json({ error: "El nombre de la empresa es obligatorio." });
         }
 
-        const agreement = await b2bService.createB2bAgreements({
+        const agreement = await b2bService.createBusinessAgreements({
             company_name,
             rfc: rfc || null,
             contact_name: contact_name || null,
