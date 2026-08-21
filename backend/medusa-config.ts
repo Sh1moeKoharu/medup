@@ -37,6 +37,31 @@ if (isProduction) {
 }
 
 /**
+ * ── COOKIES DE SESIÓN SOBRE HTTP ────────────────────────────────────────────
+ *
+ * Con NODE_ENV=production (o staging) Medusa marca la cookie de sesión como
+ * `secure: true` y `sameSite: "none"` — ver express-loader.js del framework.
+ * El navegador RECHAZA guardar cookies `Secure` servidas por HTTP, así que el
+ * admin acepta el login y acto seguido rebota a la pantalla de inicio, sin
+ * mostrar ningún error.
+ *
+ * ALLOW_INSECURE_COOKIES=1 desactiva ese marcado. Existe para servidores de
+ * ENSAYO que corren en modo producción sin certificado todavía.
+ *
+ * ⚠️ NUNCA activarla en un servidor con datos reales: la cookie de sesión
+ * viajaría en claro y cualquiera en la red podría secuestrar la sesión de un
+ * administrador. La solución correcta es poner TLS delante, no esta bandera.
+ */
+const allowInsecureCookies = process.env.ALLOW_INSECURE_COOKIES === '1'
+
+if (allowInsecureCookies) {
+  console.warn(
+    '⚠️  [CONFIG] ALLOW_INSECURE_COOKIES=1 — la cookie de sesión NO se marcará ' +
+      'como Secure. Válido sólo para ensayo sin TLS. No usar con datos reales.'
+  )
+}
+
+/**
  * ── INFRAESTRUCTURA ─────────────────────────────────────────────────────────
  * Estos módulos NO estaban declarados. `.env.template` traía REDIS_URL pero
  * nadie la leía, así que en cada arranque Medusa avisaba:
@@ -104,7 +129,11 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: jwtSecret || 'supersecret',
       cookieSecret: cookieSecret || 'supersecret',
-    }
+    },
+    // Se aplica encima de los valores que calcula el framework.
+    ...(allowInsecureCookies
+      ? { cookieOptions: { secure: false, sameSite: 'lax' as const } }
+      : {}),
   },
   admin: {
     disable: false,
