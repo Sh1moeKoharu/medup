@@ -2,6 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import * as fs from "fs";
 import * as path from "path";
+import { getReportsDir } from "../lib/paths";
 
 export default async function blockExpiredBatchesJob(
     container: MedusaContainer
@@ -95,7 +96,9 @@ export default async function blockExpiredBatchesJob(
 
 function generateReport(expiredItems: any[], logger: any) {
     try {
-        const reportsDir = path.resolve(process.cwd(), "reports", "destruccion-sanitaria");
+        // Ruta persistente: escribir relativo al directorio de trabajo dejaba
+        // los reportes dentro de .medusa/server, que `medusa build` borra.
+        const reportsDir = path.join(getReportsDir(), "destruccion-sanitaria");
         
         if (!fs.existsSync(reportsDir)) {
             fs.mkdirSync(reportsDir, { recursive: true });

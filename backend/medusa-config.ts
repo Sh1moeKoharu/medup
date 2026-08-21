@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from '@medusajs/framework/utils'
+import * as nodePath from 'path'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -107,6 +108,26 @@ const infrastructureModules = redisUrl
     ]
   : []
 
+/**
+ * ── ARCHIVOS SUBIDOS ────────────────────────────────────────────────────────
+ * Sin declarar el módulo, el proveedor local escribe en `<cwd>/static`, es
+ * decir dentro de `.medusa/server`, que `medusa build` borra en cada
+ * compilación — y ahí viven las imágenes de producto que la base referencia
+ * por URL.
+ *
+ * Con ALTUS_DATA_DIR definida se apunta fuera del árbol de build. Sin ella se
+ * conserva exactamente el valor por omisión anterior.
+ *
+ * ⚠️ No basta con esto: Medusa sirve /static desde una ruta CODIFICADA en el
+ * framework. Ver deploy/link-persistent-dirs.sh.
+ */
+const dataDir = process.env.ALTUS_DATA_DIR?.trim()
+const uploadDir = dataDir
+  ? nodePath.join(nodePath.resolve(dataDir), 'static')
+  : nodePath.join(process.cwd(), 'static')
+
+const backendUrl = process.env.MEDUSA_BACKEND_URL || 'http://localhost:9000'
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -140,6 +161,21 @@ module.exports = defineConfig({
   },
   modules: [
     ...infrastructureModules,
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/file-local",
+            id: "local",
+            options: {
+              upload_dir: uploadDir,
+              backend_url: `${backendUrl}/static`,
+            },
+          },
+        ],
+      },
+    },
     {
       resolve: "@medusajs/medusa/notification",
       options: {

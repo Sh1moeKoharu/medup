@@ -26,6 +26,11 @@ WorkingDirectory=/home/altus/altus/backend/.medusa/server
 EnvironmentFile=/etc/altus/backend.env
 Environment=NODE_ENV=production
 
+# Recrea el enlace de `static` a la ruta persistente. Se ejecuta en CADA
+# arranque a proposito: `medusa build` regenera .medusa/server y se lleva el
+# enlace, asi que un despliegue que solo recompile y reinicie queda cubierto.
+ExecStartPre=/bin/bash /home/altus/altus/backend/deploy/link-persistent-dirs.sh /home/altus/altus/backend/.medusa/server
+
 ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=5
