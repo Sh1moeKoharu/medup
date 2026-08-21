@@ -1,4 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
+import { ROLES, normalizeRole } from "../../../lib/roles";
 import { Container, Heading, Text, Badge, Button, Input, Label, Select, Table, Textarea } from "@medusajs/ui";
 import { useState, useEffect } from "react";
 
@@ -33,7 +34,7 @@ const B2BAgreementsPage = () => {
         loadAgreements();
         fetch("/admin/users/me", { credentials: "include" })
             .then(r => r.json())
-            .then(d => { if (d.user?.metadata?.role === "auditor") setIsAuditor(true); })
+            .then(d => { if (normalizeRole(d.user?.metadata?.role) === ROLES.AUDITOR) setIsAuditor(true); })
             .catch(() => {});
     }, []);
 

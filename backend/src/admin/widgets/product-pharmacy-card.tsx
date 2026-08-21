@@ -1,4 +1,5 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk";
+import { ROLES, normalizeRole } from "../../lib/roles";
 import { Container, Heading, Text, Input, Button, Label, Select, Switch } from "@medusajs/ui";
 import { useState, useEffect } from "react";
 
@@ -57,7 +58,7 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
         fetch("/admin/users/me", { credentials: "include" })
             .then(res => res.json())
             .then(data => {
-                if (data?.user?.metadata?.role === "auditor") {
+                if (normalizeRole(data?.user?.metadata?.role) === ROLES.AUDITOR) {
                     setIsAuditor(true);
                 }
             })

@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Container, Heading, Text, Table, Badge, Button, Input, Select } from "@medusajs/ui";
 import { useEffect, useState } from "react";
+import { ALL_ROLES, ROLES, ROLE_LABELS, normalizeRole, roleLabel } from "../../../lib/roles";
 
 const StaffPage = () => {
     const [users, setUsers] = useState<any[]>([]);
@@ -17,7 +18,7 @@ const StaffPage = () => {
     const [password, setPassword] = useState("");
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
-    const [role, setRole] = useState("cajero");
+    const [role, setRole] = useState<string>(ROLES.CASHIER);
 
     // Removed useToast
 
@@ -42,7 +43,7 @@ const StaffPage = () => {
         fetch("/admin/users/me", { credentials: "include" })
             .then(res => res.json())
             .then(data => {
-                if (data?.user?.metadata?.role === "auditor") {
+                if (normalizeRole(data?.user?.metadata?.role) === ROLES.AUDITOR) {
                     setIsAuditor(true);
                 }
             })
@@ -68,7 +69,7 @@ const StaffPage = () => {
         setEditingUser(user);
         setFirstName(user.first_name || "");
         setLastName(user.last_name || "");
-        setRole(user.metadata?.role || "cajero");
+        setRole(normalizeRole(user.metadata?.role) ?? ROLES.CASHIER);
         setShowModal(true);
     };
 
@@ -195,11 +196,12 @@ const StaffPage = () => {
                                         <Select.Value placeholder="Selecciona un rol" />
                                     </Select.Trigger>
                                     <Select.Content style={{ zIndex: 9999 }}>
-                                        <Select.Item value="cajero">Cajero / Adquisiciones</Select.Item>
-                                        <Select.Item value="enfermero">Enfermero</Select.Item>
-                                        <Select.Item value="doctor">Médico / Especialista</Select.Item>
-                                        <Select.Item value="admin">Administrador General</Select.Item>
-                                        <Select.Item value="auditor">Auditor (Solo lectura, Reportes y Bitácora)</Select.Item>
+                                        {/* Opciones derivadas del vocabulario canónico (lib/roles.ts).
+                                            Antes estaban escritas a mano y enviaban "cajero"/"enfermero",
+                                            valores que el POS nunca reconocía. */}
+                                        {ALL_ROLES.map((r) => (
+                                            <Select.Item key={r} value={r}>{ROLE_LABELS[r]}</Select.Item>
+                                        ))}
                                     </Select.Content>
                                 </Select>
                             </div>
@@ -225,12 +227,17 @@ const StaffPage = () => {
                 </Table.Header>
                 <Table.Body>
                     {users.map((user) => {
-                        const userRole = user.metadata?.role || "admin nativo";
-                        let badgeColor: "blue" | "green" | "grey" | "orange" | "purple" = "grey";
-                        if (userRole === "doctor") badgeColor = "green";
-                        if (userRole === "enfermero") badgeColor = "orange";
-                        if (userRole === "cajero") badgeColor = "blue";
-                        if (userRole === "auditor") badgeColor = "purple";
+                        const canonicalRole = normalizeRole(user.metadata?.role);
+                        const userRole = canonicalRole ? roleLabel(canonicalRole) : "Admin nativo (sin rol)";
+                        const BADGE_COLORS: Record<string, "blue" | "green" | "grey" | "orange" | "purple"> = {
+                            [ROLES.DOCTOR]: "green",
+                            [ROLES.NURSE]: "orange",
+                            [ROLES.CASHIER]: "blue",
+                            [ROLES.AUDITOR]: "purple",
+                            [ROLES.PHARMACY]: "green",
+                            [ROLES.ADMIN]: "grey",
+                        };
+                        const badgeColor = canonicalRole ? BADGE_COLORS[canonicalRole] : "grey";
                         
                         return (
                             <Table.Row key={user.id}>

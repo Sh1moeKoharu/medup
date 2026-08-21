@@ -1,3 +1,4 @@
+import { ROLES, normalizeRole } from '@/constants/roles';
 import { useAuthCtx } from '@/contexts/auth';
 import { useSettings } from '@/contexts/settings';
 import { useRouter } from 'expo-router';
@@ -30,18 +31,18 @@ export default function RootLoadingScreen() {
           router.replace('/setup-wizard');
           return;
         } else {
-          // If settings are set, redirect to the main app
-          if (
-            auth.state.user.role === 'doctor' || 
-            auth.state.user.email === 'doctor@pos.com' ||
-            auth.state.user.email.toLowerCase().includes('medico') ||
-            auth.state.user.email.toLowerCase().includes('doctor')
-          ) {
+          // Ruteo por rol canónico.
+          //
+          // Antes esto adivinaba el rol a partir del correo (`includes('medico')`,
+          // `=== 'doctor@pos.com'`) porque el rol almacenado no era confiable: el
+          // admin guardaba "enfermero" y aquí se comparaba contra 'nurse'.
+          // Unificado el vocabulario, la heurística sobra y se elimina: un correo
+          // como "medico.jefe@clinica.mx" con rol de caja ya no abre la vista médica.
+          const role = normalizeRole(auth.state.user.role);
+
+          if (role === ROLES.DOCTOR) {
             router.replace('/(doctor)/products');
-          } else if (
-            auth.state.user.role === 'nurse' || 
-            auth.state.user.email.toLowerCase().includes('enfermer')
-          ) {
+          } else if (role === ROLES.NURSE) {
             router.replace('/(nurse)/products');
           } else {
             router.replace('/(tabs)/products');

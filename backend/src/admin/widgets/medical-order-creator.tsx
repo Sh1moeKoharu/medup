@@ -1,4 +1,5 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk";
+import { isMedicalOrderCreatorRole, normalizeRole } from "../../lib/roles";
 import { Container, Heading, Text, Button, Input, Label, Select } from "@medusajs/ui";
 import { useState, useEffect } from "react";
 
@@ -29,8 +30,8 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
             .then(data => {
                 if (data.user) {
                     setCurrentUser(data.user);
-                    const role = data.user.metadata?.role;
-                    if (role === "doctor" || role === "nurse") {
+                    const role = normalizeRole(data.user.metadata?.role);
+                    if (isMedicalOrderCreatorRole(role)) {
                         setIsMedicalStaff(true);
                     }
                 }
@@ -111,13 +112,14 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
             const res = await fetch("/admin/medical-orders", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                // La identidad del prescriptor YA NO se envía: el servidor la
+                // toma de la sesión. Mandarla desde el cliente permitía atribuir
+                // una receta a otro médico. Ver el comentario en
+                // src/api/admin/medical-orders/route.ts.
                 body: JSON.stringify({
                     customer_id: customer.id,
                     customer_name: `${customer.first_name || ""} ${customer.last_name || ""}`.trim() || customer.company_name || "Paciente",
                     notes,
-                    creator_id: currentUser.id,
-                    creator_name: `${currentUser.first_name || ""} ${currentUser.last_name || ""}`.trim() || currentUser.email,
-                    creator_role: currentUser.metadata?.role,
                     items
                 })
             });

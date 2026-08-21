@@ -33,6 +33,15 @@
           "nullable": true,
           "mappedType": "text"
         },
+        "user_role": {
+          "name": "user_role",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "method": {
           "name": "method",
           "type": "text",

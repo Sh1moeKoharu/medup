@@ -1,11 +1,21 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
+import { ALL_ROLES, normalizeRole } from "../../../lib/roles";
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const { email, password, first_name, last_name, role } = req.body as any;
 
   if (!email || !password || !role) {
     return res.status(400).json({ message: "email, password y role son requeridos" });
+  }
+
+  // El rol se persiste ya normalizado: la BD nunca debe guardar un valor
+  // fuera del vocabulario canónico (era la causa del desajuste enfermero/nurse).
+  const canonicalRole = normalizeRole(role);
+  if (!canonicalRole) {
+    return res.status(400).json({
+      message: `Rol inválido: "${role}". Roles válidos: ${ALL_ROLES.join(", ")}.`,
+    });
   }
 
   const userModuleService = req.scope.resolve(Modules.USER);
@@ -50,7 +60,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       email,
       first_name,
       last_name,
-      metadata: { role }
+      metadata: { role: canonicalRole }
     }]);
 
     // 4. Vincular el Identity con el Usuario

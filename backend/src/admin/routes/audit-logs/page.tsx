@@ -1,4 +1,5 @@
 import { Container, Heading, Text, Table, Badge, Button } from "@medusajs/ui";
+import { ROLES, normalizeRole, roleLabel } from "../../../lib/roles";
 import React, { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 
@@ -18,7 +19,8 @@ const AuditLogsPage = () => {
                     setCurrentUser(data.user);
                     const role = data.user.metadata?.role;
                     // Solo admin y auditor tienen acceso
-                    if (role === "admin" || role === "auditor" || !role) {
+                    const canonical = normalizeRole(role);
+                    if (!role || canonical === ROLES.ADMIN || canonical === ROLES.AUDITOR) {
                         setHasAccess(true);
                         fetchLogs();
                     } else {
@@ -109,7 +111,18 @@ const AuditLogsPage = () => {
                                             {new Date(log.created_at).toLocaleString()}
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <span className="font-medium text-sm">{log.user_email}</span>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium text-sm">
+                                                    {log.user_email || "— sin identificar —"}
+                                                </span>
+                                                {/* Rol vigente al momento de la acción: si después le
+                                                    cambian el rol, el asiento conserva con qué autoridad actuó. */}
+                                                {log.user_role && (
+                                                    <span className="text-xs text-ui-fg-muted">
+                                                        {roleLabel(log.user_role)}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </Table.Cell>
                                         <Table.Cell>
                                             <Badge color={getMethodColor(log.method)}>

@@ -1,4 +1,5 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk";
+import { ROLES, normalizeRole } from "../../lib/roles";
 import { Container, Heading, Text, Button, Input, Select, Badge, Label } from "@medusajs/ui";
 import { useState, useEffect } from "react";
 
@@ -43,7 +44,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
             .then(data => {
                 if (data.user) {
                     setCurrentUser(data.user);
-                    if (data.user.metadata?.role === "auditor") {
+                    if (normalizeRole(data.user.metadata?.role) === ROLES.AUDITOR) {
                         setIsAuditor(true);
                     }
                 }

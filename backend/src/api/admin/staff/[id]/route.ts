@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
+import { ALL_ROLES, normalizeRole } from "../../../../lib/roles";
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params;
@@ -8,13 +9,27 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const userModuleService = req.scope.resolve(Modules.USER);
 
   try {
-    // Para no sobrescribir metadata existente por completo, hay que obtenerla primero
-    // Sin embargo, para este caso de uso base, asignarlo directamente es suficiente.
     const dataToUpdate: any = { id };
-    
+
     if (first_name !== undefined) dataToUpdate.first_name = first_name;
     if (last_name !== undefined) dataToUpdate.last_name = last_name;
-    if (role !== undefined) dataToUpdate.metadata = { role };
+
+    if (role !== undefined) {
+      const canonicalRole = normalizeRole(role);
+      if (!canonicalRole) {
+        return res.status(400).json({
+          message: `Rol inválido: "${role}". Roles válidos: ${ALL_ROLES.join(", ")}.`,
+        });
+      }
+
+      // Se fusiona con el metadata existente en lugar de reemplazarlo: la
+      // versión anterior escribía `{ role }` y borraba cualquier otra clave.
+      const [existing] = await userModuleService.listUsers({ id });
+      dataToUpdate.metadata = {
+        ...((existing?.metadata as Record<string, unknown>) ?? {}),
+        role: canonicalRole,
+      };
+    }
 
     const result = await userModuleService.updateUsers([dataToUpdate]);
 

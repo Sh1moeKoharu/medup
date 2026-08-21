@@ -1,4 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { isMedicalOrderCreatorRole } from "../../../lib/roles";
+import { resolveRequestActor } from "../../../lib/require-role";
 import { MEDICAL_ORDERS_MODULE } from "../../../modules/medical-orders";
 import MedicalOrdersModuleService from "../../../modules/medical-orders/service";
 
@@ -26,10 +28,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
         const medicalOrdersModuleService: MedicalOrdersModuleService = req.scope.resolve(MEDICAL_ORDERS_MODULE);
         
-        // En Medusa, req.user no siempre existe a menos que haya un auth middleware activo, 
-        // pero podemos obtenerlo si estamos logueados en admin.
-        // Validamos la data
-        const { customer_id, customer_name, notes, items, creator_id, creator_name, creator_role } = req.body as any;
+        // Sólo se toman del cuerpo los datos del PACIENTE y de la receta.
+        // La identidad de quien prescribe NO se acepta del cliente (ver abajo).
+        const { customer_id, customer_name, notes, items } = req.body as any;
+
+        /**
+         * IDENTIDAD DEL PRESCRIPTOR — SIEMPRE DESDE LA SESIÓN.
+         *
+         * Antes esto era `creator_id: creator_id || "unknown"`, tomado del
+         * cuerpo de la petición. Es decir: cualquier usuario autenticado podía
+         * emitir una receta atribuyéndosela a otro médico, y una orden sin ese
+         * campo quedaba firmada como "unknown". Para un registro de receta
+         * electrónica eso lo invalida, y contradice el no repudio que exige la
+         * NOM-024-SSA3-2012 §6.6.1.
+         *
+         * Si el cuerpo trae `creator_*`, se ignora deliberadamente.
+         */
+        const actor = await resolveRequestActor(req);
+
+        if (!actor) {
+            return res.status(401).json({
+                error: "No se pudo identificar al prescriptor. Una orden médica no puede emitirse de forma anónima.",
+            });
+        }
+
+        // `medical_order.creator_role` tiene un check-constraint en BD limitado a
+        // ('doctor','nurse','admin'). Se valida contra el rol REAL del usuario.
+        if (!isMedicalOrderCreatorRole(actor.role)) {
+            return res.status(403).json({
+                error: `Tu rol (${actor.role ?? "sin rol"}) no puede emitir órdenes médicas.`,
+            });
+        }
 
         if (!customer_id || !items || !Array.isArray(items)) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -41,9 +70,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             customer_id,
             customer_name,
             notes,
-            creator_id: creator_id || "unknown", // Normalmente lo tomaríamos de req.auth.actor_id o de frontend
-            creator_name: creator_name || "Unknown",
-            creator_role: creator_role || "doctor",
+            creator_id: actor.id,
+            creator_name: actor.name,
+            creator_role: actor.role,
         });
 
         // Crear items

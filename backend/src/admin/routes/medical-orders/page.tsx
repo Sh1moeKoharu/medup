@@ -1,4 +1,5 @@
 import { Container, Heading, Text, Badge, Button, Table } from "@medusajs/ui";
+import { roleLabel } from "../../../lib/roles";
 import { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 
@@ -89,7 +90,7 @@ const MedicalOrdersPage = () => {
                                         </Text>
                                     </div>
                                     <Text className="text-sm font-medium">
-                                        👨‍⚕️ Emitida por: {order.creator_name} ({order.creator_role === "doctor" ? "Médico" : "Enfermero"})
+                                        👨‍⚕️ Emitida por: {order.creator_name} ({roleLabel(order.creator_role)})
                                     </Text>
                                     {order.notes && (
                                         <Text className="text-sm text-ui-fg-subtle mt-2 italic">
