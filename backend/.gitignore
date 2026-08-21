@@ -27,3 +27,9 @@ build
 *.log
 *.txt
 *.zip
+
+# Respaldos generados por src/scripts/reset-users.ts (contienen datos de usuarios)
+/.backups
+
+# Reportes generados en runtime por jobs/block-expired-batches.ts
+/reports
