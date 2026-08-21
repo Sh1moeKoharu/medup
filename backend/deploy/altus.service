@@ -1,0 +1,37 @@
+# Servicio systemd del backend SIGH / Altus.
+#
+# Instalacion:
+#   sudo cp backend/deploy/altus.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now altus
+#
+# Ajusta User y WorkingDirectory si el despliegue no vive en /home/altus.
+
+[Unit]
+Description=SIGH Altus - Backend Medusa
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=altus
+
+# `medusa build` genera un directorio autonomo en .medusa/server y el servidor
+# de produccion se ejecuta DESDE AHI, no desde la raiz del proyecto. Arrancar
+# en la raiz falla con "Could not find index.html in the admin build directory".
+WorkingDirectory=/home/altus/altus/backend/.medusa/server
+
+# La configuracion vive FUERA del arbol de build: `medusa build` borra y
+# regenera .medusa/ en cada compilacion, asi que un .env copiado ahi se pierde.
+EnvironmentFile=/etc/altus/backend.env
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
