@@ -1,5 +1,6 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { recordInventoryMovement } from "../lib/inventory-ledger";
 
 export default async function fefoBatchDeductionSubscriber({
     event: { data },
@@ -34,10 +35,11 @@ export default async function fefoBatchDeductionSubscriber({
             // Fetch available batches for this variant
             const { data: batches } = await query.graph({
                 entity: "medical_batch",
-                fields: ["id", "quantity", "expiration_date"],
+                fields: ["id", "quantity", "expiration_date", "batch_number"],
                 filters: {
                     variant_id: variantId,
-                    quantity: { $gt: 0 } // Only batches that have stock
+                    quantity: { $gt: 0 }, // Sólo lotes con existencia
+                    status: "active"      // y NO caducados/en cuarentena/destruidos
                 }
             });
 
@@ -63,6 +65,22 @@ export default async function fefoBatchDeductionSubscriber({
                 await medicalInventoryService.updateMedicalBatches({
                     id: batch.id,
                     quantity: newQuantity
+                });
+
+                // Asiento en el libro mayor: sin esto la salida no deja rastro
+                // y el kardex no cuadra.
+                await recordInventoryMovement(container, {
+                    variant_id: variantId,
+                    variant_title: item?.title ?? null,
+                    batch_id: batch.id,
+                    batch_number: batch.batch_number ?? null,
+                    expiration_date: batch.expiration_date ?? null,
+                    quantity_delta: -deduction,
+                    quantity_after: newQuantity,
+                    type: "exit_sale",
+                    reason: "Salida por venta (FEFO)",
+                    reference_type: "order",
+                    reference_id: orderId,
                 });
 
                 logger.info(`✅ FEFO: Deducted ${deduction} from batch ${batch.id} (New qty: ${newQuantity})`);

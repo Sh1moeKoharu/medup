@@ -2,21 +2,115 @@ import { defineConfig, loadEnv } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
+const isProduction = process.env.NODE_ENV === 'production'
+const redisUrl = process.env.REDIS_URL
+
+/**
+ * ── SECRETOS ────────────────────────────────────────────────────────────────
+ * Antes caían a la cadena "supersecret". Un JWT_SECRET conocido permite forjar
+ * sesiones de cualquier usuario, incluido el administrador. En producción se
+ * falla al arrancar en lugar de arrancar inseguro.
+ */
+const jwtSecret = process.env.JWT_SECRET
+const cookieSecret = process.env.COOKIE_SECRET
+
+if (isProduction) {
+  const missing: string[] = []
+  if (!jwtSecret || jwtSecret === 'supersecret') missing.push('JWT_SECRET')
+  if (!cookieSecret || cookieSecret === 'supersecret') missing.push('COOKIE_SECRET')
+
+  if (missing.length) {
+    throw new Error(
+      `[CONFIG] ${missing.join(' y ')} deben definirse con un valor propio en producción. ` +
+        `Genera cada uno con: openssl rand -base64 48`
+    )
+  }
+
+  if (!redisUrl) {
+    throw new Error(
+      '[CONFIG] REDIS_URL es obligatorio en producción. Sin él, Medusa usa un ' +
+        'bus de eventos en memoria y un candado local: los jobs programados y ' +
+        'los workflows no sobreviven a un reinicio ni funcionan con más de una ' +
+        'instancia. Instala Redis y define REDIS_URL.'
+    )
+  }
+}
+
+/**
+ * ── INFRAESTRUCTURA ─────────────────────────────────────────────────────────
+ * Estos módulos NO estaban declarados. `.env.template` traía REDIS_URL pero
+ * nadie la leía, así que en cada arranque Medusa avisaba:
+ *
+ *   "redisUrl not found. A fake redis instance will be used."
+ *   "Local Event Bus installed. This is not recommended for production."
+ *
+ * Se declaran de forma condicional para que el entorno local siga funcionando
+ * sin Redis (cae a los módulos en memoria por omisión), mientras que producción
+ * lo exige de forma explícita arriba. Nada de degradación silenciosa.
+ */
+const infrastructureModules = redisUrl
+  ? [
+      {
+        resolve: '@medusajs/medusa/event-bus-redis',
+        options: { redisUrl },
+      },
+      {
+        resolve: '@medusajs/medusa/cache-redis',
+        options: { redisUrl },
+      },
+      {
+        resolve: '@medusajs/medusa/workflow-engine-redis',
+        // OJO: este módulo NO acepta `redisUrl` plano como los otros tres.
+        // Su loader hace `const { ... } = options?.redis`, así que la URL va
+        // anidada. Con la forma plana revienta al arrancar con
+        // "Cannot destructure property 'url' of '(intermediate value)'".
+        options: { redis: { redisUrl } },
+      },
+      {
+        resolve: '@medusajs/medusa/locking',
+        options: {
+          providers: [
+            {
+              resolve: '@medusajs/medusa/locking-redis',
+              id: 'locking-redis',
+              is_default: true,
+              options: { redisUrl },
+            },
+          ],
+        },
+      },
+    ]
+  : []
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    redisUrl,
+    /**
+     * shared  = una sola instancia atiende API y ejecuta los jobs programados.
+     * server  = sólo API.  worker = sólo jobs y workflows.
+     *
+     * ⚠️ Si algún día se separa en server + worker, DEBE existir una instancia
+     * en modo `worker`: los jobs `check-expirations` y `block-expired-batches`
+     * sólo corren ahí. Una instalación con puro `server` deja de bloquear lotes
+     * caducados sin emitir ningún error.
+     */
+    workerMode:
+      (process.env.MEDUSA_WORKER_MODE as 'shared' | 'server' | 'worker') ??
+      'shared',
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
       authCors: process.env.AUTH_CORS!,
-      jwtSecret: process.env.JWT_SECRET || "supersecret",
-      cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      jwtSecret: jwtSecret || 'supersecret',
+      cookieSecret: cookieSecret || 'supersecret',
     }
   },
   admin: {
     disable: false,
   },
   modules: [
+    ...infrastructureModules,
     {
       resolve: "@medusajs/medusa/notification",
       options: {
@@ -26,7 +120,7 @@ module.exports = defineConfig({
             id: "resend",
             options: {
               api_key: process.env.RESEND_API_KEY,
-              from: "Agilo POS <onboarding@resend.dev>",
+              from: process.env.NOTIFICATION_FROM || "Agilo POS <onboarding@resend.dev>",
             },
           },
         ],
@@ -55,6 +149,10 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/b2b-agreements",
       key: "b2b_agreements",
+    },
+    {
+      resolve: "./src/modules/inventory-movements",
+      key: "inventory_movements",
     },
   ]
 })

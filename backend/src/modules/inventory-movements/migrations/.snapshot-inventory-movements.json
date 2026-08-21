@@ -15,45 +15,6 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "batch_number": {
-          "name": "batch_number",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "expiration_date": {
-          "name": "expiration_date",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "length": 6,
-          "mappedType": "datetime"
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "0",
-          "mappedType": "integer"
-        },
-        "reserved_quantity": {
-          "name": "reserved_quantity",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "0",
-          "mappedType": "integer"
-        },
         "variant_id": {
           "name": "variant_id",
           "type": "text",
@@ -63,8 +24,8 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "shelf_location": {
-          "name": "shelf_location",
+        "variant_title": {
+          "name": "variant_title",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -72,23 +33,26 @@
           "nullable": true,
           "mappedType": "text"
         },
-        "status": {
-          "name": "status",
+        "batch_id": {
+          "name": "batch_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
-          "default": "'active'",
-          "enumItems": [
-            "active",
-            "quarantined",
-            "destroyed"
-          ],
-          "mappedType": "enum"
+          "nullable": true,
+          "mappedType": "text"
         },
-        "quarantined_at": {
-          "name": "quarantined_at",
+        "batch_number": {
+          "name": "batch_number",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "expiration_date": {
+          "name": "expiration_date",
           "type": "timestamptz",
           "unsigned": false,
           "autoincrement": false,
@@ -96,6 +60,108 @@
           "nullable": true,
           "length": 6,
           "mappedType": "datetime"
+        },
+        "quantity_delta": {
+          "name": "quantity_delta",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "integer"
+        },
+        "quantity_after": {
+          "name": "quantity_after",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "integer"
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "enumItems": [
+            "entry_purchase",
+            "entry_return",
+            "entry_adjustment",
+            "entry_transfer",
+            "entry_initial",
+            "exit_sale",
+            "exit_adjustment",
+            "exit_transfer",
+            "exit_expiry",
+            "exit_damage"
+          ],
+          "mappedType": "enum"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "reference_type": {
+          "name": "reference_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "reference_id": {
+          "name": "reference_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "user_email": {
+          "name": "user_email",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "unit_cost": {
+          "name": "unit_cost",
+          "type": "real",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "float"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
         },
         "created_at": {
           "name": "created_at",
@@ -130,20 +196,20 @@
           "mappedType": "datetime"
         }
       },
-      "name": "medical_batch",
+      "name": "inventory_movement",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_medical_batch_deleted_at",
+          "keyName": "IDX_inventory_movement_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_medical_batch_deleted_at\" ON \"medical_batch\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_inventory_movement_deleted_at\" ON \"inventory_movement\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "medical_batch_pkey",
+          "keyName": "inventory_movement_pkey",
           "columnNames": [
             "id"
           ],

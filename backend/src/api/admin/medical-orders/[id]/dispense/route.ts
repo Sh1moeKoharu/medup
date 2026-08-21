@@ -35,8 +35,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         const errors = [];
         for (const item of order.items) {
             // Obtener lotes activos de esta variante, ordenados por caducidad (FEFO)
+            // Sólo lotes activos: reservar contra un lote caducado en
+            // cuarentena prometería stock que no se puede dispensar.
             const batches = await medicalInventoryService.listMedicalBatches({
-                variant_id: item.variant_id
+                variant_id: item.variant_id,
+                status: "active"
             });
             
             // Ordenamos por fecha de caducidad (FEFO)
