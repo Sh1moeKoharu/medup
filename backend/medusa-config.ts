@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from '@medusajs/framework/utils'
 import * as nodePath from 'path'
+import { HIDDEN_MENU_ROUTES } from './src/lib/menu-policy'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -193,7 +194,7 @@ module.exports = defineConfig({
             return html
           }
 
-          const script = `<script ${marker}>(function(){try{` +
+          const langScript = `<script ${marker}>(function(){try{` +
             `var hasCookie=document.cookie.indexOf('lng=')!==-1;` +
             `var hasStorage=window.localStorage&&window.localStorage.getItem('lng');` +
             `if(!hasCookie&&!hasStorage){` +
@@ -201,7 +202,38 @@ module.exports = defineConfig({
             `if(window.localStorage){window.localStorage.setItem('lng','${lang}');}` +
             `}}catch(e){}})();</script>`
 
-          return html.replace('</head>', `${script}</head>`)
+          /**
+           * Oculta del menú lo que cada rol no puede usar.
+           *
+           * La política se serializa desde src/lib/menu-policy.ts, así que sigue
+           * habiendo un solo archivo TypeScript como fuente de verdad.
+           *
+           * Se inyecta aquí y no en un widget porque los widgets sólo se montan
+           * en zonas concretas — listas de productos, pedidos y clientes —, que
+           * son justamente las pantallas ocultas para el área médica: el widget
+           * nunca llegaría a ejecutarse para un médico.
+           *
+           * ⚠️ Es usabilidad, no seguridad: se esquiva con F12. El control real
+           * son los guards de src/api/middlewares.ts.
+           */
+          const policy = JSON.stringify(HIDDEN_MENU_ROUTES)
+          const menuScript = `<script data-altus-menu>(function(){try{` +
+            `var P=${policy};` +
+            `fetch('/admin/users/me',{credentials:'include'})` +
+            `.then(function(r){return r.ok?r.json():null})` +
+            `.then(function(d){` +
+            `var role=d&&d.user&&d.user.metadata?d.user.metadata.role:null;` +
+            `var hide=role&&P[role]?P[role]:[];` +
+            `if(!hide.length)return;` +
+            `var sel=hide.map(function(h){return 'a[href^="'+h+'"]'}).join(',');` +
+            `var s=document.createElement('style');` +
+            `s.setAttribute('data-altus-menu','');` +
+            `s.innerHTML=sel+'{display:none !important}';` +
+            `document.head.appendChild(s);` +
+            `}).catch(function(){});` +
+            `}catch(e){}})();</script>`
+
+          return html.replace('</head>', `${langScript}${menuScript}</head>`)
         },
       })
 

@@ -1,4 +1,6 @@
-import { Container, Heading, Text, Badge, Button, Table } from "@medusajs/ui";
+import { Container, Heading, Text, Badge, Button, Table, Input } from "@medusajs/ui";
+import { ROLES } from "../../../lib/roles";
+import { useCurrentRole } from "../../lib/use-current-role";
 import { roleLabel } from "../../../lib/roles";
 import { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
@@ -8,6 +10,38 @@ const MedicalOrdersPage = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+    // Punto de entrada para CREAR una orden.
+    // El formulario vive en un widget dentro de la ficha del paciente
+    // (customer.details.after). Sin este atajo, un médico tenía que adivinar
+    // que debía ir a Clientes, abrir un paciente y bajar hasta el final —
+    // fue justo lo que reportó el tester: "no veo dónde generar una receta".
+    const { role } = useCurrentRole();
+    const puedeEmitir = role === ROLES.DOCTOR || role === ROLES.NURSE || role === ROLES.ADMIN;
+    const [buscando, setBuscando] = useState(false);
+    const [termino, setTermino] = useState("");
+    const [pacientes, setPacientes] = useState<any[]>([]);
+    const [buscandoPacientes, setBuscandoPacientes] = useState(false);
+
+    const buscarPacientes = async (q: string) => {
+        setTermino(q);
+        if (q.trim().length < 2) {
+            setPacientes([]);
+            return;
+        }
+        setBuscandoPacientes(true);
+        try {
+            const res = await fetch(`/admin/customers?q=${encodeURIComponent(q)}&limit=8`, {
+                credentials: "include",
+            });
+            const data = await res.json();
+            setPacientes(data.customers || []);
+        } catch (e) {
+            console.error("Error buscando pacientes", e);
+        } finally {
+            setBuscandoPacientes(false);
+        }
+    };
 
     const fetchOrders = async () => {
         setIsLoading(true);
@@ -66,10 +100,59 @@ const MedicalOrdersPage = () => {
                         Órdenes médicas pendientes por surtir. Al surtir, se apartará el stock de los lotes y la orden pasará a caja.
                     </Text>
                 </div>
-                <Button variant="secondary" onClick={fetchOrders} isLoading={isLoading}>
-                    Actualizar
-                </Button>
+                <div className="flex items-center gap-2">
+                    {puedeEmitir && (
+                        <Button variant="primary" onClick={() => setBuscando((v) => !v)}>
+                            {buscando ? "Cancelar" : "Nueva orden médica"}
+                        </Button>
+                    )}
+                    <Button variant="secondary" onClick={fetchOrders} isLoading={isLoading}>
+                        Actualizar
+                    </Button>
+                </div>
             </div>
+
+            {buscando && (
+                <div className="mb-8 p-4 border border-ui-border-base rounded-lg bg-ui-bg-subtle">
+                    <Text className="text-sm font-medium mb-2">
+                        ¿Para qué paciente es la orden?
+                    </Text>
+                    <Text className="text-xs text-ui-fg-muted mb-3">
+                        La orden se emite desde el expediente del paciente. Busca y elige
+                        uno para ir directo a su ficha.
+                    </Text>
+                    <Input
+                        autoFocus
+                        placeholder="Nombre o correo del paciente…"
+                        value={termino}
+                        onChange={(e) => buscarPacientes(e.target.value)}
+                    />
+                    {buscandoPacientes && (
+                        <Text className="text-xs text-ui-fg-muted mt-2">Buscando…</Text>
+                    )}
+                    {!buscandoPacientes && termino.trim().length >= 2 && pacientes.length === 0 && (
+                        <Text className="text-xs text-ui-fg-muted mt-2">
+                            Ningún paciente coincide con "{termino}".
+                        </Text>
+                    )}
+                    {pacientes.length > 0 && (
+                        <div className="flex flex-col mt-3 border border-ui-border-base rounded-md overflow-hidden">
+                            {pacientes.map((p) => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => { window.location.href = `/app/customers/${p.id}`; }}
+                                    className="text-left px-3 py-2 hover:bg-ui-bg-base border-b border-ui-border-base last:border-0"
+                                >
+                                    <span className="text-sm font-medium">
+                                        {[p.first_name, p.last_name].filter(Boolean).join(" ") || p.email}
+                                    </span>
+                                    <span className="text-xs text-ui-fg-muted ml-2">{p.email}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {isLoading && orders.length === 0 ? (
                 <Text>Cargando órdenes...</Text>
