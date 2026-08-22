@@ -48,7 +48,16 @@ export const SetupWizardContent: React.FC<SetupWizardContentProps> = ({
   const router = useRouter();
   const updateSettings = useUpdateSettings({
     onSuccess: () => {
-      router.replace('/products');
+      // Se navega al índice, NO a '/products'.
+      //
+      // Hay tres rutas que definen `products` — (tabs), (doctor) y (nurse) —,
+      // así que '/products' es ambiguo y la navegación no resuelve: el
+      // asistente se quedaba en la pantalla final con el botón sin efecto
+      // aparente, aunque los ajustes sí se habían guardado.
+      //
+      // El índice ya decide el destino según el rol, que además es lo correcto:
+      // un médico no debe aterrizar en la vista de caja.
+      router.replace('/');
     },
   });
 

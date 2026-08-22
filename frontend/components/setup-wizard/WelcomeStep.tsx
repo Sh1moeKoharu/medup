@@ -12,23 +12,22 @@ interface WelcomeStepProps {
 export const WelcomeStep: React.FC<WelcomeStepProps> = ({ onComplete, isPending }) => {
   return (
     <Layout className="pb-6">
-      <Text className="mb-6 text-4xl">Welcome</Text>
-      <Text className="mb-2 text-2xl">You&apos;re all set to start selling</Text>
+      <Text className="mb-6 text-4xl">Bienvenido</Text>
+      <Text className="mb-2 text-2xl">Todo listo para comenzar</Text>
       <Text className="mb-6 text-gray-600">
-        Your Point of Sale system is now configured and ready to use. You can start managing your sales, products, and
-        customers right away.
+        El punto de venta quedó configurado y listo para usarse. Ya puedes gestionar ventas, productos y pacientes.
       </Text>
 
-      <Text className="mb-4 text-gray-600">Here are some things you can do next:</Text>
-      <Text className="mb-2 text-gray-600">• Browse products and add them to cart</Text>
-      <Text className="mb-2 text-gray-600">• Process customer orders</Text>
-      <Text className="mb-2 text-gray-600">• Scan barcodes for quick adding to cart</Text>
-      <Text className="mb-6 text-gray-600">• Track sales and inventory</Text>
+      <Text className="mb-4 text-gray-600">Esto es lo que puedes hacer ahora:</Text>
+      <Text className="mb-2 text-gray-600">• Consultar el catálogo y armar el carrito</Text>
+      <Text className="mb-2 text-gray-600">• Procesar pedidos y cobrar</Text>
+      <Text className="mb-2 text-gray-600">• Escanear códigos de barras</Text>
+      <Text className="mb-6 text-gray-600">• Dar seguimiento a ventas e inventario</Text>
 
       <View className="flex-1" />
 
       <Button onPress={onComplete} isPending={isPending}>
-        Get Started
+        Comenzar
       </Button>
     </Layout>
   );

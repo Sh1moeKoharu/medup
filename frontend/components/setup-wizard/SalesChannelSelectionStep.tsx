@@ -23,8 +23,8 @@ export const SalesChannelSelectionStep: React.FC<SalesChannelSelectionStepProps>
 
   return (
     <View className="flex-1 p-5">
-      <Text className="mb-6 text-4xl">Setting Up</Text>
-      <Text className="mb-2 text-2xl">Choose a sales channel</Text>
+      <Text className="mb-6 text-4xl">Configuración inicial</Text>
+      <Text className="mb-2 text-2xl">Elige un canal de venta</Text>
       <Text className="mb-6 text-gray-300">
         Select an existing sales channel from the list or create a new one to proceed.
       </Text>
