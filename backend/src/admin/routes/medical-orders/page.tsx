@@ -2,6 +2,7 @@ import { Container, Heading, Text, Badge, Button, Table } from "@medusajs/ui";
 import { roleLabel } from "../../../lib/roles";
 import { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
+import { Receipt } from "@medusajs/icons";
 
 const MedicalOrdersPage = () => {
     const [orders, setOrders] = useState<any[]>([]);
@@ -141,7 +142,7 @@ const MedicalOrdersPage = () => {
 
 export const config = defineRouteConfig({
     label: "Órdenes Médicas",
-    icon: "Plus", // Medusa icons
+    icon: Receipt,
 });
 
 export default MedicalOrdersPage;

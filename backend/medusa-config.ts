@@ -158,6 +158,55 @@ module.exports = defineConfig({
   },
   admin: {
     disable: false,
+    /**
+     * Idioma inicial del panel de administración.
+     *
+     * EL PROBLEMA: el admin detecta el idioma con react-i18next en el orden
+     * `cookie -> localStorage -> header`, con respaldo en inglés. Es decir que
+     * depende de la configuración del navegador de cada usuario. Para un
+     * cliente nacional eso significa que unos ven el menú en español y otros en
+     * inglés, sin razón aparente.
+     *
+     * `AdminOptions` no expone ninguna opción de idioma (sólo disable, path,
+     * backendUrl, storefrontUrl y este hook `vite`), y tampoco sirve un
+     * middleware: el admin se monta en `promiseAll` ANTES que los middlewares
+     * del proyecto, así que una ruta nuestra sobre /app nunca se ejecutaría.
+     *
+     * SOLUCIÓN: se inyecta un script en el index.html del admin durante el
+     * build. Corre antes que la aplicación y siembra la preferencia de idioma
+     * que i18next leerá después.
+     *
+     * Respeta al usuario: sólo escribe si NO hay preferencia previa, así que
+     * quien cambie el idioma desde Ajustes conserva su elección.
+     */
+    vite: (config: any) => {
+      const lang = process.env.ADMIN_DEFAULT_LANGUAGE || 'es'
+
+      config.plugins = config.plugins || []
+      config.plugins.push({
+        name: 'altus-default-admin-language',
+        transformIndexHtml(html: string) {
+          // Vite invoca este hook más de una vez, así que se marca el script
+          // para no duplicarlo en el HTML final.
+          const marker = 'data-altus-lang'
+          if (html.includes(marker)) {
+            return html
+          }
+
+          const script = `<script ${marker}>(function(){try{` +
+            `var hasCookie=document.cookie.indexOf('lng=')!==-1;` +
+            `var hasStorage=window.localStorage&&window.localStorage.getItem('lng');` +
+            `if(!hasCookie&&!hasStorage){` +
+            `document.cookie='lng=${lang};path=/;max-age=31536000';` +
+            `if(window.localStorage){window.localStorage.setItem('lng','${lang}');}` +
+            `}}catch(e){}})();</script>`
+
+          return html.replace('</head>', `${script}</head>`)
+        },
+      })
+
+      return config
+    },
   },
   modules: [
     ...infrastructureModules,

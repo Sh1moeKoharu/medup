@@ -2,6 +2,7 @@ import { Container, Heading, Text, Table, Badge, Button } from "@medusajs/ui";
 import { ROLES, normalizeRole, roleLabel } from "../../../lib/roles";
 import React, { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
+import { DocumentText } from "@medusajs/icons";
 
 const AuditLogsPage = () => {
     const [logs, setLogs] = useState<any[]>([]);
@@ -149,7 +150,13 @@ const AuditLogsPage = () => {
                                     {/* Expandable JSON Row */}
                                     {expandedLog === log.id && (
                                         <Table.Row className="bg-ui-bg-subtle">
-                                            <Table.Cell colSpan={6} className="p-4 border-t border-ui-border-base">
+                                            {/* `Table.Cell` de Medusa no declara `colSpan` en sus
+                                                tipos, aunque renderiza un <td> que sí lo soporta.
+                                                Se pasa con cast para no perder la fusión de columnas. */}
+                                            <Table.Cell
+                                                {...({ colSpan: 6 } as any)}
+                                                className="p-4 border-t border-ui-border-base"
+                                            >
                                                 <div className="bg-ui-bg-base border border-ui-border-strong rounded-md p-4">
                                                     <Text className="text-xs font-bold mb-2 uppercase text-ui-fg-muted">Datos Enviados (Payload)</Text>
                                                     <pre className="text-xs font-mono whitespace-pre-wrap break-words text-ui-fg-base overflow-x-auto">
@@ -171,7 +178,7 @@ const AuditLogsPage = () => {
 
 export const config = defineRouteConfig({
     label: "Auditoría",
-    icon: "DocumentText",
+    icon: DocumentText,
 });
 
 export default AuditLogsPage;

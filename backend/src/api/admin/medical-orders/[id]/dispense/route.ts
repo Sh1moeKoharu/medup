@@ -32,7 +32,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         });
 
         // 2. Por cada item, apartar (reservar) la cantidad del inventario de lotes FEFO
-        const errors = [];
+        // Tipado explicito: sin el, TypeScript infiere never[] y cada build
+        // terminaba con "completed with errors".
+        const errors: string[] = [];
         for (const item of order.items) {
             // Obtener lotes activos de esta variante, ordenados por caducidad (FEFO)
             // Sólo lotes activos: reservar contra un lote caducado en
