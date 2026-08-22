@@ -107,6 +107,80 @@ systemctl status altus --no-pager
 
 ---
 
+## 7. Carga de datos
+
+### Inventario (desde el Excel del almacén)
+
+El archivo NO vive en el repo: contiene existencias, laboratorios y facturas
+reales. Cópialo al servidor (AnyDesk tiene transferencia de archivos) y corre
+primero la simulación:
+
+```
+npx medusa exec ./src/scripts/import-inventory.ts ~/inventario.xlsx
+npx medusa exec ./src/scripts/import-inventory.ts ~/inventario.xlsx apply
+```
+
+Reporta las filas que no puede interpretar en vez de inventar datos. Es
+idempotente por `handle` de producto y por número de lote.
+
+### Pacientes de prueba
+
+```
+npm run seed:patients
+```
+
+12 pacientes con expediente (8 particulares, 4 con convenio) y los 3 convenios
+empresariales que los respaldan.
+
+---
+
+## Puesta al día de un servidor ya montado
+
+Orden importa: las variables antes de compilar, y el servicio antes de
+arrancar.
+
+```
+# 1 · Código y dependencias
+cd ~/altus && git pull
+cd backend && npm ci
+
+# 2 · Variables nuevas (una sola vez)
+sudo mkdir -p /var/lib/altus && sudo chown altus:altus /var/lib/altus
+echo 'ALTUS_DATA_DIR=/var/lib/altus' | sudo tee -a /etc/altus/backend.env
+
+# 3 · Compilar y reinstalar dependencias de ejecución
+npm run build
+cd .medusa/server && npm ci --omit=dev
+
+# 4 · Servicio (la unidad cambia cuando se agregan ExecStartPre u otros)
+sudo cp ~/altus/backend/deploy/altus.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl restart altus
+```
+
+Verificación mínima después de cada actualización:
+
+```
+systemctl status altus --no-pager | head -5
+ls -l ~/altus/backend/.medusa/server/static     # debe ser un enlace
+curl localhost:9000/health
+```
+
+### Acceso desde otros equipos de la red
+
+Los orígenes CORS y la URL pública se declaran explícitamente. Sustituye la IP:
+
+```
+sudo sed -i 's|^ADMIN_CORS=.*|ADMIN_CORS=http://localhost:9000,http://192.168.1.114:9000|' /etc/altus/backend.env
+sudo sed -i 's|^AUTH_CORS=.*|AUTH_CORS=http://localhost:9000,http://192.168.1.114:9000|' /etc/altus/backend.env
+echo 'MEDUSA_BACKEND_URL=http://192.168.1.114:9000' | sudo tee -a /etc/altus/backend.env
+sudo systemctl restart altus
+```
+
+Sin esto el admin carga pero falla al autenticar, y las imágenes de producto
+apuntarían a `localhost` desde el dispositivo del usuario.
+
+---
+
 ## Dos trampas que cuestan una tarde
 
 **El servidor se ejecuta desde `.medusa/server`, no desde la raíz.**
@@ -133,11 +207,6 @@ administrador. La solución correcta es poner TLS delante.
 
 ## Pendientes conocidos
 
-- **`reports/` y `static/`** se escriben relativo al directorio de trabajo, o
-  sea dentro de `.medusa/server`, y `medusa build` los borra en cada
-  compilación. `static/` guarda las imágenes de productos que la base
-  referencia por URL. Hay que moverlos a una ruta persistente con enlace
-  simbólico.
 - **Respaldos**: `pg_dump` cifrado y fuera del servidor. Un respaldo que vive
   en la misma máquina no es un respaldo; y uno que nunca se restauró tampoco
   cuenta.
