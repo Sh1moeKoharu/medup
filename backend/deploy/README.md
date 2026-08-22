@@ -134,6 +134,74 @@ empresariales que los respaldan.
 
 ---
 
+## 8. Punto de venta (POS)
+
+El cobro NO vive en el panel de administración: es una aplicación aparte
+(`frontend/`, hecha con Expo). El panel sólo tiene el *corte* de caja.
+
+### Compilar
+
+La URL del servidor se **hornea en el bundle** al compilar, así que hay que
+fijarla antes:
+
+```
+cd ~/altus/frontend
+npm ci
+echo 'EXPO_PUBLIC_MEDUSA_API_URL=http://192.168.1.114' > .env
+npm run build:web
+```
+
+Sustituye la IP por la del servidor (o el dominio, cuando lo haya). Si cambia,
+hay que recompilar.
+
+### Publicar
+
+```
+sudo mkdir -p /var/www/altus-pos
+sudo cp -r dist/* /var/www/altus-pos/
+sudo chown -R www-data:www-data /var/www/altus-pos
+```
+
+### Nginx
+
+```
+sudo apt install -y nginx
+sudo cp ~/altus/backend/deploy/altus-nginx.conf /etc/nginx/sites-available/altus
+sudo ln -sfn /etc/nginx/sites-available/altus /etc/nginx/sites-enabled/altus
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+A partir de aquí todo se sirve desde **un mismo origen**, lo que elimina CORS:
+
+| Dirección | Qué es |
+|---|---|
+| `http://192.168.1.114/` | POS |
+| `http://192.168.1.114/app` | Panel de administración |
+| `http://192.168.1.114/admin`, `/auth`, `/store` | API |
+
+Con Nginx delante puedes simplificar los orígenes en `/etc/altus/backend.env`,
+porque ya no hay peticiones entre orígenes distintos:
+
+```
+sudo sed -i 's|^ADMIN_CORS=.*|ADMIN_CORS=http://192.168.1.114|' /etc/altus/backend.env
+sudo sed -i 's|^AUTH_CORS=.*|AUTH_CORS=http://192.168.1.114|' /etc/altus/backend.env
+sudo sed -i 's|^MEDUSA_BACKEND_URL=.*|MEDUSA_BACKEND_URL=http://192.168.1.114|' /etc/altus/backend.env
+sudo systemctl restart altus
+```
+
+### Primer arranque del POS
+
+Al entrar pide región, canal de venta y ubicación de inventario; trae un
+asistente que los crea. Son datos de Medusa que la base nueva no tiene.
+
+> ⚠️ **Los productos importados no tienen precio.** El Excel del almacén trae
+> lote, caducidad y existencia, pero ninguna columna de precio de venta. El POS
+> mostrará el catálogo y permitirá armar el carrito, pero los importes saldrán
+> en cero. Para probar cobros de verdad hace falta una lista de precios.
+
+---
+
 ## Puesta al día de un servidor ya montado
 
 Orden importa: las variables antes de compilar, y el servicio antes de

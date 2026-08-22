@@ -70,8 +70,20 @@ export default function LoginScreen() {
     }
   };
 
+  // La URL del servidor se precarga desde EXPO_PUBLIC_MEDUSA_API_URL, que se
+  // hornea en el bundle al compilar. Antes la variable existía en .env pero no
+  // se usaba en ninguna parte, así que el cajero tenía que teclear la dirección
+  // completa del servidor en cada dispositivo nuevo.
+  //
+  // Sigue siendo editable a propósito: permite apuntar a otro servidor sin
+  // recompilar. Una sesión previa tiene prioridad sobre el valor por omisión.
+  const configuredUrl = process.env.EXPO_PUBLIC_MEDUSA_API_URL ?? '';
+
   const defaultValues: Partial<LoginFormData> = {
-    medusaUrl: auth.state.status !== 'loading' ? (auth.state.medusaUrl ?? '') : '',
+    medusaUrl:
+      auth.state.status !== 'loading'
+        ? (auth.state.medusaUrl ?? configuredUrl)
+        : '',
     email: '',
     password: '',
   };
