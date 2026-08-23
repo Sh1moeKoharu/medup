@@ -182,6 +182,9 @@ module.exports = defineConfig({
      */
     vite: (config: any) => {
       const lang = process.env.ADMIN_DEFAULT_LANGUAGE || 'es'
+      // Dirección del POS para el atajo del menú. Con la config de Nginx
+      // del repo, el POS vive en la raíz del mismo origen.
+      const posUrl = process.env.ADMIN_POS_URL || '/'
 
       config.plugins = config.plugins || []
       config.plugins.push({
@@ -233,7 +236,9 @@ module.exports = defineConfig({
             `}).catch(function(){});` +
             `}catch(e){}})();</script>`
 
-          return html.replace('</head>', `${langScript}${menuScript}</head>`)
+          const posScript = `<script data-altus-pos>window.__ALTUS_POS_URL__=${JSON.stringify(posUrl)};</script>`
+
+          return html.replace('</head>', `${langScript}${posScript}${menuScript}</head>`)
         },
       })
 

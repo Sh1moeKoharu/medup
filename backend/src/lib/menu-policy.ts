@@ -64,6 +64,7 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   // Área médica: sólo órdenes médicas y expedientes de pacientes.
   // Es lo que pidió el cliente de forma explícita.
   [ROLES.DOCTOR]: [
+    "/app/pos",
     "/app/staff",
     "/app/audit-logs",
     "/app/cash-sessions",
@@ -80,6 +81,7 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   ],
 
   [ROLES.NURSE]: [
+    "/app/pos",
     "/app/staff",
     "/app/audit-logs",
     "/app/cash-sessions",
