@@ -131,7 +131,7 @@ const B2BAgreementsPage = () => {
                 <div className="flex items-center justify-between">
                     <div>
                         <Heading level="h1" className="text-ui-fg-base text-2xl font-bold">
-                            🤝 Convenios B2B
+                            Convenios B2B
                         </Heading>
                         <Text className="text-ui-fg-subtle text-sm mt-1">
                             Gestión de convenios empresariales: descuentos, crédito y vigencia
@@ -146,7 +146,6 @@ const B2BAgreementsPage = () => {
 
                 {successMsg && (
                     <div className="flex items-center gap-2 p-3 bg-ui-tag-green-bg rounded-md border border-ui-tag-green-border">
-                        <span>✅</span>
                         <Text className="text-ui-tag-green-text text-sm font-medium">{successMsg}</Text>
                     </div>
                 )}
@@ -226,7 +225,7 @@ const B2BAgreementsPage = () => {
                                         {!isAuditor && (
                                             <Table.Cell>
                                                 <Button variant="secondary" size="small" onClick={(e) => { e.stopPropagation(); setDeleteConfirm(a.id); }}>
-                                                    🗑
+                                                    
                                                 </Button>
                                             </Table.Cell>
                                         )}
@@ -256,7 +255,7 @@ const B2BAgreementsPage = () => {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
                         <div className="bg-ui-bg-base p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                             <Heading level="h2" className="text-ui-fg-base text-lg font-bold mb-4">
-                                {editingId ? "✏️ Editar Convenio" : "➕ Nuevo Convenio"}
+                                {editingId ? "Editar Convenio" : "Nuevo Convenio"}
                             </Heading>
                             <div className="flex flex-col gap-4">
                                 {/* Company Name */}

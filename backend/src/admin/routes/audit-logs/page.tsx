@@ -60,7 +60,6 @@ const AuditLogsPage = () => {
     if (!hasAccess) {
         return (
             <Container className="p-8 flex flex-col items-center justify-center min-h-[400px]">
-                <span className="text-4xl mb-4">⛔</span>
                 <Heading level="h2">Acceso Denegado</Heading>
                 <Text className="text-ui-fg-subtle mt-2">
                     Tu rol no tiene permisos para ver la bitácora inalterable de auditoría.
@@ -81,7 +80,7 @@ const AuditLogsPage = () => {
     return (
         <Container className="p-8">
             <div className="mb-8">
-                <Heading level="h1">Bitácora de Auditoría 🕵️</Heading>
+                <Heading level="h1">Bitácora de Auditoría</Heading>
                 <Text className="text-ui-fg-subtle mt-1">
                     Registro inalterable de todas las acciones de modificación, creación, eliminación y logins dentro del sistema.
                 </Text>

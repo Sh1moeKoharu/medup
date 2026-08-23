@@ -133,15 +133,15 @@ const CashSessionsPage = () => {
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
                         <div style={cardStyle}>
-                            <Text size="small" style={{ color: "#6b7280" }}>💵 Efectivo</Text>
+                            <Text size="small"style={{ color: "#6b7280" }}>Efectivo</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_cash)}</Text>
                         </div>
                         <div style={cardStyle}>
-                            <Text size="small" style={{ color: "#6b7280" }}>💳 Tarjeta</Text>
+                            <Text size="small"style={{ color: "#6b7280" }}>Tarjeta</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_card)}</Text>
                         </div>
                         <div style={cardStyle}>
-                            <Text size="small" style={{ color: "#6b7280" }}>🏦 Transferencia</Text>
+                            <Text size="small"style={{ color: "#6b7280" }}>Transferencia</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_transfer)}</Text>
                         </div>
                     </div>
@@ -158,10 +158,10 @@ const CashSessionsPage = () => {
                                     <Text size="small" style={{ color: "#6b7280" }}>Resultado del corte</Text>
                                     <Text weight="plus" style={{ fontSize: 18 }}>
                                         {selectedSession.difference === 0
-                                            ? "✅ Caja Cuadrada"
+                                           ? "Caja Cuadrada"
                                             : selectedSession.difference > 0
-                                                ? `📈 Sobrante: ${formatCurrency(selectedSession.difference)}`
-                                                : `📉 Faltante: ${formatCurrency(Math.abs(selectedSession.difference))}`}
+                                               ? `Sobrante: ${formatCurrency(selectedSession.difference)}`
+                                               : `Faltante: ${formatCurrency(Math.abs(selectedSession.difference))}`}
                                     </Text>
                                 </div>
                                 <div style={{ textAlign: "right" }}>

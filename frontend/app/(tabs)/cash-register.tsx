@@ -56,10 +56,20 @@ const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }
 };
 
 const METHOD_LABELS: Record<string, string> = {
-  cash: '💵 Efectivo',
-  card: '💳 Tarjeta',
-  transfer: '🏦 Transferencia',
-  other: '📝 Otro',
+ cash: 'Efectivo',
+ card: 'Tarjeta',
+ transfer: 'Transferencia',
+ other: 'Otro',
+};
+
+// Abreviatura para el distintivo circular de cada movimiento. Antes se sacaba
+// con METHOD_LABELS[...].slice(0, 2), que recortaba el emoji del inicio de la
+// etiqueta; al quitarlos ese recorte habria devuelto "Ef", "Ta", "Tr".
+const METHOD_SHORT: Record<string, string> = {
+ cash: 'EF',
+ card: 'TJ',
+ transfer: 'TR',
+ other: 'OT',
 };
 
 // ──────────────────────────────────────────────────
@@ -75,7 +85,7 @@ const MovementRow: React.FC<{ item: CashMovement; currencyCode?: string }> = ({
   return (
     <View className="flex-row items-center gap-3 py-3 border-b border-gray-100">
       <View className="h-8 w-8 items-center justify-center rounded-full bg-gray-50">
-        <Text className="text-xs">{METHOD_LABELS[item.payment_method]?.slice(0, 2) || '📝'}</Text>
+        <Text className="text-xs">{METHOD_SHORT[item.payment_method] || 'OT'}</Text>
       </View>
       <View className="flex-1">
         <View className="flex-row items-center gap-2">
@@ -132,7 +142,6 @@ const OpenSessionView: React.FC = () => {
 
       <View className="flex-1 items-center justify-center gap-4">
         <View className="h-20 w-20 items-center justify-center rounded-full bg-gray-50">
-          <Text className="text-4xl">🔐</Text>
         </View>
         <Text className="text-xl font-medium">La caja está cerrada</Text>
         <Text className="text-center text-gray-400">
@@ -240,15 +249,15 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           <View className="mb-4 rounded-xl border border-gray-200 p-4 gap-3">
             <Text className="text-sm font-medium text-gray-500">Ventas por método de pago</Text>
             <View className="flex-row justify-between">
-              <Text className="text-sm">💵 Efectivo</Text>
+              <Text className="text-sm">Efectivo</Text>
               <Text className="text-sm font-medium">{formatCurrency(summary.sales_cash, currencyCode)}</Text>
             </View>
             <View className="flex-row justify-between">
-              <Text className="text-sm">💳 Tarjeta</Text>
+              <Text className="text-sm">Tarjeta</Text>
               <Text className="text-sm font-medium">{formatCurrency(summary.sales_card, currencyCode)}</Text>
             </View>
             <View className="flex-row justify-between">
-              <Text className="text-sm">🏦 Transferencia</Text>
+              <Text className="text-sm">Transferencia</Text>
               <Text className="text-sm font-medium">{formatCurrency(summary.sales_transfer, currencyCode)}</Text>
             </View>
             {summary.refunds_total > 0 && (
@@ -266,7 +275,7 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
 
           {/* ── Efectivo en caja ── */}
           <View className="mb-4 rounded-xl border-2 border-black p-4 gap-2">
-            <Text className="text-sm font-medium">💰 Efectivo esperado en caja</Text>
+            <Text className="text-sm font-medium">Efectivo esperado en caja</Text>
             <Text className="text-2xl font-bold">
               {formatCurrency(summary.expected_cash_in_register, currencyCode)}
             </Text>
@@ -368,10 +377,10 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
               <View className="flex-row justify-between items-center">
                 <Text className="text-sm">
                   {Number(closingAmount) === summary.expected_cash_in_register
-                    ? '✅ Caja cuadrada'
+                   ? 'Caja cuadrada'
                     : Number(closingAmount) > summary.expected_cash_in_register
-                      ? '📈 Sobrante'
-                      : '📉 Faltante'}
+                     ? 'Sobrante'
+                     : 'Faltante'}
                 </Text>
                 <Text className="text-lg font-bold">
                   {formatCurrency(

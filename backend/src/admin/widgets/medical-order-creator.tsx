@@ -147,7 +147,6 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
         <Container className="p-6 mb-4 mt-4 bg-ui-bg-subtle rounded-lg border border-ui-border-strong shadow-sm">
             <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                    <span className="text-2xl">🩺</span>
                     <div>
                         <Heading level="h2" className="text-ui-fg-base text-lg font-bold">
                             Generar Orden Médica / Receta
@@ -160,7 +159,7 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
 
                 {successMsg && (
                     <div className="p-3 bg-ui-tag-green-bg border border-ui-tag-green-border text-ui-tag-green-text rounded-md font-medium text-sm">
-                        ✅ {successMsg}
+                         {successMsg}
                     </div>
                 )}
 

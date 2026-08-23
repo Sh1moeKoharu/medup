@@ -23,7 +23,7 @@ export default function InventoryBatchesPage() {
     return (
         <Container className="p-8">
             <Heading level="h1" className="mb-4 text-ui-fg-base">
-                📋 Lotes y Caducidades
+                Lotes y Caducidades
             </Heading>
             <Text className="text-ui-fg-subtle mb-8">
                 Aquí puedes ver todos los lotes de inventario (Batches) dados de alta, junto a sus fechas de caducidad. El sistema FEFO descuenta automáticamente primero a los que aparecen arriba en esta lista (más próximos a caducar).

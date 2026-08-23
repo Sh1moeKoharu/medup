@@ -43,7 +43,7 @@ const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical;
                     })()}
 
                     <Text className="text-lg text-gray-600 mb-1">{customer.email}</Text>
-                    {customer.phone && <Text className="text-lg text-gray-600 mt-1">📞 {customer.phone}</Text>}
+                    {customer.phone && <Text className="text-lg text-gray-600 mt-1">{customer.phone}</Text>}
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;

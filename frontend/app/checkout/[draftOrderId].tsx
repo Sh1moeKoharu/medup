@@ -22,10 +22,10 @@ import { Image, View, TextInput, TouchableOpacity } from 'react-native';
 
 type PaymentMethod = 'cash' | 'card' | 'transfer';
 
-const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: string }[] = [
-  { key: 'cash', label: 'Efectivo', icon: '💵' },
-  { key: 'card', label: 'Tarjeta', icon: '💳' },
-  { key: 'transfer', label: 'Transferencia', icon: '🏦' },
+const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
+  { key: 'cash', label: 'Efectivo' },
+  { key: 'card', label: 'Tarjeta' },
+  { key: 'transfer', label: 'Transferencia' },
 ];
 
 const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
@@ -194,7 +194,7 @@ export default function CheckoutScreen() {
           />
           {draftOrder.data?.customer && (draftOrder.data.customer as any).medical_customer?.customer_type === 'b2b' && (
             <View className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-xl">
-              <Text className="text-purple-700 font-bold">🏥 B2B Hospital Pricing Applied</Text>
+              <Text className="text-purple-700 font-bold">B2B Hospital Pricing Applied</Text>
               <Text className="text-purple-600 text-xs mt-1">
                 Policy/Company: {(draftOrder.data.customer as any).medical_customer.company_name}
               </Text>
@@ -266,8 +266,7 @@ export default function CheckoutScreen() {
                 }`}
                 activeOpacity={0.7}
               >
-                <Text className="text-xl">{method.icon}</Text>
-                <Text className={`mt-1 text-xs ${paymentMethod === method.key ? 'font-bold' : 'text-gray-400'}`}>
+                <Text className={`text-sm ${paymentMethod === method.key ? 'font-bold' : 'text-gray-500'}`}>
                   {method.label}
                 </Text>
               </TouchableOpacity>
@@ -299,7 +298,7 @@ export default function CheckoutScreen() {
                   </Text>
                 </View>
                 {Number(cashReceived) < (draftOrder.data.total || 0) && (
-                  <Text className="mt-1 text-xs text-red-500">⚠️ Monto insuficiente</Text>
+                  <Text className="mt-1 text-xs text-red-500">Monto insuficiente</Text>
                 )}
               </View>
             )}
@@ -310,7 +309,7 @@ export default function CheckoutScreen() {
         {!cashSession.isLoading && !cashSession.data && (
           <View className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <Text className="text-xs text-yellow-700">
-              ⚠️ No hay sesión de caja abierta. El pago se registrará pero no se vinculará a un corte de caja.
+              No hay sesión de caja abierta. El pago se registrará pero no se vinculará a un corte de caja.
             </Text>
           </View>
         )}

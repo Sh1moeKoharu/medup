@@ -120,7 +120,7 @@ const CustomersByCompanyPage = () => {
                             {/* Company header */}
                             <div className="px-6 py-4 bg-ui-bg-subtle border-b border-ui-border-base flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <span className="text-xl">{company === "Sin Empresa" ? "👤" : "🏢"}</span>
+                                    <span className="text-xl">{company === "Sin Empresa" ? "" : ""}</span>
                                     <Heading level="h2" className="text-ui-fg-base text-base font-semibold">
                                         {company}
                                     </Heading>

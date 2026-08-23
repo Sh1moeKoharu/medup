@@ -147,7 +147,7 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
             <div className="flex flex-col gap-6">
                 <div>
                     <Heading level="h2" className="text-ui-fg-base text-xl">
-                        Expediente del Medicamento 💊
+                       Expediente del Medicamento
                     </Heading>
                     <Text className="text-ui-fg-subtle text-sm mt-1">
                         Registra la información clínica, regulatoria y de costos del producto. 
@@ -251,7 +251,7 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
                         
                         {/* Lotes Activos */}
                         <div className="col-span-2 border border-ui-border-base p-4 rounded-md bg-ui-bg-subtle mt-4">
-                            <Heading level="h3" className="text-sm font-medium mb-3">📦 Lotes Activos de este Medicamento</Heading>
+                            <Heading level="h3"className="text-sm font-medium mb-3">Lotes Activos de este Medicamento</Heading>
                             {batches.length === 0 ? (
                                 <Text className="text-xs text-ui-fg-muted">No se han registrado lotes para esta variante.</Text>
                             ) : (

@@ -95,7 +95,7 @@ const MedicalOrdersPage = () => {
         <Container className="p-8">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <Heading level="h1">Bandeja de Farmacia 💊</Heading>
+                    <Heading level="h1">Bandeja de Farmacia</Heading>
                     <Text className="text-ui-fg-subtle mt-1">
                         Órdenes médicas pendientes por surtir. Al surtir, se apartará el stock de los lotes y la orden pasará a caja.
                     </Text>
@@ -174,7 +174,7 @@ const MedicalOrdersPage = () => {
                                         </Text>
                                     </div>
                                     <Text className="text-sm font-medium">
-                                        👨‍⚕️ Emitida por: {order.creator_name} ({roleLabel(order.creator_role)})
+                                        Emitida por: {order.creator_name} ({roleLabel(order.creator_role)})
                                     </Text>
                                     {order.notes && (
                                         <Text className="text-sm text-ui-fg-subtle mt-2 italic">

@@ -238,7 +238,6 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <span className="text-2xl">🏢</span>
                         <div>
                             <Heading level="h2" className="text-ui-fg-base text-lg font-bold">
                                 Datos Corporativos del Cliente
@@ -271,7 +270,6 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
 
                 {saveSuccess && (
                     <div className="flex items-center gap-2 p-3 bg-ui-tag-green-bg rounded-md border border-ui-tag-green-border">
-                        <span>✅</span>
                         <Text className="text-ui-tag-green-text text-sm font-medium">
                             Datos guardados correctamente
                         </Text>
@@ -373,7 +371,6 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                         {/* Protected fields section */}
                         <div className="flex flex-col gap-3 p-4 rounded-lg border border-ui-border-strong bg-ui-bg-base">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">🔒</span>
                                 <Text className="text-sm font-semibold text-ui-fg-base">
                                     Campos Protegidos
                                 </Text>

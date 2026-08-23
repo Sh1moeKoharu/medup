@@ -207,7 +207,7 @@ export default function ProductsScreen() {
       {!cashSession.isLoading && !cashSession.data && (
         <View className="mt-4 mx-auto w-full max-w-2xl rounded-xl border border-yellow-200 bg-yellow-50 p-3">
           <Text className="text-center text-sm text-yellow-700 font-medium">
-            ⚠️ Abre una sesión en la pestaña 'Caja' para poder añadir productos a la venta.
+            Abre una sesión en la pestaña 'Caja'para poder añadir productos a la venta.
           </Text>
         </View>
       )}

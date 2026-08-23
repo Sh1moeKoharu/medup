@@ -57,7 +57,6 @@ const PosRedirectPage = () => {
 
     return (
         <Container className="p-8 flex flex-col items-center justify-center min-h-[400px] gap-4">
-            <span className="text-4xl">🛒</span>
             <Heading level="h2">Punto de Venta</Heading>
 
             {redirigiendo ? (

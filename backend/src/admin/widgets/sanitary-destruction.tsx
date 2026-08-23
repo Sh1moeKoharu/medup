@@ -146,7 +146,6 @@ const SanitaryDestructionWidget = ({ data: product }: { data: any }) => {
         <Container className="p-6 mb-4 mt-4 bg-ui-bg-base rounded-lg border-2 border-ui-tag-red-border shadow-sm">
             <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                    <span className="text-3xl">☣️</span>
                     <div>
                         <Heading level="h2" className="text-ui-fg-base text-xl text-ui-tag-red-text font-bold">
                             Lotes en cuarentena

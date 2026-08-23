@@ -64,7 +64,7 @@ const ExpirationWidget = () => {
     return (
         <Container className="p-4 mb-4 mt-4 bg-ui-bg-base rounded-lg border border-ui-border-base shadow-sm">
             <Heading level="h2" className="text-ui-fg-base mb-2 flex items-center gap-2">
-                <span>⚠️</span> Lotes próximos a caducar (90 días)
+                <span></span>Lotes próximos a caducar (90 días)
             </Heading>
 
             {loading && <Text>Cargando inventario...</Text>}
