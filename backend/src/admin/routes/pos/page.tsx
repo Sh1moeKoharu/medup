@@ -24,11 +24,35 @@ import { useEffect, useState } from "react";
 
 const DEFAULT_POS_URL = "/";
 
+/** Puerto en el que escucha Medusa. Ver deploy/altus-nginx.conf. */
+const PUERTO_BACKEND = "9000";
+
 function getPosUrl(): string {
     if (typeof window === "undefined") {
         return DEFAULT_POS_URL;
     }
-    return (window as any).__ALTUS_POS_URL__ || DEFAULT_POS_URL;
+
+    const configurada = (window as any).__ALTUS_POS_URL__ || DEFAULT_POS_URL;
+
+    // Si la dirección es absoluta, se respeta tal cual.
+    if (/^https?:\/\//i.test(configurada)) {
+        return configurada;
+    }
+
+    /**
+     * Una ruta relativa se resuelve contra el origen ACTUAL. Si alguien abrió el
+     * panel directamente contra el backend —`http://servidor:9000/app`, saltándose
+     * Nginx— entonces "/" apunta al propio backend, que no sirve el POS y responde
+     * "Cannot GET /".
+     *
+     * En ese caso se apunta al mismo host sin puerto, que es donde Nginx publica
+     * el POS. Con el panel abierto por Nginx (lo normal) esto no se activa.
+     */
+    if (window.location.port === PUERTO_BACKEND) {
+        return `${window.location.protocol}//${window.location.hostname}${configurada}`;
+    }
+
+    return configurada;
 }
 
 const PosRedirectPage = () => {
