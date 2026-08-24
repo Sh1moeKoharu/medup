@@ -11,7 +11,7 @@ export default function CreateRegionScreen() {
   return (
     <LayoutWithKeyboardAvoidingScroll>
       <Text className="mb-6 text-4xl">Setting Up</Text>
-      <Text className="mb-2 text-2xl">Create a region</Text>
+      <Text className="mb-2 text-2xl">Crear una región</Text>
       <Text className="mb-6 text-gray-300">
         Create a new region that defines your market area, currency, and tax settings.
       </Text>
@@ -32,7 +32,7 @@ export default function CreateRegionScreen() {
       />
 
       <Button variant="outline" className="mt-4" onPress={() => router.back()}>
-        Cancel
+        Cancelar
       </Button>
     </LayoutWithKeyboardAvoidingScroll>
   );

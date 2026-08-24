@@ -87,7 +87,7 @@ const paymentStatuses: Record<
     icon: CheckCircle,
   },
   not_paid: {
-    label: 'Not paid',
+    label: 'Sin pagar',
     color: 'red',
     icon: X,
   },
@@ -127,7 +127,7 @@ const fulfillmentStatuses: Record<
   }
 > = {
   not_fulfilled: {
-    label: 'Not fulfilled',
+    label: 'Sin surtir',
     color: 'red',
     icon: Package,
   },

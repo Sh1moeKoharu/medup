@@ -11,8 +11,8 @@ export default function CreateSalesChannelScreen() {
   return (
     <LayoutWithKeyboardAvoidingScroll>
       <Text className="mb-6 text-4xl">Setting Up</Text>
-      <Text className="mb-2 text-2xl">Create a sales channel</Text>
-      <Text className="mb-6 text-gray-300">Enter the details below to create a new sales channel.</Text>
+      <Text className="mb-2 text-2xl">Crear un canal de venta</Text>
+      <Text className="mb-6 text-gray-300">Completa los datos para crear un canal de venta.</Text>
 
       <SalesChannelCreateForm
         onSalesChannelCreated={(salesChannel) => {
@@ -30,7 +30,7 @@ export default function CreateSalesChannelScreen() {
       />
 
       <Button variant="outline" className="mt-4" onPress={() => router.back()}>
-        Cancel
+        Cancelar
       </Button>
     </LayoutWithKeyboardAvoidingScroll>
   );

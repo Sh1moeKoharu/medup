@@ -4,11 +4,11 @@ import { View } from 'react-native';
 
 export const CheckoutSkeleton = () => (
   <Layout>
-    <Text className="mb-6 text-4xl">Checkout</Text>
+    <Text className="mb-6 text-4xl">Cobro</Text>
 
     {/* Order Items */}
     <View className="flex-1 overflow-hidden">
-      <Text className="text-2xl">Cart Items</Text>
+      <Text className="text-2xl">Artículos del carrito</Text>
       {[1, 2].map((index) => (
         <View key={index} className="flex-row gap-4 bg-white py-6">
           <View className="h-[5.25rem] w-[5.25rem] rounded-xl bg-gray-200" />
@@ -23,7 +23,7 @@ export const CheckoutSkeleton = () => (
         <Text className="mb-6 text-2xl">Information</Text>
 
         <View className="mb-4 flex-row">
-          <Text className="w-24 text-gray-300">Full Name</Text>
+          <Text className="w-24 text-gray-300">Nombre completo</Text>
           <View className="h-5 w-1/3 rounded-md bg-gray-200" />
         </View>
         <View className="mb-4 flex-row">

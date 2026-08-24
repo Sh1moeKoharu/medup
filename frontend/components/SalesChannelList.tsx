@@ -16,11 +16,11 @@ const SalesChannelList: React.FC<SalesChannelListProps> = ({ selectedSalesChanne
   const salesChannelsQuery = useSalesChannels();
 
   if (salesChannelsQuery.isLoading) {
-    return <LoadingBanner className="mb-auto">Loading sales channels...</LoadingBanner>;
+    return <LoadingBanner className="mb-auto">Cargando canales de venta...</LoadingBanner>;
   }
 
   if (salesChannelsQuery.isError) {
-    return <InfoBanner className="mb-auto">Unable to load sales channels.</InfoBanner>;
+    return <InfoBanner className="mb-auto">No se pudieron cargar los canales de venta.</InfoBanner>;
   }
 
   return (

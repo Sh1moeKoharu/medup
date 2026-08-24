@@ -36,7 +36,7 @@ const MultiSelectOption: React.FC<{
 
 export function MultiSelectField({
   name,
-  placeholder = 'Select options',
+  placeholder = 'Elige opciones',
   options,
   className = '',
   buttonClassName = '',
@@ -101,7 +101,7 @@ export function MultiSelectField({
           <View className="border-b border-gray-200 p-4">
             <TextInput
               className="rounded-lg border border-gray-200 px-4 py-3"
-              placeholder="Search options..."
+              placeholder="Buscar opciones..."
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -122,7 +122,7 @@ export function MultiSelectField({
           ListEmptyComponent={
             <View className="items-center p-8">
               <Text className="text-gray-500">
-                {searchable && searchQuery ? 'No options found' : 'No options available'}
+                {searchable && searchQuery ? 'No options found' : 'No hay opciones disponibles'}
               </Text>
             </View>
           }

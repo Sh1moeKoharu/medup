@@ -21,11 +21,11 @@ export const StockLocationList: React.FC<StockLocationListProps> = ({
   const stockLocationsQuery = useStockLocations();
 
   if (stockLocationsQuery.isLoading) {
-    return <LoadingBanner className="mb-auto">Loading stock locations...</LoadingBanner>;
+    return <LoadingBanner className="mb-auto">Cargando ubicaciones...</LoadingBanner>;
   }
 
   if (stockLocationsQuery.isError) {
-    return <InfoBanner className="mb-auto">Unable to load stock locations.</InfoBanner>;
+    return <InfoBanner className="mb-auto">No se pudieron cargar las ubicaciones.</InfoBanner>;
   }
 
   return (

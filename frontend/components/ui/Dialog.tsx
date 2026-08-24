@@ -109,7 +109,7 @@ export const Dialog: React.FC<DialogProps> = ({
               <View className={clx('mb-4 flex-row items-center justify-between gap-2', headerClassName)}>
                 {title && <Text className="text-xl">{title}</Text>}
                 {showCloseButton && (
-                  <TouchableOpacity onPress={handleCloseIconPress} accessibilityLabel="Close dialog">
+                  <TouchableOpacity onPress={handleCloseIconPress} accessibilityLabel="Cerrar">
                     <X size={20} />
                   </TouchableOpacity>
                 )}

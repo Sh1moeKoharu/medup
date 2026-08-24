@@ -49,13 +49,13 @@ function App() {
         <Stack.Screen name="(doctor)" options={{ headerShown: false }} />
         <Stack.Screen name="(nurse)" options={{ headerShown: false }} />
 
-        <Stack.Screen name="checkout/[draftOrderId]" options={{ title: 'Checkout', headerShown: false }} />
+        <Stack.Screen name="checkout/[draftOrderId]" options={{ title: 'Cobro', headerShown: false }} />
 
         <Stack.Screen
           name="product-details"
           options={{
             presentation: 'transparentModal',
-            title: 'Product Details',
+            title: 'Detalle del producto',
             headerShown: false,
             animation: 'none',
             animationDuration: 0,
@@ -67,7 +67,7 @@ function App() {
           name="orders/[orderId]"
           options={{
             presentation: 'transparentModal',
-            title: 'Order Details',
+            title: 'Detalle del pedido',
             headerShown: false,
             animation: 'none',
             animationDuration: 0,
@@ -79,7 +79,7 @@ function App() {
           name="customer-lookup"
           options={{
             presentation: 'transparentModal',
-            title: 'Customer Lookup',
+            title: 'Buscar cliente',
             headerShown: false,
             animation: 'none',
           }}

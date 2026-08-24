@@ -7,7 +7,7 @@ type PromptProps = { onSubmit: () => void; submitText?: string; cancelText?: str
 export const Prompt: React.FC<PromptProps> = ({
   onSubmit,
   onClose,
-  submitText = 'Yes',
+  submitText = 'Sí',
   cancelText = 'No',
   ...props
 }) => {

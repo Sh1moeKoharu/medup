@@ -88,10 +88,10 @@ export default function CheckoutScreen() {
   if (draftOrder.isError || settings.isError) {
     return (
       <Layout>
-        <Text className="text-4xl">Checkout</Text>
+        <Text className="text-4xl">Cobro</Text>
         <View className="flex-1 items-center justify-center gap-2">
           <InfoBanner variant="ghost" colorScheme="error" className="w-40">
-            Failed to load cart
+            No se pudo cargar el carrito
           </InfoBanner>
           <Button
             onPress={() => {
@@ -111,10 +111,10 @@ export default function CheckoutScreen() {
   if (!draftOrder.data?.items.length) {
     return (
       <Layout>
-        <Text className="text-4xl">Checkout</Text>
+        <Text className="text-4xl">Cobro</Text>
         <View className="flex-1 items-center justify-center gap-1">
           <ShoppingCart size={24} />
-          <Text className="text-xl">Your cart is empty</Text>
+          <Text className="text-xl">El carrito está vacío</Text>
           <Text className="text-center text-gray-300">
             It seems you have no items in your cart.{'\n'}Please add items to your cart before{'\n'}proceeding to
             checkout.
@@ -122,7 +122,7 @@ export default function CheckoutScreen() {
         </View>
         <View className="flex-row gap-2">
           <Button variant="outline" className="flex-1" onPress={() => router.back()}>
-            Back to Cart
+            Volver al carrito
           </Button>
           <Button className="flex-1" disabled>
             Complete Order
@@ -143,13 +143,13 @@ export default function CheckoutScreen() {
   return (
     <>
       <Layout>
-        <Text className="mb-6 text-4xl">Checkout</Text>
+        <Text className="mb-6 text-4xl">Cobro</Text>
 
         <FlashList
           data={items}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View className="h-hairline bg-gray-200" />}
-          ListHeaderComponent={() => <Text className="text-2xl">Cart Items</Text>}
+          ListHeaderComponent={() => <Text className="text-2xl">Artículos del carrito</Text>}
           ListFooterComponent={() =>
             !isPosDefaultCustomer ? (
               <View className="mb-10 mt-4">
@@ -157,7 +157,7 @@ export default function CheckoutScreen() {
 
                 {customerName && (
                   <View className="mb-4 flex-row">
-                    <Text className="w-24 text-gray-300">Full Name</Text>
+                    <Text className="w-24 text-gray-300">Nombre completo</Text>
                     <View className="flex-1">
                       <Text>{customerName}</Text>
                     </View>
@@ -204,7 +204,7 @@ export default function CheckoutScreen() {
 
         <View className="mb-6 gap-y-2 border-y border-gray-200 py-4">
           <View className="flex-row justify-between">
-            <Text className="text-sm text-gray-400">Taxes</Text>
+            <Text className="text-sm text-gray-400">Impuestos</Text>
             <Text className="text-sm text-gray-400">
               {draftOrder.data.tax_total?.toLocaleString('en-US', {
                 style: 'currency',
@@ -371,7 +371,7 @@ export default function CheckoutScreen() {
         onCloseIconPress={(event) => {
           event.preventDefault();
         }}
-        title="Order confirmed!"
+        title="¡Pedido confirmado!"
         contentClassName="flex-shrink"
       >
         <InfoBanner colorScheme="success" className="mb-4">
@@ -400,7 +400,7 @@ export default function CheckoutScreen() {
             router.replace('/products');
           }}
         >
-          Back to shop
+          Volver al catálogo
         </Button>
       </Dialog>
     </>

@@ -32,11 +32,11 @@ export const RegionSelectionStep: React.FC<RegionSelectionStepProps> = ({
       <RegionList selectedRegionId={selectedRegion} onRegionSelect={handleRegionSelect} />
 
       <Button variant="outline" className="mt-6" onPress={onCreateNew}>
-        Create New Region
+        Crear región
       </Button>
 
       <Button className="mt-4" onPress={() => onComplete(selectedRegion)} disabled={!selectedRegion}>
-        Next
+        Siguiente
       </Button>
     </View>
   );

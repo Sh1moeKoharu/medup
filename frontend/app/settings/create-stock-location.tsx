@@ -11,7 +11,7 @@ export default function CreateStockLocationScreen() {
   return (
     <LayoutWithKeyboardAvoidingScroll>
       <Text className="mb-6 text-4xl">Setting Up</Text>
-      <Text className="mb-2 text-2xl">Create a new stock location</Text>
+      <Text className="mb-2 text-2xl">Crear una ubicación de inventario</Text>
       <Text className="mb-6 text-gray-300">
         Specify the details for the new stock location where inventory will be sourced.
       </Text>
@@ -32,7 +32,7 @@ export default function CreateStockLocationScreen() {
       />
 
       <Button variant="outline" className="mt-4" onPress={() => router.back()}>
-        Cancel
+        Cancelar
       </Button>
     </LayoutWithKeyboardAvoidingScroll>
   );

@@ -1,6 +1,6 @@
 import { useCreateStockLocation } from '@/api/hooks/stock-location';
 import { ProvinceField } from '@/components/form/ProvinceField';
-import { COUNTRIES } from '@/constants/countries';
+import { COUNTRIES, getCountryName } from '@/constants/countries';
 import { AdminStockLocation } from '@medusajs/types';
 import React from 'react';
 import * as z from 'zod/v4';
@@ -15,11 +15,11 @@ interface StockLocationCreateFormProps {
 }
 
 const stockLocationSchema = z.object({
-  name: z.string().min(1, 'Location name is required'),
-  address_1: z.string().min(1, 'Address is required'),
+  name: z.string().min(1, 'El nombre de la ubicación es requerido'),
+  address_1: z.string().min(1, 'La dirección es requerida'),
   address_2: z.string().optional(),
   city: z.string().optional(),
-  country_code: z.string().min(1, 'Country is required'),
+  country_code: z.string().min(1, 'El país es requerido'),
   province: z.string().optional(),
   postal_code: z.string().optional(),
 });
@@ -34,7 +34,7 @@ const StockLocationCreateForm: React.FC<StockLocationCreateFormProps> = ({ onSto
   });
 
   const countryOptions = COUNTRIES.map((country) => ({
-    label: country.name,
+    label: getCountryName(country),
     value: country.alpha2,
   }));
 
@@ -71,9 +71,9 @@ const StockLocationCreateForm: React.FC<StockLocationCreateFormProps> = ({ onSto
           : undefined
       }
     >
-      <TextField name="name" floatingPlaceholder placeholder="Location Name" />
+      <TextField name="name" floatingPlaceholder placeholder="Nombre de la ubicación" />
 
-      <TextField name="company" floatingPlaceholder placeholder="Company Name (optional)" />
+      <TextField name="company" floatingPlaceholder placeholder="Empresa (opcional)" />
 
       <TextField name="phone" floatingPlaceholder placeholder="Phone (optional)" />
 
@@ -96,7 +96,7 @@ const StockLocationCreateForm: React.FC<StockLocationCreateFormProps> = ({ onSto
 
       <ProvinceField name="province" countryFieldName="country_code" placeholder="Province/State (optional)" />
 
-      <FormButton isPending={createStockLocation.isPending}>Create Stock Location</FormButton>
+      <FormButton isPending={createStockLocation.isPending}>Crear ubicación de inventario</FormButton>
     </Form>
   );
 };

@@ -191,7 +191,7 @@ export const SwipeableListItem: React.FC<SwipeableListItemProps> = ({
           ? [
               {
                 name: 'swipeRight' as const,
-                label: leftAccessibilityLabel || 'Swipe right for action',
+                label: leftAccessibilityLabel || 'Desliza a la derecha para más acciones',
               },
             ]
           : []),
@@ -199,7 +199,7 @@ export const SwipeableListItem: React.FC<SwipeableListItemProps> = ({
           ? [
               {
                 name: 'swipeLeft' as const,
-                label: rightAccessibilityLabel || 'Swipe left for action',
+                label: rightAccessibilityLabel || 'Desliza a la izquierda para más acciones',
               },
             ]
           : []),

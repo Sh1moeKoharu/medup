@@ -35,7 +35,7 @@ export const DateRangeFilter = ({
   onChange,
   className,
   buttonClassName,
-  placeholder = 'Select date range',
+  placeholder = 'Elige un rango de fechas',
   minDate,
   maxDate,
 }: DateRangeFilterProps) => {

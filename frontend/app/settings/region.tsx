@@ -15,7 +15,7 @@ export default function RegionScreen() {
   return (
     <Layout className="pb-6">
       <Text className="mb-6 text-4xl">Setting Up</Text>
-      <Text className="mb-2 text-2xl">Choose a region</Text>
+      <Text className="mb-2 text-2xl">Elige una región</Text>
       <Text className="mb-6 text-gray-300">
         Select a region that defines your market area, currency, and tax settings.
       </Text>
@@ -24,7 +24,7 @@ export default function RegionScreen() {
 
       <View className="mt-6 gap-4">
         <Button variant="outline" onPress={() => router.push('/settings/create-region')}>
-          Create New Region
+          Crear región
         </Button>
 
         <Button
@@ -47,11 +47,11 @@ export default function RegionScreen() {
             );
           }}
         >
-          Submit
+          Guardar
         </Button>
 
         <Button variant="outline" onPress={() => router.back()}>
-          Cancel
+          Cancelar
         </Button>
       </View>
     </Layout>

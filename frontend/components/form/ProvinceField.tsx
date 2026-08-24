@@ -24,7 +24,7 @@ export function ProvinceField({
       <SelectField
         name={name}
         floatingPlaceholder
-        placeholder="Select a country first"
+        placeholder="Elige primero un país"
         options={[]}
         searchable={true}
         className={className}
@@ -38,7 +38,7 @@ export function ProvinceField({
       <SelectField
         name={name}
         floatingPlaceholder
-        placeholder="No provinces available"
+        placeholder="No hay estados disponibles"
         options={[]}
         searchable={true}
         className={className}
@@ -58,7 +58,7 @@ export function ProvinceField({
       <SelectField
         name={name}
         floatingPlaceholder
-        placeholder="No provinces available"
+        placeholder="No hay estados disponibles"
         options={[]}
         searchable={true}
         className={className}

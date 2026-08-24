@@ -72,11 +72,11 @@ const useGetOrSetDraftOrderId = () => {
     }
 
     if (!settings.data?.region?.id) {
-      throw new Error('Region ID is not set in settings');
+      throw new Error('No hay una región configurada en los ajustes');
     }
 
     if (!settings.data?.sales_channel?.id) {
-      throw new Error('Sales Channel ID is not set in settings');
+      throw new Error('No hay un canal de venta configurado en los ajustes');
     }
 
     const defaultCustomerId = await getOrSetDefaultCustomer();
@@ -150,7 +150,7 @@ export const useCancelDraftOrder = (options?: Omit<UseMutationOptions<void>, 'mu
     mutationFn: async () => {
       const draftOrderId = await Storage.getItemAsync(DRAFT_ORDER_ID_STORAGE_KEY);
       if (!draftOrderId) {
-        throw new Error('Draft order ID not found');
+        throw new Error('No se encontró el pedido en borrador');
       }
 
       await Storage.deleteItemAsync(DRAFT_ORDER_ID_STORAGE_KEY);
@@ -575,7 +575,7 @@ export const useCompleteDraftOrder = (
     mutationKey: ['draft-order', draftOrderId, 'complete'],
     mutationFn: async () => {
       if (!draftOrderId) {
-        throw new Error('Draft order ID is required to complete the order');
+        throw new Error('Se requiere el pedido en borrador para completar la venta');
       }
 
       const { draft_order } = await sdk.admin.draftOrder.retrieve(draftOrderId, {

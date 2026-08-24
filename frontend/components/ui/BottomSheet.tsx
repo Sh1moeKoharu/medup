@@ -215,7 +215,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
                 >
                   <View className="flex-1">{title && <Text>{title}</Text>}</View>
                   {showCloseButton && (
-                    <TouchableOpacity onPress={handleCloseIconPress} accessibilityLabel="Close dialog">
+                    <TouchableOpacity onPress={handleCloseIconPress} accessibilityLabel="Cerrar">
                       <X size={20} />
                     </TouchableOpacity>
                   )}

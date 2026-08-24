@@ -35,11 +35,11 @@ export const StockLocationSelectionStep: React.FC<StockLocationSelectionStepProp
       />
 
       <Button variant="outline" className="mt-6" onPress={onCreateNew}>
-        Create a new location
+        Crear ubicación
       </Button>
 
       <Button className="mt-4" onPress={() => onComplete(selectedStockLocation)} disabled={!selectedStockLocation}>
-        Next
+        Siguiente
       </Button>
     </View>
   );

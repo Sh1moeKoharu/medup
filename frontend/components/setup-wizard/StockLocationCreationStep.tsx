@@ -30,7 +30,7 @@ export const StockLocationCreationStep: React.FC<StockLocationCreationStepProps>
 
       {typeof onBackToSelection === 'function' && (
         <Button variant="outline" className="mt-4" onPress={onBackToSelection}>
-          Cancel
+          Cancelar
         </Button>
       )}
     </ScrollView>

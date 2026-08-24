@@ -27,7 +27,7 @@ export const RegionCreationStep: React.FC<RegionCreationStepProps> = ({ onComple
 
       {typeof onBackToSelection === 'function' && (
         <Button variant="outline" className="mt-4" onPress={onBackToSelection}>
-          Cancel
+          Cancelar
         </Button>
       )}
     </ScrollView>

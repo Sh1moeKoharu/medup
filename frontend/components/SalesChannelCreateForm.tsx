@@ -12,7 +12,7 @@ interface SalesChannelCreateFormProps {
 }
 
 const salesChannelSchema = z.object({
-  name: z.string().min(1, 'Sales channel name is required'),
+  name: z.string().min(1, 'El nombre del canal es requerido'),
   description: z.string().optional(),
 });
 
@@ -45,7 +45,7 @@ const SalesChannelCreateForm: React.FC<SalesChannelCreateFormProps> = ({
       defaultValues={defaultValues}
       className="flex-1"
     >
-      <TextField name="name" floatingPlaceholder placeholder="Channel Name" />
+      <TextField name="name" floatingPlaceholder placeholder="Nombre del canal" />
 
       <TextField
         name="description"
@@ -56,7 +56,7 @@ const SalesChannelCreateForm: React.FC<SalesChannelCreateFormProps> = ({
       />
 
       <FormButton isPending={createSalesChannel.isPending} className="mt-auto">
-        Create Channel
+        Crear canal
       </FormButton>
     </Form>
   );

@@ -33,7 +33,7 @@ const CustomerInformation: React.FC<{
   if (isPosDefaultCustomer) {
     return (
       <View className="mb-4 gap-4">
-        <Text className="text-xl">Customer</Text>
+        <Text className="text-xl">Cliente</Text>
         <View>
           <Text className="text-sm text-gray-300">
             No customer information available. This order was created on POS without a customer.
@@ -44,7 +44,7 @@ const CustomerInformation: React.FC<{
   }
 
   const info = [
-    { label: 'Full Name', value: customerName },
+    { label: 'Nombre completo', value: customerName },
     { label: 'Mail', value: customerEmail },
     { label: 'Address', value: customerAddress },
     { label: 'Phone', value: customerPhone },
@@ -52,7 +52,7 @@ const CustomerInformation: React.FC<{
 
   return (
     <View className="mb-4 gap-4">
-      <Text className="text-xl">Customer</Text>
+      <Text className="text-xl">Cliente</Text>
       {info.map((item, index) => (
         <View key={item.label}>
           <View className="flex-row items-center justify-between gap-4">
@@ -79,17 +79,17 @@ const OrderInformation: React.FC<{
 
   return (
     <>
-      <Text className="mb-4 text-xl">Order Details</Text>
+      <Text className="mb-4 text-xl">Detalle del pedido</Text>
       <View className="mb-6 gap-2">
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
-            <Text className="text-sm text-gray-300">Order Status</Text>
+            <Text className="text-sm text-gray-300">Estado del pedido</Text>
           </View>
           <OrderStatus order={order} />
         </View>
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
-            <Text className="text-sm text-gray-300">Payment Status</Text>
+            <Text className="text-sm text-gray-300">Estado del pago</Text>
           </View>
           <PaymentStatus order={order} />
         </View>
@@ -166,7 +166,7 @@ const OrderInformation: React.FC<{
         <View className="h-hairline w-full bg-gray-200" />
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
-            <Text className="text-sm text-gray-300">Paid Total</Text>
+            <Text className="text-sm text-gray-300">Total pagado</Text>
           </View>
           <View className="flex-1">
             <Text className="text-right text-sm">
@@ -185,7 +185,7 @@ const OrderInformation: React.FC<{
         </View>
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
-            <Text className="text-sm text-gray-300">Credit Lines Total</Text>
+            <Text className="text-sm text-gray-300">Total de notas de crédito</Text>
           </View>
           <View className="flex-1">
             <Text className="text-right text-sm">
@@ -309,13 +309,13 @@ const OrderDetails: React.FC<{ animateOut: (callback?: () => void) => void }> = 
       ) : orderQuery.isError ? (
         <View className="py-11">
           <InfoBanner colorScheme="error">
-            {orderQuery.error.message || 'An unknown error occurred while fetching the order details.'}
+            {orderQuery.error.message || 'Ocurrió un error al cargar el detalle del pedido.'}
           </InfoBanner>
         </View>
       ) : settings.isError ? (
         <View className="py-11">
           <InfoBanner colorScheme="error">
-            {settings.error.message || 'An unknown error occurred while fetching the settings.'}
+            {settings.error.message || 'Ocurrió un error al cargar la configuración.'}
           </InfoBanner>
         </View>
       ) : orderQuery.isSuccess && orderQuery.data ? (
@@ -332,7 +332,7 @@ const OrderDetails: React.FC<{ animateOut: (callback?: () => void) => void }> = 
         />
       ) : (
         <View className="py-11">
-          <InfoBanner colorScheme="error">An unknown error occurred while fetching the order details.</InfoBanner>
+          <InfoBanner colorScheme="error">Ocurrió un error al cargar el detalle del pedido.</InfoBanner>
         </View>
       )}
     </>

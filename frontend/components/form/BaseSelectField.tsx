@@ -62,7 +62,7 @@ interface BaseSelectFieldProps extends BaseSelectProps {
 
 export function BaseSelectField({
   name,
-  placeholder = 'Select an option',
+  placeholder = 'Elige una opción',
   options,
   className = '',
   buttonClassName = '',

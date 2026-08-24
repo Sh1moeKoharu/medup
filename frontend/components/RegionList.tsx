@@ -16,11 +16,11 @@ const RegionList: React.FC<RegionListProps> = ({ selectedRegionId, onRegionSelec
   const regionsQuery = useRegions();
 
   if (regionsQuery.isLoading) {
-    return <LoadingBanner className="mb-auto">Loading regions...</LoadingBanner>;
+    return <LoadingBanner className="mb-auto">Cargando regiones...</LoadingBanner>;
   }
 
   if (regionsQuery.isError) {
-    return <InfoBanner className="mb-auto">Unable to load regions.</InfoBanner>;
+    return <InfoBanner className="mb-auto">No se pudieron cargar las regiones.</InfoBanner>;
   }
 
   return (

@@ -25,7 +25,7 @@ export const ProductDetailsSkeleton = () => (
       <QuantityPicker quantity={1} onQuantityChange={() => {}} variant="ghost" disabled />
 
       <TouchableOpacity disabled className="flex-1 rounded-xl bg-gray-200 p-5">
-        <Text className="mx-auto text-xl leading-5 text-gray-300">Add to cart</Text>
+        <Text className="mx-auto text-xl leading-5 text-gray-300">Agregar al carrito</Text>
       </TouchableOpacity>
     </View>
   </>

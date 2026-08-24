@@ -443,3 +443,31 @@ export const COUNTRIES: Country[] = [
 export const getCountryByAlpha2 = (alpha2: string): Country | undefined => {
   return COUNTRIES.find((country) => country.alpha2.toLowerCase() === alpha2.toLowerCase());
 };
+
+/**
+ * Nombre del país en español.
+ *
+ * Se resuelve con `Intl.DisplayNames` a partir del código ISO en lugar de
+ * traducir a mano las 250 entradas de esta lista: no hay que mantener nada, los
+ * nombres son los oficiales y quedan correctos incluso si el catálogo cambia.
+ *
+ * Si el entorno no soporta `Intl.DisplayNames` (algunas builds antiguas de
+ * Hermes en React Native), cae al nombre en inglés en vez de fallar.
+ */
+const displayNames = (() => {
+  try {
+    return typeof Intl !== 'undefined' && 'DisplayNames' in Intl
+      ? new Intl.DisplayNames(['es'], { type: 'region' })
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
+export const getCountryName = (country: Country): string => {
+  try {
+    return displayNames?.of(country.alpha2.toUpperCase()) ?? country.name;
+  } catch {
+    return country.name;
+  }
+};

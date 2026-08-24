@@ -32,11 +32,11 @@ export const SalesChannelSelectionStep: React.FC<SalesChannelSelectionStepProps>
       <SalesChannelList selectedSalesChannelId={selectedSalesChannel} onSalesChannelSelect={handleSalesChannelSelect} />
 
       <Button variant="outline" onPress={onCreateNew} className="mt-6">
-        Create New Sales Channel
+        Crear canal de venta
       </Button>
 
       <Button onPress={() => onComplete(selectedSalesChannel)} disabled={!selectedSalesChannel} className="mt-4">
-        Next
+        Siguiente
       </Button>
     </View>
   );

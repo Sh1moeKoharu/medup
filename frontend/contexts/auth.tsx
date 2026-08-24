@@ -157,7 +157,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             visibilityTime: 4000,
           });
         } else {
-          const message = error instanceof Error ? error.message : 'Login failed. Please try again.';
+          const message = error instanceof Error ? error.message : 'No se pudo iniciar sesión. Inténtalo de nuevo.';
           Toast.show({
             type: 'error',
             text1: 'Login Error',
