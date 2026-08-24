@@ -1,4 +1,4 @@
-import { ROLES, normalizeRole } from '@/constants/roles';
+import { getHomeRoute } from '@/utils/home-route';
 import { useAuthCtx } from '@/contexts/auth';
 import { useSettings } from '@/contexts/settings';
 import { useRouter } from 'expo-router';
@@ -38,15 +38,7 @@ export default function RootLoadingScreen() {
           // admin guardaba "enfermero" y aquí se comparaba contra 'nurse'.
           // Unificado el vocabulario, la heurística sobra y se elimina: un correo
           // como "medico.jefe@clinica.mx" con rol de caja ya no abre la vista médica.
-          const role = normalizeRole(auth.state.user.role);
-
-          if (role === ROLES.DOCTOR) {
-            router.replace('/(doctor)/products');
-          } else if (role === ROLES.NURSE) {
-            router.replace('/(nurse)/products');
-          } else {
-            router.replace('/(tabs)/products');
-          }
+          router.replace(getHomeRoute(auth.state.user.role) as any);
           return;
         }
       }

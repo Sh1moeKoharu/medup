@@ -1,4 +1,6 @@
+import { useAuthCtx } from '@/contexts/auth';
 import { useUpdateSettings } from '@/contexts/settings';
+import { getHomeRoute } from '@/utils/home-route';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,18 +48,27 @@ export const SetupWizardContent: React.FC<SetupWizardContentProps> = ({
   const [stockLocationId, setStockLocationId] = useState<string>('');
 
   const router = useRouter();
+  const auth = useAuthCtx();
+
   const updateSettings = useUpdateSettings({
     onSuccess: () => {
-      // Se navega al índice, NO a '/products'.
-      //
-      // Hay tres rutas que definen `products` — (tabs), (doctor) y (nurse) —,
-      // así que '/products' es ambiguo y la navegación no resuelve: el
-      // asistente se quedaba en la pantalla final con el botón sin efecto
-      // aparente, aunque los ajustes sí se habían guardado.
-      //
-      // El índice ya decide el destino según el rol, que además es lo correcto:
-      // un médico no debe aterrizar en la vista de caja.
-      router.replace('/');
+      /**
+       * Se navega DIRECTO al destino del rol.
+       *
+       * Dos intentos anteriores fallaron por motivos distintos:
+       *
+       *  · `router.replace('/products')` — ambiguo: tres rutas definen
+       *    `products` ((tabs), (doctor), (nurse)), así que no resolvía y el
+       *    botón parecía no hacer nada.
+       *
+       *  · `router.replace('/')` — el índice, al montarse, lanzaba de inmediato
+       *    OTRA navegación. Dos `replace` seguidos y el segundo se pierde: la
+       *    aplicación se quedaba en la pantalla del logo hasta recargar a mano.
+       *
+       * Con el destino final en un solo salto no hay rebote posible.
+       */
+      const role = auth.state.status === 'authenticated' ? auth.state.user.role : undefined;
+      router.replace(getHomeRoute(role) as any);
     },
   });
 
