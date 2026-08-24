@@ -141,11 +141,32 @@ function deny(res: MedusaResponse, message: string, role: Role | null) {
  *   { matcher: "/admin/staff", methods: ["POST"], middlewares: [requireRole(ROLES.ADMIN)] }
  */
 export function requireRole(...allowed: Role[]) {
+  return requireRoleExcept([], ...allowed)
+}
+
+/**
+ * Como `requireRole`, pero deja pasar rutas exactas concretas.
+ *
+ * Existe por `/admin/users/me`: la identidad del propio usuario. Restringir
+ * `/admin/users` a Administrador es correcto —ahi se da de alta personal— pero
+ * el prefijo arrastra tambien `/me`, que TODO el panel consulta para saber su
+ * rol. Sin esta excepcion un cajero no podria ni cargar la pantalla de inicio.
+ */
+export function requireRoleExcept(exceptPaths: string[], ...allowed: Role[]) {
+  const exentas = new Set(exceptPaths)
+
   return async function requireRoleMiddleware(
     req: MedusaRequest,
     res: MedusaResponse,
     next: MedusaNextFunction
   ) {
+    // `req.path` es relativo al punto de montaje del middleware, asi que se
+    // compara tambien contra la URL original.
+    const rutaCompleta = ((req as any).originalUrl ?? "").split("?")[0]
+    if (exentas.has(rutaCompleta) || exentas.has(req.path)) {
+      return next()
+    }
+
     const role = await resolveRequestRole(req)
 
     if (!role) {
@@ -174,7 +195,14 @@ export function requireRole(...allowed: Role[]) {
  * por verbo ocurre aquí dentro en vez de depender del patrón de ruta.
  */
 export function requireRoleForWrites(...allowed: Role[]) {
-  const guard = requireRole(...allowed)
+  return requireRoleForWritesExcept([], ...allowed)
+}
+
+export function requireRoleForWritesExcept(
+  exceptPaths: string[],
+  ...allowed: Role[]
+) {
+  const guard = requireRoleExcept(exceptPaths, ...allowed)
 
   return async function requireRoleForWritesMiddleware(
     req: MedusaRequest,
@@ -185,6 +213,60 @@ export function requireRoleForWrites(...allowed: Role[]) {
       return next()
     }
     return guard(req, res, next)
+  }
+}
+
+/**
+ * Cierra una ruta por completo, para cualquiera.
+ *
+ * Existe por `/admin/invites`. Esas rutas se declaran `AUTHENTICATE = false` y
+ * reaplican la autenticación en su propio middleware — el propio Medusa lo
+ * documenta como una limitación conocida de su enrutado. El efecto es que
+ * nuestros guards corren ANTES de que exista `auth_context`, así que no pueden
+ * distinguir quién llama.
+ *
+ * Dejarla abierta sería grave: una invitación permite darse de alta como
+ * usuario del panel, es decir escalar privilegios. Y no la necesitamos: el alta
+ * de personal se hace en `/admin/staff`, que sí está protegida.
+ *
+ * Ante una ruta que no podemos autorizar correctamente y que no usamos, se
+ * cierra en lugar de dejarla a medias.
+ */
+export function blockRoute(motivo: string) {
+  return function blockRouteMiddleware(
+    _req: MedusaRequest,
+    res: MedusaResponse,
+    _next: MedusaNextFunction
+  ) {
+    return res.status(403).json({
+      type: "not_allowed",
+      message: motivo,
+    })
+  }
+}
+
+/**
+ * Cierra la ESCRITURA de una ruta para cualquiera, dejando la lectura abierta.
+ *
+ * Mismo motivo que `blockRoute`: las rutas nativas de usuarios se declaran
+ * `AUTHENTICATE = false` y reaplican la autenticación en su propio middleware,
+ * después de nuestros guards. Ahí no podemos saber quién llama, así que un
+ * guard por rol denegaría a todos —incluido el administrador— dando la
+ * impresión de funcionar cuando en realidad no distingue nada.
+ *
+ * Se cierra la escritura de forma explícita y se dice por qué. El alta y baja
+ * de personal vive en `/admin/staff`, que sí es nuestra y sí se autoriza bien.
+ */
+export function blockWrites(motivo: string) {
+  return function blockWritesMiddleware(
+    req: MedusaRequest,
+    res: MedusaResponse,
+    next: MedusaNextFunction
+  ) {
+    if (SAFE_METHODS.includes(req.method)) {
+      return next()
+    }
+    return res.status(403).json({ type: "not_allowed", message: motivo })
   }
 }
 

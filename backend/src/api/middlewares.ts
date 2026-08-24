@@ -4,12 +4,16 @@ import { AUDIT_LOGS_MODULE } from "../modules/audit-logs";
 import AuditLogsModuleService from "../modules/audit-logs/service";
 import { ROLES } from "../lib/roles";
 import {
+    blockRoute,
+    blockWrites,
     denyReadOnlyMutations,
     requireRole,
-    requireRoleForWrites,
+    requireRoleExcept,
+    requireRoleForWritesExcept,
     resolveRequestActor,
     stripPurchaseCosts,
 } from "../lib/require-role";
+import { API_POLICIES, findOverlappingPolicies } from "../lib/api-policy";
 import { redactForAudit } from "../lib/audit-redaction";
 
 /**
@@ -72,117 +76,91 @@ const auditLogInterceptor = (req: MedusaRequest, res: MedusaResponse, next: Medu
 };
 
 /**
- * TABLA DE POLÍTICAS DE ACCESO
- *
- * Criterio: restringir la ESCRITURA de forma estricta y la LECTURA sólo donde
- * el dato es sensible en sí mismo (staff, bitácora, costos de compra).
- * Sobre-restringir los GET rompe el admin para roles legítimos sin ganar
- * seguridad, porque `denyReadOnlyMutations` ya impide toda mutación al auditor.
- *
- * Los matchers se declaran SIN `methods` a propósito: así Medusa los monta con
- * `app.use(matcher)`, que hace match por prefijo y cubre las subrutas
- * (`/admin/staff` cubre `/admin/staff/:id`). El filtrado por verbo vive dentro
- * de cada middleware.
+ * La tabla de `lib/api-policy.ts` se traduce a middlewares. Se comprueba al
+ * arrancar que no haya prefijos solapados: dos entradas donde una contiene a la
+ * otra aplicarian ambas reglas y la mas restrictiva ganaria en silencio.
  */
+const solapes = findOverlappingPolicies();
+if (solapes.length) {
+    throw new Error(
+        "[POLITICA] Prefijos solapados en api-policy.ts:" + "\n  " + solapes.join("\n  ")
+    );
+}
+
+const politicaDeRutas = API_POLICIES.flatMap((p) => {
+    const entradas: any[] = [];
+
+    // Lectura restringida: sólo donde el dato es sensible en sí mismo.
+    if (p.read) {
+        entradas.push({
+            matcher: p.path,
+            middlewares: [requireRoleExcept(p.except ?? [], ...p.read)],
+        });
+    }
+
+    // Escritura: siempre lista explícita.
+    entradas.push({
+        matcher: p.path,
+        middlewares: [requireRoleForWritesExcept(p.except ?? [], ...p.write)],
+    });
+
+    return entradas;
+});
+
 export default defineMiddlewares({
     routes: [
-        // ── Regla global: el auditor (solo lectura) no muta nada, en ninguna ruta.
-        //    Una ruta nueva bajo /admin nace protegida por omisión.
+        // ── Regla global: el auditor (solo lectura) no muta nada, en ninguna
+        //    ruta. Una ruta nueva bajo /admin nace protegida por omisión.
         {
             matcher: "/admin/*",
             middlewares: [denyReadOnlyMutations()],
         },
 
-        // ── Gestión de usuarios: dato sensible también en lectura.
+        // ── Invitaciones cerradas. Ver blockRoute() para el motivo: esas
+        //    rutas se saltan la autenticación global y reaplican la suya
+        //    después de nuestros guards, así que no podemos autorizarlas bien.
+        //    El alta de personal va por /admin/staff.
         {
-            matcher: "/admin/staff",
-            middlewares: [requireRole(ROLES.ADMIN, ROLES.AUDITOR)],
-        },
-
-        // ── Bitácora de auditoría: sólo Administración y Auditoría.
-        {
-            matcher: "/admin/audit-logs",
-            middlewares: [requireRole(ROLES.ADMIN, ROLES.AUDITOR)],
-        },
-
-        // ── Kardex: lo consultan Almacén, Administración y Auditoría.
-        //    Médico y Enfermería no tienen por qué ver costos ni movimientos.
-        {
-            matcher: "/admin/inventory-movements",
+            matcher: "/admin/invites",
             middlewares: [
-                requireRole(ROLES.ADMIN, ROLES.PHARMACY, ROLES.AUDITOR, ROLES.CASHIER),
+                blockRoute(
+                    "Las invitaciones están deshabilitadas. El alta de personal se hace en Ajustes → Personal."
+                ),
             ],
         },
 
-        // ── Caja y cortes de turno: sólo Caja/Recepción y Admin operan.
+        // ── Gestión nativa de usuarios: sólo lectura. Ver blockWrites().
+        //    El alta y baja de personal va por /admin/staff.
         {
-            matcher: "/admin/cash-sessions",
-            middlewares: [requireRoleForWrites(ROLES.ADMIN, ROLES.CASHIER)],
+            matcher: "/admin/users",
+            middlewares: [
+                blockWrites(
+                    "La gestión de usuarios se hace en Ajustes → Personal."
+                ),
+            ],
         },
 
-        // ── Órdenes médicas: las emite el área médica.
-        //    (matcher estático: no alcanza a /admin/medical-orders/:id/...)
+        // ── Permisos por recurso, generados desde la tabla única.
+        ...politicaDeRutas,
+
+        // ── Separación de funciones dentro de las órdenes médicas.
+        //    Emitir es acto del área médica; surtir es acto de Farmacia.
         {
             matcher: "/admin/medical-orders",
             methods: ["POST"],
             middlewares: [requireRole(ROLES.DOCTOR, ROLES.NURSE, ROLES.ADMIN)],
         },
-
-        // ── Surtido/dispensación: es acto de Farmacia, no de quien receta.
         {
             matcher: "/admin/medical-orders/:id/dispense",
             methods: ["POST"],
             middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
         },
 
-        // ── Lotes de inventario: los da de alta Farmacia.
-        {
-            matcher: "/admin/medical-batches",
-            middlewares: [requireRoleForWrites(ROLES.ADMIN, ROLES.PHARMACY)],
-        },
-
-        // ── Inventario físico: cuenta y ajusta Almacén; autoriza Admin.
-        {
-            matcher: "/admin/inventory-counts",
-            middlewares: [requireRole(ROLES.ADMIN, ROLES.PHARMACY)],
-        },
-
-        // ── Inventario valorizado: expone costos, así que va con los mismos
-        //    roles que pueden ver precios de compra.
-        {
-            matcher: "/admin/inventory-reports",
-            middlewares: [requireRole(ROLES.ADMIN, ROLES.PHARMACY, ROLES.AUDITOR)],
-        },
-
-        // ── Convenios empresariales: condición comercial, sólo Admin.
-        {
-            matcher: "/admin/b2b-agreements",
-            middlewares: [requireRoleForWrites(ROLES.ADMIN)],
-        },
-
-        // ── Expediente del paciente: lo actualiza el área médica.
-        {
-            matcher: "/admin/medical-customers",
-            middlewares: [
-                requireRoleForWrites(
-                    ROLES.ADMIN,
-                    ROLES.DOCTOR,
-                    ROLES.NURSE,
-                    ROLES.PHARMACY
-                ),
-            ],
-        },
-
-        // ── Catálogo: sólo Admin y Farmacia escriben.
-        //    Además de ser la regla correcta, esto evita que un rol que no ve
-        //    los costos guarde el producto y los borre: el widget de farmacia
-        //    reenvía `{...product.metadata}`, y ese metadata le llega filtrado.
+        // ── Costos de adquisición fuera de la respuesta para quien no debe
+        //    verlos. La propuesta lo exige para el perfil Médico.
         {
             matcher: "/admin/products",
-            middlewares: [
-                requireRoleForWrites(ROLES.ADMIN, ROLES.PHARMACY),
-                stripPurchaseCosts(),
-            ],
+            middlewares: [stripPurchaseCosts()],
         },
 
         {
