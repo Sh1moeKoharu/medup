@@ -306,6 +306,30 @@ export default async function importInventory({ container, args }: ExecArgs) {
   const productModuleService = container.resolve(Modules.PRODUCT)
   const medicalInventoryService: any = container.resolve("medical_inventory")
 
+  /**
+   * Canal de venta al que se asocian los productos nuevos.
+   *
+   * IMPRESCINDIBLE: el POS lista productos filtrando por `sales_channel_id`.
+   * Sin esta asociación el catálogo queda en la base pero el POS muestra cero,
+   * y como el panel NO aplica ese filtro, el problema parece intermitente:
+   * "en el admin sí se ven, en el punto de venta no".
+   *
+   * Si hay varios canales se toma el primero; para lo ya importado existe
+   * scripts/link-products-to-channel.ts.
+   */
+  const salesChannelService: any = container.resolve(Modules.SALES_CHANNEL)
+  const salesChannels = await salesChannelService.listSalesChannels({})
+  const salesChannelId: string | null = salesChannels?.[0]?.id ?? null
+
+  if (!salesChannelId) {
+    console.log("")
+    console.log("⚠️  No hay ningún canal de venta configurado.")
+    console.log("   Los productos se crearán, pero el POS NO los mostrará hasta")
+    console.log("   que exista un canal y se corra:")
+    console.log("      npx medusa exec ./src/scripts/link-products-to-channel.ts apply")
+    console.log("")
+  }
+
   // Se deduplica por HANDLE, no por título: Medusa impone la unicidad sobre el
   // handle, y dos títulos que difieren sólo en espacios producen el mismo. Con
   // el mapa por título el alta parecía nueva y reventaba con
@@ -346,6 +370,9 @@ export default async function importInventory({ container, args }: ExecArgs) {
                     manage_inventory: false,
                   },
                 ],
+                ...(salesChannelId
+                  ? { sales_channels: [{ id: salesChannelId }] }
+                  : {}),
                 metadata: {
                   is_pharmaceutical: true,
                   nombre_comercial: row.title,
