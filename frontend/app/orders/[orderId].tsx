@@ -363,8 +363,10 @@ export default function OrderDetailsScreen() {
     return <OrderDetails animateOut={animateOut} />;
   }, []);
 
+  // Misma X que en el detalle de producto: es la misma hoja y tenia la misma
+  // falta de salida visible.
   return (
-    <BottomSheet visible={visible} onClose={() => router.back()} showCloseButton={false} dismissOnOverlayPress>
+    <BottomSheet visible={visible} onClose={() => router.back()} showCloseButton dismissOnOverlayPress>
       {renderContent}
     </BottomSheet>
   );

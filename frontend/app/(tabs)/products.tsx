@@ -149,7 +149,7 @@ export default function ProductsScreen() {
   const settings = useSettings();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 1024;
-  const numColumns = useBreakpointValue({ base: 2, md: 3, xl: 4 });
+  const numColumns = useBreakpointValue({ base: 2, md: 3, lg: 4, xl: 5 });
   const [searchQuery, setSearchQuery] = React.useState('');
   // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
   const busqueda = useDebouncedValue(searchQuery);

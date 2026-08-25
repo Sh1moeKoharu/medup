@@ -336,8 +336,11 @@ export default function ProductDetailsScreen() {
     return <ProductDetails animateOut={animateOut} />;
   }, []);
 
+  // showCloseButton: antes iba en false y la unica salida era arrastrar la
+  // hoja hacia abajo o tocar el fondo. Con raton ese gesto no se descubre, y
+  // ademas el cierre por fondo estaba roto en web. Ahora hay una X.
   return (
-    <BottomSheet visible={visible} onClose={() => router.back()} showCloseButton={false} dismissOnOverlayPress>
+    <BottomSheet visible={visible} onClose={() => router.back()} showCloseButton dismissOnOverlayPress>
       {renderContent}
     </BottomSheet>
   );
