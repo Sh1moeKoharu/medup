@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { resolveRequestActor } from "../../../lib/require-role";
 
 /**
  * GET /admin/cash-sessions
@@ -51,7 +52,24 @@ export async function GET(
 /**
  * POST /admin/cash-sessions
  * Abre una nueva sesión (turno) de caja
- * Body: { opening_amount, cashier_name, sales_channel_id? }
+ * Body: { opening_amount, sales_channel_id? }
+ *
+ * ── QUIÉN ABRE LA CAJA NO SE PREGUNTA, SE SABE ──────────────────────────────
+ * Antes el nombre del cajero venía en el cuerpo de la petición: la pantalla
+ * pedía "Nombre del cajero" como texto libre y aquí se guardaba tal cual. El
+ * registro quedaba contradiciéndose a sí mismo — `cashier_id` era el usuario
+ * real de la sesión, pero `cashier_name`, que es lo que se muestra en pantalla
+ * y en el corte, era lo que alguien hubiera tecleado.
+ *
+ * Con eso, quien entrara como caja@… podía escribir cualquier nombre y el corte
+ * de caja, con su sobrante o su faltante, quedaba atribuido a esa persona. Un
+ * registro contable que no identifica a quien respondió por el dinero no sirve
+ * para lo que existe, y es justo lo que la NOM-024-SSA3-2012 §6.6.1 llama no
+ * repudio.
+ *
+ * Ahora la identidad se resuelve desde la SESIÓN, igual que ya se hace en la
+ * bitácora y en la identidad del prescriptor. Lo que venga en el cuerpo se
+ * ignora.
  */
 export async function POST(
     req: MedusaRequest,
@@ -63,7 +81,6 @@ export async function POST(
 
         const {
             opening_amount,
-            cashier_name,
             sales_channel_id,
         } = req.body as any;
 
@@ -81,14 +98,23 @@ export async function POST(
             });
         }
 
-        // Obtener el ID del usuario autenticado
-        const cashier_id = (req as any).auth_context?.actor_id || "unknown";
+        // Identidad del cajero: de la sesión, nunca del cuerpo.
+        const actor = await resolveRequestActor(req);
+
+        if (!actor) {
+            // Antes se caía a "unknown" / "Cajero" y la caja se abría igual,
+            // dejando un turno sin responsable. Es preferible no abrirla.
+            return res.status(401).json({
+                message:
+                    "No se pudo identificar al usuario. Vuelve a iniciar sesión para abrir la caja.",
+            });
+        }
 
         const session = await cashSessionService.createCashSessions({
             opened_at: new Date(),
             opening_amount: Number(opening_amount) || 0,
-            cashier_id,
-            cashier_name: cashier_name || "Cajero",
+            cashier_id: actor.id,
+            cashier_name: actor.name,
             sales_channel_id: sales_channel_id || null,
             status: "open",
         });

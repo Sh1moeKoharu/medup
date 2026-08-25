@@ -104,7 +104,13 @@ export const Dialog: React.FC<DialogProps> = ({
         </TouchableWithoutFeedback>
 
         <View className="max-h-full w-full items-center p-4">
-          <View className={clx('max-h-full w-full overflow-hidden rounded-2xl bg-white p-4', containerClassName)}>
+          {/* max-w-lg: en un monitor de escritorio, sin limite de ancho el
+              cuadro se estiraba de lado a lado de la pantalla — un campo de
+              'Monto' de 1400 px de ancho para escribir '50'. En movil el ancho
+              de pantalla sigue mandando, porque es menor que este maximo.
+              Se puede ampliar por cuadro con containerClassName (twMerge deja
+              que la clase de fuera gane). */}
+          <View className={clx('max-h-full w-full max-w-lg overflow-hidden rounded-2xl bg-white p-4', containerClassName)}>
             {(title || showCloseButton) && (
               <View className={clx('mb-4 flex-row items-center justify-between gap-2', headerClassName)}>
                 {title && <Text className="text-xl">{title}</Text>}

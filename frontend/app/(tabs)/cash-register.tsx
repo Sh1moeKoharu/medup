@@ -14,6 +14,7 @@ import { Minus } from '@/components/icons/minus';
 import { InfoBanner } from '@/components/InfoBanner';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
+import { useAuthCtx } from '@/contexts/auth';
 import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
@@ -133,8 +134,18 @@ const SummaryCard: React.FC<{
 const OpenSessionView: React.FC = () => {
   const settings = useSettings();
   const openSession = useOpenCashSession();
+  const { state } = useAuthCtx();
   const [openingAmount, setOpeningAmount] = useState('');
-  const [cashierName, setCashierName] = useState('');
+
+  // Quién abre la caja no se pregunta: es quien inició sesión.
+  //
+  // Antes esto era un campo de texto libre ("Ej: Ana García"). Cualquiera que
+  // entrara como caja@… podía escribir el nombre que quisiera, y el corte de
+  // caja —con su sobrante o su faltante— quedaba atribuido a esa persona. El
+  // servidor ya ignora lo que se le mande aquí y toma la identidad de la
+  // sesión; esto sólo la muestra para que el cajero vea con quién está
+  // trabajando antes de abrir el turno.
+  const cajero = state.status === 'authenticated' ? state.user : null;
 
   return (
     <Layout>
@@ -150,13 +161,11 @@ const OpenSessionView: React.FC = () => {
 
         <View className="w-full max-w-sm gap-3 mt-4">
           <View>
-            <Text className="mb-1 text-sm text-gray-400">Nombre del cajero</Text>
-            <TextInput
-              value={cashierName}
-              onChangeText={setCashierName}
-              placeholder="Ej: Ana García"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4 text-base"
-            />
+            <Text className="mb-1 text-sm text-gray-400">Cajero</Text>
+            <View className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <Text className="text-base">{cajero?.name || 'Sesión no identificada'}</Text>
+              {!!cajero?.email && <Text className="text-sm text-gray-400">{cajero.email}</Text>}
+            </View>
           </View>
           <View>
             <Text className="mb-1 text-sm text-gray-400">Fondo de caja inicial</Text>
@@ -172,12 +181,11 @@ const OpenSessionView: React.FC = () => {
             onPress={() =>
               openSession.mutate({
                 opening_amount: Number(openingAmount) || 0,
-                cashier_name: cashierName || 'Cajero',
                 sales_channel_id: settings.data?.sales_channel?.id,
               })
             }
             isPending={openSession.isPending}
-            disabled={!cashierName.trim()}
+            disabled={!cajero}
           >
             Abrir Caja
           </Button>

@@ -227,6 +227,7 @@ export default function CustomerLookupScreen() {
     <Dialog
       visible={true}
       title="Búsqueda de Cliente"
+      containerClassName="max-w-2xl"
       onClose={() => router.back()}
       dismissOnOverlayPress={true}
       contentClassName="flex-shrink"

@@ -103,9 +103,10 @@ export const useOpenCashSession = () => {
 
   return useMutation({
     mutationKey: ['cash-session', 'open'],
+    // Sin cashier_name: el servidor toma la identidad del cajero de la
+    // sesión y descarta lo que se le mande. Ver src/api/admin/cash-sessions.
     mutationFn: async (data: {
       opening_amount: number;
-      cashier_name: string;
       sales_channel_id?: string;
     }) => {
       const response = await sdk.client.fetch<{ session: CashSession }>(
