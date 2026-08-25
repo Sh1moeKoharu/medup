@@ -27,6 +27,26 @@ export interface DialogProps extends ModalProps {
   onCloseIconPress?: (event: GestureResponderEvent) => void;
 }
 
+/**
+ * ── POR QUÉ HACE FALTA pointerEvents="auto" ────────────────────────────────
+ * Medido en un navegador real. Cuando hay una ruta presentada como
+ * `transparentModal`, react-navigation apaga los eventos de puntero en el
+ * <body> para que no se pueda interactuar con la pantalla de debajo, y los
+ * vuelve a encender SÓLO en su propio contenedor:
+ *
+ *   body                       -> pointer-events: none
+ *     #root                    -> none (heredado)
+ *     [portal del Modal]       -> none (heredado)   <- aquí vive este cuadro
+ *     transparentDrawerContent -> auto              <- sólo lo suyo
+ *
+ * El Modal de react-native-web se dibuja en un portal colgado del <body>, que
+ * es HERMANO de ese contenedor, así que se quedaba apagado. `pointer-events`
+ * se hereda, de modo que no respondía nada de dentro: ni la X, ni las filas de
+ * la lista, ni el botón de confirmar. Se veía perfectamente y estaba muerto.
+ *
+ * Reencenderlo aquí es el mismo recurso que usa react-navigation en su propio
+ * contenedor: un descendiente puede reactivar lo que un antecesor apagó.
+ */
 export const Dialog: React.FC<DialogProps> = ({
   title,
   children,
@@ -89,6 +109,7 @@ export const Dialog: React.FC<DialogProps> = ({
       onRequestClose={onRequestClose}
     >
       <View
+        pointerEvents="auto"
         className={clx('flex-1 items-center justify-center bg-black/50', className)}
         style={{
           paddingTop: safeAreaInsets.top,

@@ -201,13 +201,18 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       visible={modalProps.visible}
       onRequestClose={onRequestClose}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* pointerEvents: ver la nota de Dialog.tsx. Esta hoja se dibuja en el
+          mismo portal y le pasaba lo mismo. */}
+      <GestureHandlerRootView style={{ flex: 1 }} pointerEvents="auto">
         <Animated.View
           className={className}
           style={[
             {
               // Va en style y no en className: NativeWind no aplica clases
               // sobre los componentes de reanimated y aquí se perdían todas.
+              // pointerEvents repetido aquí a proposito: no dependemos de que
+              // GestureHandlerRootView reenvie la prop al DOM.
+              pointerEvents: 'auto',
               flex: 1,
               alignItems: 'center',
               justifyContent: 'flex-end',
