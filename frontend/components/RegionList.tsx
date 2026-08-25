@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useRegions } from '@/api/hooks/regions';
 import { Globe } from '@/components/icons/globe';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -63,7 +64,7 @@ const RegionList: React.FC<RegionListProps> = ({ selectedRegionId, onRegionSelec
             />
           </TouchableOpacity>
         )}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </View>
   );

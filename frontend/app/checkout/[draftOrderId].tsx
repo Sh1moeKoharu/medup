@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
   useCompleteDraftOrder,
@@ -180,7 +181,7 @@ export default function CheckoutScreen() {
               </View>
             ) : null
           }
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
 
         {/* Medical / Pharmacy Extras */}

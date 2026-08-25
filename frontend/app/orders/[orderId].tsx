@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL } from '@/api/hooks/draft-orders';
 import { useOrder } from '@/api/hooks/orders';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -328,7 +329,7 @@ const OrderDetails: React.FC<{ animateOut: (callback?: () => void) => void }> = 
           ListFooterComponentClassName="mt-14"
           ListFooterComponent={<OrderInformation order={orderQuery.data.order} currency={currency} />}
           showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
       ) : (
         <View className="py-11">

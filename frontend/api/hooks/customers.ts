@@ -1,6 +1,6 @@
 import { useMedusaSdk } from '@/contexts/auth';
 import { showErrorToast } from '@/utils/errors';
-import { AdminCreateCustomer, AdminCustomerFilters, AdminCustomerListResponse } from '@medusajs/types';
+import { AdminCreateCustomer, AdminCustomerFilters, AdminCustomerListResponse, AdminUpdateCustomer } from '@medusajs/types';
 import {
   InfiniteData,
   UndefinedInitialDataInfiniteOptions,
@@ -70,6 +70,61 @@ export const useCreateCustomer = () => {
     },
   });
 };
+
+/**
+ * Modificación de un paciente ya registrado.
+ *
+ * Recepción es quien corrige un teléfono mal tecleado o un apellido; obligar a
+ * pedírselo al administrador por una errata no tiene sentido operativo, y el
+ * documento sitúa el alta de pacientes en el mostrador.
+ */
+export const useUpdateCustomer = () => {
+  const sdk = useMedusaSdk();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['customers', 'update'],
+    mutationFn: async ({ id, update }: { id: string; update: AdminUpdateCustomer }) => {
+      return sdk.admin.customer.update(id, update);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'], exact: false });
+      await queryClient.invalidateQueries({ queryKey: ['medical-customers'], exact: false });
+    },
+    onError: (error) => {
+      showErrorToast(error);
+    },
+  });
+};
+
+/**
+ * Baja de un paciente.
+ *
+ * El servidor sólo se lo permite al administrador (ver api-policy.ts): un
+ * paciente puede tener órdenes médicas y compras colgando, y borrarlo deja el
+ * historial clínico apuntando a alguien que ya no existe. La pantalla ofrece la
+ * acción a todos, pero quien no tenga permiso recibirá un 403 con el motivo;
+ * por eso la interfaz sólo muestra el botón a quien puede usarlo.
+ */
+export const useDeleteCustomer = () => {
+  const sdk = useMedusaSdk();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['customers', 'delete'],
+    mutationFn: async (id: string) => {
+      return sdk.admin.customer.delete(id);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'], exact: false });
+      await queryClient.invalidateQueries({ queryKey: ['medical-customers'], exact: false });
+    },
+    onError: (error) => {
+      showErrorToast(error);
+    },
+  });
+};
+
 export const useMedicalCustomers = () => {
   const sdk = useMedusaSdk();
 

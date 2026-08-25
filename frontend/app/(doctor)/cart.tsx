@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers } from '@/api/hooks/customers';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
@@ -36,6 +37,30 @@ const ItemCell = React.forwardRef<Animated.View>((props, ref) => {
   return <Animated.View {...props} layout={SequencedTransition} exiting={SlideOutLeft} ref={ref} />;
 });
 ItemCell.displayName = 'ItemCell';
+
+/**
+ * Botón de quitar del carrito, siempre visible.
+ *
+ * El borrado ya existía, pero sólo tras deslizar la fila hacia la izquierda:
+ * SwipeableListItem se apoya en PanResponder. Ese gesto es natural en tableta y
+ * prácticamente imposible de descubrir con ratón, que es como se usa el punto
+ * de venta en el mostrador.
+ *
+ * Y no había alternativa: el "−" del selector de cantidad no baja de 1, porque
+ * QuantityPicker tiene min = 1. Entre una cosa y otra no quedaba NINGUNA forma
+ * de quitar un producto del carrito con ratón.
+ *
+ * El gesto se conserva para pantalla táctil; esto sólo añade la vía visible.
+ */
+const RemoveLineItemButton: React.FC<{ onPress: () => void }> = ({ onPress }) => (
+  <Pressable
+    onPress={onPress}
+    accessibilityLabel="Quitar del carrito"
+    className="mt-2 rounded-lg border border-gray-200 p-2"
+  >
+    <Trash2 size={18} color="#EF4444" />
+  </Pressable>
+);
 
 const MedicalCartItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: AdminOrderLineItem) => void }> = ({
   item,
@@ -91,7 +116,9 @@ const MedicalCartItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Ad
             className="self-start"
           />
         </View>
-        {/* Sin vista de precios para el doctor */}
+        <View className="ml-auto items-end justify-center">
+          <RemoveLineItemButton onPress={() => onRemove?.(item)} />
+        </View>
       </View>
     </SwipeableListItem>
   );
@@ -247,7 +274,7 @@ export default function DoctorCartScreen({ isSidebar }: { isSidebar?: boolean })
           ItemSeparatorComponent={ItemSeparatorComponent}
           CellRendererComponent={ItemCell}
           showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
 
         <View className="mt-4">

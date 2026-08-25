@@ -1,3 +1,5 @@
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useProducts } from '@/api/hooks/products';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { SearchInput } from '@/components/SearchInput';
@@ -149,9 +151,11 @@ export default function ProductsScreen() {
   const isLargeScreen = width >= 1024;
   const numColumns = useBreakpointValue({ base: 2, md: 3, xl: 4 });
   const [searchQuery, setSearchQuery] = React.useState('');
+  // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
+  const busqueda = useDebouncedValue(searchQuery);
   const cashSession = useCurrentCashSession();
   const productsQuery = useProducts({
-    q: searchQuery ? searchQuery : undefined,
+    q: busqueda ? busqueda : undefined,
     sales_channel_id: settings.data?.sales_channel?.id ?? undefined,
     fields: '+variants.prices.*',
   });
@@ -264,7 +268,7 @@ export default function ProductsScreen() {
           }
         }}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </Layout>
   );

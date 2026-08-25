@@ -217,6 +217,35 @@ export function requireRoleForWritesExcept(
 }
 
 /**
+ * Restringe SOLO ciertos verbos a ciertos roles, dejando el resto como esté.
+ *
+ * Existe porque "poder escribir" y "poder borrar" no son lo mismo. Recepción da
+ * de alta pacientes y corrige sus datos —es su trabajo en el mostrador— pero
+ * eliminar el registro de un paciente es otra cosa: puede tener órdenes médicas
+ * y compras colgando, y borrarlo deja el historial clínico apuntando a alguien
+ * que ya no existe. La NOM-024-SSA3-2012 §6.6.2 pide justamente que el
+ * expediente no se pueda destruir sin más.
+ *
+ * Se monta JUNTO al guard de escritura, no en su lugar: si cualquiera de los
+ * dos deniega, la petición se deniega. La regla más restrictiva gana.
+ */
+export function requireRoleForMethods(methods: string[], ...allowed: Role[]) {
+  const verbos = new Set(methods.map((m) => m.toUpperCase()))
+  const guard = requireRole(...allowed)
+
+  return async function requireRoleForMethodsMiddleware(
+    req: MedusaRequest,
+    res: MedusaResponse,
+    next: MedusaNextFunction
+  ) {
+    if (!verbos.has(req.method.toUpperCase())) {
+      return next()
+    }
+    return guard(req, res, next)
+  }
+}
+
+/**
  * Cierra una ruta por completo, para cualquiera.
  *
  * Existe por `/admin/invites`. Esas rutas se declaran `AUTHENTICATE = false` y

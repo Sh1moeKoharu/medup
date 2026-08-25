@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCreateCustomer, useCustomers } from '@/api/hooks/customers';
 import { useUpdateDraftOrderCustomer } from '@/api/hooks/draft-orders';
 import { Form } from '@/components/form/Form';
@@ -112,6 +113,8 @@ const CustomersList: React.FC<{
           className={clx('flex-row items-center justify-between gap-4 px-4 py-3', {
             'bg-black': selectedCustomerId === item.id,
           })}
+          accessibilityRole="button"
+          accessibilityLabel={`Elegir a ${customerName || item.email}`}
           onPress={() => onCustomerSelect(item)}
         >
           {customerName.length > 0 && (
@@ -206,7 +209,7 @@ const CustomersList: React.FC<{
           customersQuery.fetchNextPage();
         }
       }}
-      keyboardDismissMode="on-drag"
+      keyboardDismissMode={KEYBOARD_DISMISS_MODE}
     />
   );
 };
@@ -268,7 +271,11 @@ export default function CustomerLookupScreen() {
           router.back();
         }}
       >
-        Seleccionar Cliente
+        {!selectedCustomerId
+          ? 'Elige un paciente de la lista'
+          : selectedCustomer
+            ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || selectedCustomer.email}`
+            : 'Asignar cliente'}
       </Button>
 
     </Dialog>

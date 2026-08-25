@@ -1,3 +1,5 @@
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
@@ -68,11 +70,13 @@ const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical;
 
 export default function DoctorCRMScreen() {
     const [searchQuery, setSearchQuery] = useState('');
+  // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
+  const busqueda = useDebouncedValue(searchQuery);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithMedical | null>(null);
     const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
 
     const customersQuery = useCustomers({
-        ...(searchQuery ? { q: searchQuery } : {})
+        ...(busqueda ? { q: busqueda } : {})
     });
 
     const medicalQuery = useMedicalCustomers();
@@ -148,7 +152,7 @@ export default function DoctorCRMScreen() {
                     automaticallyAdjustKeyboardInsets
                     contentContainerClassName="pb-2"
                     showsVerticalScrollIndicator={false}
-                    keyboardDismissMode="on-drag"
+                    keyboardDismissMode={KEYBOARD_DISMISS_MODE}
                 />
             )}
 

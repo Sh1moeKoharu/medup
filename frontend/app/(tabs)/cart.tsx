@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers } from '@/api/hooks/customers';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
@@ -58,6 +59,30 @@ const ItemCell = React.forwardRef<Animated.View>((props, ref) => {
 });
 ItemCell.displayName = 'ItemCell';
 
+/**
+ * Botón de quitar del carrito, siempre visible.
+ *
+ * El borrado ya existía, pero sólo tras deslizar la fila hacia la izquierda:
+ * SwipeableListItem se apoya en PanResponder. Ese gesto es natural en tableta y
+ * prácticamente imposible de descubrir con ratón, que es como se usa el punto
+ * de venta en el mostrador.
+ *
+ * Y no había alternativa: el "−" del selector de cantidad no baja de 1, porque
+ * QuantityPicker tiene min = 1. Entre una cosa y otra no quedaba NINGUNA forma
+ * de quitar un producto del carrito con ratón.
+ *
+ * El gesto se conserva para pantalla táctil; esto sólo añade la vía visible.
+ */
+const RemoveLineItemButton: React.FC<{ onPress: () => void }> = ({ onPress }) => (
+  <Pressable
+    onPress={onPress}
+    accessibilityLabel="Quitar del carrito"
+    className="mt-2 rounded-lg border border-gray-200 p-2"
+  >
+    <Trash2 size={18} color="#EF4444" />
+  </Pressable>
+);
+
 const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: AdminOrderLineItem) => void }> = ({
   item,
   onRemove,
@@ -114,13 +139,16 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
             className="self-start"
           />
         </View>
-        <Text className="ml-auto">
-          {item.unit_price.toLocaleString('en-US', {
-            style: 'currency',
-            currency: draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code,
-            currencyDisplay: 'narrowSymbol',
-          })}
-        </Text>
+        <View className="ml-auto items-end justify-between">
+          <Text>
+            {item.unit_price.toLocaleString('en-US', {
+              style: 'currency',
+              currency: draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code,
+              currencyDisplay: 'narrowSymbol',
+            })}
+          </Text>
+          <RemoveLineItemButton onPress={() => onRemove?.(item)} />
+        </View>
       </View>
     </SwipeableListItem>
   );
@@ -553,7 +581,7 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
           ItemSeparatorComponent={ItemSeparatorComponent}
           CellRendererComponent={ItemCell}
           showsVerticalScrollIndicator={false}
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
         <View>
           {windowDimensions.width >= 768 && windowDimensions.height >= 900 && cartSummary}

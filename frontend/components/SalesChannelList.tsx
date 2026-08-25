@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useSalesChannels } from '@/api/hooks/sales-channel';
 import { Antenna } from '@/components/icons/antenna';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -55,7 +56,7 @@ const SalesChannelList: React.FC<SalesChannelListProps> = ({ selectedSalesChanne
             />
           </TouchableOpacity>
         )}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </View>
   );

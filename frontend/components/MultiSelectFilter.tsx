@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { Check } from '@/components/icons/check';
 import { ChevronDown } from '@/components/icons/chevron-down';
 import { X } from '@/components/icons/x';
@@ -163,7 +164,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
               </Text>
             </View>
           }
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
       </BottomSheet>
     </View>

@@ -1,3 +1,5 @@
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useProducts } from '@/api/hooks/products';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { Plus } from '@/components/icons/plus';
@@ -125,9 +127,11 @@ export default function DoctorProductsScreen() {
   // Hemos incrementado el número de columnas para aprovechar la compactación
   const numColumns = useBreakpointValue({ base: 3, md: 4, xl: 5 });
   const [searchQuery, setSearchQuery] = React.useState('');
+  // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
+  const busqueda = useDebouncedValue(searchQuery);
   
   const productsQuery = useProducts({
-    q: searchQuery ? searchQuery : undefined,
+    q: busqueda ? busqueda : undefined,
     sales_channel_id: settings.data?.sales_channel?.id ?? undefined,
     fields: '+variants.prices.*',
   });
@@ -216,7 +220,7 @@ export default function DoctorProductsScreen() {
           }
         }}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </Layout>
   );

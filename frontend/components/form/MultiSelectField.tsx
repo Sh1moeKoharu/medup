@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { Check } from '@/components/icons/check';
 import { X } from '@/components/icons/x';
 import { Text } from '@/components/ui/Text';
@@ -126,7 +127,7 @@ export function MultiSelectField({
               </Text>
             </View>
           }
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
       </>
     );

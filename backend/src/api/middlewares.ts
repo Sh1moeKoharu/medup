@@ -9,6 +9,7 @@ import {
     denyReadOnlyMutations,
     requireRole,
     requireRoleExcept,
+    requireRoleForMethods,
     requireRoleForWritesExcept,
     resolveRequestActor,
     stripPurchaseCosts,
@@ -103,6 +104,16 @@ const politicaDeRutas = API_POLICIES.flatMap((p) => {
         matcher: p.path,
         middlewares: [requireRoleForWritesExcept(p.except ?? [], ...p.write)],
     });
+
+    // Borrado, cuando debe ser más estricto que escribir. Se suma al guard
+    // anterior en lugar de sustituirlo: si cualquiera de los dos deniega, la
+    // petición se deniega.
+    if (p.del) {
+        entradas.push({
+            matcher: p.path,
+            middlewares: [requireRoleForMethods(["DELETE"], ...p.del)],
+        });
+    }
 
     return entradas;
 });

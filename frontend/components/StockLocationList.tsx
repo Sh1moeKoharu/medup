@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useStockLocations } from '@/api/hooks/stock-location';
 import { MapPin } from '@/components/icons/map-pin';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -80,7 +81,7 @@ export const StockLocationList: React.FC<StockLocationListProps> = ({
             />
           </TouchableOpacity>
         )}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </View>
   );

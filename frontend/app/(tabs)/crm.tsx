@@ -1,4 +1,20 @@
-import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
+import {
+    useCreateCustomer,
+    useCustomers,
+    useDeleteCustomer,
+    useMedicalCustomers,
+    useUpdateCustomer,
+} from '@/api/hooks/customers';
+import { useAuthCtx } from '@/contexts/auth';
+import { ROLES, normalizeRole } from '@/constants/roles';
+import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import { Form } from '@/components/form/Form';
+import { FormButton } from '@/components/form/FormButton';
+import { TextField } from '@/components/form/TextField';
+import { z } from 'zod/v4';
 import { useOrders } from '@/api/hooks/orders';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
@@ -13,18 +29,161 @@ import { ActivityIndicator, Modal, SafeAreaView, ScrollView, TouchableOpacity, V
 
 type CustomerWithMedical = AdminCustomer & { medical_customer?: any };
 
-const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical; onClose: () => void }) => {
+
+const customerFormSchema = z.object({
+    email: z.email('Ingresa un correo válido').min(3, 'El correo es requerido'),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    phone: z.string().optional(),
+});
+
+/**
+ * Alta y modificación de pacientes desde el directorio.
+ *
+ * Antes el directorio sólo LISTABA: no había forma de dar de alta, corregir ni
+ * dar de baja a nadie desde aquí. El alta existía únicamente escondida dentro
+ * del buscador de clientes del carrito, que es un sitio al que sólo se llega
+ * mientras se está cobrando.
+ *
+ * El mismo formulario sirve para los dos casos; lo único que cambia es si se
+ * parte de un paciente existente.
+ */
+const CustomerFormDialog: React.FC<{
+    visible: boolean;
+    customer?: CustomerWithMedical | null;
+    onClose: () => void;
+    onSaved?: (customer: AdminCustomer) => void;
+}> = ({ visible, customer, onClose, onSaved }) => {
+    const createCustomer = useCreateCustomer();
+    const updateCustomer = useUpdateCustomer();
+    const editando = !!customer;
+
+    return (
+        <Dialog
+            visible={visible}
+            title={editando ? 'Editar Paciente' : 'Nuevo Paciente'}
+            onClose={onClose}
+            dismissOnOverlayPress={true}
+            contentClassName="flex-shrink"
+        >
+            <Form
+                schema={customerFormSchema}
+                defaultValues={{
+                    email: customer?.email ?? '',
+                    first_name: customer?.first_name ?? '',
+                    last_name: customer?.last_name ?? '',
+                    phone: customer?.phone ?? '',
+                }}
+                onSubmit={(data, form) => {
+                    if (editando && customer) {
+                        updateCustomer.mutate(
+                            { id: customer.id, update: data },
+                            {
+                                onSuccess: (res) => {
+                                    onSaved?.(res.customer);
+                                    onClose();
+                                },
+                            },
+                        );
+                        return;
+                    }
+
+                    createCustomer.mutate(data, {
+                        onSuccess: (res) => {
+                            onSaved?.(res.customer);
+                            onClose();
+                            form.reset();
+                        },
+                    });
+                }}
+            >
+                <TextField name="email" placeholder="Correo Electrónico" autoComplete="off" autoCapitalize="none" inputMode="email" />
+                <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
+                <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
+                <TextField name="phone" placeholder="Número de Teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
+                <FormButton>{editando ? 'Guardar Cambios' : 'Crear Paciente'}</FormButton>
+            </Form>
+        </Dialog>
+    );
+};
+
+const CustomerDetails = ({
+    customer,
+    onClose,
+    onEdit,
+    onDeleted,
+}: {
+    customer: CustomerWithMedical;
+    onClose: () => void;
+    onEdit: () => void;
+    onDeleted: () => void;
+}) => {
     const ordersQuery = useOrders({ customer_id: customer.id });
+    const deleteCustomer = useDeleteCustomer();
+    const { state } = useAuthCtx();
+    const [confirmandoBaja, setConfirmandoBaja] = useState(false);
+
+    // La baja se ofrece sólo a quien el servidor se la va a permitir. El
+    // permiso real vive en el backend (api-policy.ts); esto sólo evita mostrar
+    // un botón que siempre terminaría en un 403.
+    const rol = state.status === 'authenticated' ? normalizeRole(state.user.role) : null;
+    const puedeDarDeBaja = rol === ROLES.ADMIN;
 
     return (
         <SafeAreaView className="flex-1 bg-white">
             <Layout className="flex-1 pb-6 mt-4">
                 <View className="mb-6 flex-row items-center justify-between">
                     <Text className="text-4xl text-black">Perfil del Cliente</Text>
-                    <TouchableOpacity onPress={onClose} className="rounded-full bg-gray-100 px-4 py-2">
-                        <Text className="font-semibold text-gray-700">Cerrar</Text>
-                    </TouchableOpacity>
+                    <View className="flex-row items-center gap-2">
+                        <TouchableOpacity onPress={onEdit} className="rounded-full bg-blue-50 px-4 py-2">
+                            <Text className="font-semibold text-blue-700">Editar</Text>
+                        </TouchableOpacity>
+                        {puedeDarDeBaja && (
+                            <TouchableOpacity
+                                onPress={() => setConfirmandoBaja(true)}
+                                className="rounded-full bg-red-50 px-4 py-2"
+                            >
+                                <Text className="font-semibold text-red-700">Eliminar</Text>
+                            </TouchableOpacity>
+                        )}
+                        <TouchableOpacity onPress={onClose} className="rounded-full bg-gray-100 px-4 py-2">
+                            <Text className="font-semibold text-gray-700">Cerrar</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
+
+                <Dialog
+                    visible={confirmandoBaja}
+                    title="Dar de baja al paciente"
+                    onClose={() => setConfirmandoBaja(false)}
+                    dismissOnOverlayPress={true}
+                >
+                    <Text className="mb-2">
+                        Se eliminara el registro de{' '}
+                        {[customer.first_name, customer.last_name].filter(Boolean).join(' ') || customer.email}.
+                    </Text>
+                    <Text className="mb-6 text-sm text-gray-500">
+                        Sus compras y ordenes medicas quedaran sin paciente asociado. Esta accion no se
+                        puede deshacer.
+                    </Text>
+                    <View className="flex-row justify-end gap-2">
+                        <Button variant="outline" onPress={() => setConfirmandoBaja(false)}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onPress={() =>
+                                deleteCustomer.mutate(customer.id, {
+                                    onSuccess: () => {
+                                        setConfirmandoBaja(false);
+                                        onDeleted();
+                                    },
+                                })
+                            }
+                        >
+                            Eliminar
+                        </Button>
+                    </View>
+                </Dialog>
 
                 <View className="mb-6 rounded-2xl border border-gray-200 p-6 bg-gray-50">
                     <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin Nombre'}</Text>
@@ -98,11 +257,15 @@ const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical;
 
 export default function CRMScreen() {
     const [searchQuery, setSearchQuery] = useState('');
+  // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
+  const busqueda = useDebouncedValue(searchQuery);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithMedical | null>(null);
+    const [formularioAbierto, setFormularioAbierto] = useState(false);
+    const [customerEnEdicion, setCustomerEnEdicion] = useState<CustomerWithMedical | null>(null);
     const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
 
     const customersQuery = useCustomers({
-        ...(searchQuery ? { q: searchQuery } : {})
+        ...(busqueda ? { q: busqueda } : {})
     });
 
     // Fetch individual medical data
@@ -159,7 +322,18 @@ export default function CRMScreen() {
 
     return (
         <Layout>
-            <Text className="mt-8 mb-6 text-4xl">CRM / Directorio</Text>
+            <View className="mt-8 mb-6 flex-row items-center justify-between">
+                <Text className="text-4xl">CRM / Directorio</Text>
+                <Button
+                    variant="outline"
+                    onPress={() => {
+                        setCustomerEnEdicion(null);
+                        setFormularioAbierto(true);
+                    }}
+                >
+                    Nuevo Paciente
+                </Button>
+            </View>
 
             <SearchInput
                 value={searchQuery}
@@ -180,15 +354,44 @@ export default function CRMScreen() {
                     automaticallyAdjustKeyboardInsets
                     contentContainerClassName="pb-2"
                     showsVerticalScrollIndicator={false}
-                    keyboardDismissMode="on-drag"
+                    keyboardDismissMode={KEYBOARD_DISMISS_MODE}
                 />
             )}
 
             <Modal visible={!!selectedCustomer} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setSelectedCustomer(null)}>
                 {selectedCustomer && (
-                    <CustomerDetails customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
+                    <CustomerDetails
+                        customer={selectedCustomer}
+                        onClose={() => setSelectedCustomer(null)}
+                        onEdit={() => {
+                            setCustomerEnEdicion(selectedCustomer);
+                            setFormularioAbierto(true);
+                        }}
+                        onDeleted={() => setSelectedCustomer(null)}
+                    />
                 )}
             </Modal>
+
+            {/* Se monta solo mientras esta abierto: asi el formulario arranca
+                siempre con los datos del paciente correcto, en lugar de conservar
+                los valores iniciales del primero que se abrio. */}
+            {formularioAbierto && (
+                <CustomerFormDialog
+                    visible={formularioAbierto}
+                    customer={customerEnEdicion}
+                    onClose={() => {
+                        setFormularioAbierto(false);
+                        setCustomerEnEdicion(null);
+                    }}
+                    onSaved={(actualizado) => {
+                        if (customerEnEdicion) {
+                            setSelectedCustomer((previo) =>
+                                previo ? { ...previo, ...actualizado } : previo,
+                            );
+                        }
+                    }}
+                />
+            )}
         </Layout>
     );
 }

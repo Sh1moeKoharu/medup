@@ -49,6 +49,11 @@ export type ApiPolicy = {
   path: string
   /** Roles que pueden ESCRIBIR (POST/PUT/PATCH/DELETE). */
   write: Role[]
+  /**
+   * Roles que pueden BORRAR, cuando borrar debe ser más restrictivo que
+   * escribir. Si se omite, basta con estar en `write`.
+   */
+  del?: Role[]
   /** Roles que pueden LEER. Si se omite, cualquiera autenticado. */
   read?: Role[]
   /** Rutas exactas exentas de la regla. */
@@ -190,6 +195,15 @@ export const API_POLICIES: ApiPolicy[] = [
   ].map(([path, nota]) => ({
     path,
     write: OPERATIVOS,
+    // Alta y corrección: cualquiera del personal operativo. Recepción registra
+    // al paciente en el mostrador y corrige un teléfono mal tecleado sin tener
+    // que molestar al administrador.
+    //
+    // Baja: sólo el administrador. Un paciente arrastra órdenes médicas y
+    // compras; eliminarlo deja ese historial apuntando a alguien que ya no
+    // existe, y la NOM-024-SSA3-2012 §6.6.2 pide que el expediente no se pueda
+    // destruir sin más.
+    del: [ROLES.ADMIN],
     nota: `Pacientes: ${nota}`,
   })),
 

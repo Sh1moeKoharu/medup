@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { Clock } from '@/components/icons/clock';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
@@ -81,7 +82,7 @@ export default function ActivityScreen() {
                 automaticallyAdjustKeyboardInsets
                 contentContainerClassName="pb-2"
                 showsVerticalScrollIndicator={false}
-                keyboardDismissMode="on-drag"
+                keyboardDismissMode={KEYBOARD_DISMISS_MODE}
             />
         </Layout>
     );

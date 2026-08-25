@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { Check } from '@/components/icons/check';
 import { Text } from '@/components/ui/Text';
 import { clx } from '@/utils/clx';
@@ -121,7 +122,7 @@ export function SelectField({
             </View>
           }
           onEndReached={onEndReached}
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         />
       </>
     );

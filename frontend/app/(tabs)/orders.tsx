@@ -1,3 +1,4 @@
+import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL } from '@/api/hooks/draft-orders';
 import { useOrders } from '@/api/hooks/orders';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
@@ -237,7 +238,7 @@ export default function OrdersScreen() {
           }
         }}
         showsVerticalScrollIndicator={false}
-        keyboardDismissMode="on-drag"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       />
     </Layout>
   );
