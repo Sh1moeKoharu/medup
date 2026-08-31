@@ -55,7 +55,17 @@ const StaffPage = () => {
         setPassword("");
         setFirstName("");
         setLastName("");
-        setRole("cajero");
+        // ROLES.CASHIER ("cashier"), no "cajero".
+        //
+        // "cajero" es un alias HEREDADO que normalizeRole() sabe traducir, pero
+        // las opciones del desplegable se generan desde ALL_ROLES, que son los
+        // valores canonicos en ingles. Con "cajero" ninguna opcion coincidia, asi
+        // que el desplegable se quedaba en su texto de ayuda y parecia que no
+        // habia ningun rol elegido.
+        //
+        // Y como handleOpenCreate() llama a resetForm() antes de abrir, esto
+        // pasaba SIEMPRE al dar de alta a alguien, no en un caso raro.
+        setRole(ROLES.CASHIER);
         setEditingUser(null);
     };
 
@@ -172,11 +182,34 @@ const StaffPage = () => {
                                 <>
                                     <div>
                                         <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Correo Electrónico</Text>
-                                        <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="usuario@pos.com" />
+                                        {/* autoComplete y un name no estandar: este formulario tiene
+                                            un campo de correo y otro de contrasena dentro de una sesion
+                                            ya iniciada, que es justo el patron que el navegador reconoce
+                                            como "inicio de sesion". Sin esto, Chrome rellenaba solo el
+                                            correo y la contrasena DEL ADMINISTRADOR que esta dando de
+                                            alta, y al borrarlos los volvia a poner. */}
+                                        <Input
+                                            type="email"
+                                            name="alta-correo-personal"
+                                            autoComplete="off"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            placeholder="usuario@pos.com"
+                                        />
                                     </div>
                                     <div>
                                         <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Contraseña</Text>
-                                        <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Contraseña segura" />
+                                        {/* "new-password" y no "off": Chrome ignora "off" en campos de
+                                            contrasena, pero si respeta "new-password", que es la senal de
+                                            "esto es una clave nueva, no la guardada". */}
+                                        <Input
+                                            type="password"
+                                            name="alta-clave-personal"
+                                            autoComplete="new-password"
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            placeholder="Contraseña segura"
+                                        />
                                         <Text size="small" style={{ color: "#9ca3af", marginTop: 4 }}>Debe tener un buen nivel de seguridad o el sistema la rechazará.</Text>
                                     </div>
                                 </>
