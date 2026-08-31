@@ -16,6 +16,7 @@ import {
 } from "../lib/require-role";
 import { API_POLICIES, findOverlappingPolicies } from "../lib/api-policy";
 import { redactForAudit } from "../lib/audit-redaction";
+import { GENESIS, calcularHuella, enFila } from "../lib/audit-chain";
 
 /**
  * Interceptor de bitácora.
@@ -32,6 +33,10 @@ import { redactForAudit } from "../lib/audit-redaction";
  *    enmascarando sólo `password`, lo que duplicaba diagnósticos, alergias y
  *    posologías en texto plano dentro de `audit_log.payload`. Ver
  *    `lib/audit-redaction.ts`.
+ *
+ * 3. ENCADENAMIENTO. Cada asiento guarda la huella del anterior, de forma que
+ *    modificar, borrar o reordenar uno rompe la cadena y queda detectable. Ver
+ *    `lib/audit-chain.ts` y el script `verificar-bitacora.ts`.
  */
 const auditLogInterceptor = (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     // Continuamos la ejecución normal de Medusa
@@ -60,14 +65,32 @@ const auditLogInterceptor = (req: MedusaRequest, res: MedusaResponse, next: Medu
                     ? ((req.body as Record<string, any>)?.email ?? null)
                     : null;
 
-                await auditService.createAuditLogs({
+                const contenido = {
                     user_id: actor?.id ?? null,
                     user_email: actor?.email ?? attemptedEmail,
                     user_role: actor?.role ?? null,
                     method: req.method,
                     endpoint: actionEndpoint,
-                    ip_address: typeof ipAddress === "string" ? ipAddress : ipAddress[0],
-                    payload: payload as Record<string, unknown> | null,
+                    ip_address: (typeof ipAddress === "string" ? ipAddress : ipAddress[0]) ?? null,
+                    payload: (payload ?? null) as Record<string, unknown> | null,
+                };
+
+                // Leer la huella previa y escribir el asiento van juntos y en
+                // fila: si dos peticiones terminan a la vez, las dos leerian la
+                // misma huella previa y la cadena quedaria bifurcada.
+                await enFila(async () => {
+                    const [ultimo] = await auditService.listAuditLogs(
+                        {},
+                        { order: { created_at: "DESC" }, take: 1 }
+                    );
+
+                    const huellaPrevia = ultimo?.hash ?? GENESIS;
+
+                    await auditService.createAuditLogs({
+                        ...contenido,
+                        prev_hash: huellaPrevia,
+                        hash: calcularHuella(contenido, huellaPrevia),
+                    });
                 });
             }
         } catch (error) {
