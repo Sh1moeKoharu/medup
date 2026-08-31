@@ -216,6 +216,16 @@ export const API_POLICIES: ApiPolicy[] = [
     nota: "Órdenes médicas: emitir (médico) y surtir (farmacia)",
   },
 
+  // ── RECIBOS ───────────────────────────────────────────────────────────────
+  {
+    path: "/admin/receipts",
+    write: [ROLES.ADMIN],
+    // Solo lectura y solo para quien despacha o audita. El medico consulta el
+    // historial del paciente, no sus tickets de compra.
+    read: [ROLES.ADMIN, ROLES.CASHIER, ROLES.PHARMACY, ROLES.AUDITOR],
+    nota: "Comprobante de venta para imprimir (se arma en el servidor)",
+  },
+
   // ── REPORTES ──────────────────────────────────────────────────────────────
   {
     path: "/admin/inventory-movements",

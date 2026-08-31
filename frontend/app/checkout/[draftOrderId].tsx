@@ -1,4 +1,6 @@
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
+import { useRecibo } from '@/api/hooks/orders';
+import { imprimirRecibo } from '@/utils/imprimir-recibo';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
   useCompleteDraftOrder,
@@ -73,6 +75,26 @@ export default function CheckoutScreen() {
   const addCashMovement = useAddCashMovement();
   const [prescriptionNumber, setPrescriptionNumber] = React.useState('');
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('cash');
+
+  // El recibo se pide al servidor sólo cuando el cajero pulsa imprimir.
+  const recibo = useRecibo(draftOrderId);
+  const [errorRecibo, setErrorRecibo] = React.useState('');
+
+  const handleImprimir = async () => {
+    setErrorRecibo('');
+    try {
+      const { data } = await recibo.refetch();
+      if (!data) {
+        setErrorRecibo('No se pudo obtener el recibo. Puedes reimprimirlo desde Órdenes.');
+        return;
+      }
+      if (!imprimirRecibo(data)) {
+        setErrorRecibo('Este dispositivo no puede imprimir. Usa la caja con impresora.');
+      }
+    } catch {
+      setErrorRecibo('No se pudo obtener el recibo. Puedes reimprimirlo desde Órdenes.');
+    }
+  };
   const [cashReceived, setCashReceived] = React.useState('');
 
   const renderItem = React.useCallback<ListRenderItem<AdminOrderLineItem>>(
@@ -376,10 +398,28 @@ export default function CheckoutScreen() {
         contentClassName="flex-shrink"
       >
         <InfoBanner colorScheme="success" className="mb-4">
-          The order has been placed successfully. You can track the order status on Orders screen.
+          La venta se registró correctamente.
         </InfoBanner>
 
+        {/* Imprimir va primero y en sólido: es lo que el cajero hace en la
+            inmensa mayoría de las ventas, con el cliente esperando delante.
+            Ver la orden es la excepción. */}
         <Button
+          className="mb-2"
+          isPending={recibo.isFetching}
+          onPress={handleImprimir}
+        >
+          Imprimir recibo
+        </Button>
+
+        {!!errorRecibo && (
+          <InfoBanner colorScheme="error" className="mb-2">
+            {errorRecibo}
+          </InfoBanner>
+        )}
+
+        <Button
+          variant="outline"
           className="mb-2"
           onPress={() => {
             router.replace('/orders');
@@ -393,7 +433,7 @@ export default function CheckoutScreen() {
             });
           }}
         >
-          View Order
+          Ver la venta
         </Button>
         <Button
           variant="outline"

@@ -1,4 +1,5 @@
 import { useMedusaSdk } from '@/contexts/auth';
+import type { Recibo } from '@/utils/imprimir-recibo';
 import { AdminOrderFilters, AdminOrderListResponse } from '@medusajs/types';
 import { InfiniteData, UndefinedInitialDataInfiniteOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
@@ -54,5 +55,29 @@ export const useOrder = (orderId: string) => {
       });
     },
     enabled: !!orderId,
+  });
+};
+
+/**
+ * Recibo de una venta, ya armado por el servidor.
+ *
+ * No se compone en el dispositivo a propósito: el contenido del comprobante
+ * —incluida la regla sobre medicamentos controlados— lo decide el servidor en
+ * /admin/receipts/:id, donde no se puede eludir desde la consola del navegador.
+ *
+ * `enabled` en false por omisión: sólo se pide cuando el cajero pulsa imprimir,
+ * no al abrir la pantalla.
+ */
+export const useRecibo = (orderId?: string) => {
+  const sdk = useMedusaSdk();
+
+  return useQuery({
+    queryKey: ['recibo', orderId],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{ recibo: Recibo }>(`/admin/receipts/${orderId}`);
+      return res.recibo;
+    },
+    enabled: false,
+    gcTime: 0,
   });
 };
