@@ -30,9 +30,10 @@ import { normalizeRole, ROLES } from "../lib/roles"
  * Crea primero el administrador real:
  *
  *     cd ~/altus/backend
- *     npx medusa user -e director@clinica.mx -p 'UnaClaveLargaYUnica'
+ *     npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx
  *
- * y después entra al panel a asignarle el rol en Ajustes → Personal.
+ * Ese script genera la contraseña en el servidor y deja la cuenta ya con el rol
+ * de Administrador puesto.
  *
  * ── ANTES DE BORRAR ─────────────────────────────────────────────────────────
  * Guarda un respaldo JSON en `.backups/`. No devuelve las cuentas por sí solo
@@ -119,11 +120,11 @@ export default async function limpiarDatosPrueba({ container, args }: ExecArgs) 
     console.log(" Crea primero el administrador real:")
     console.log("")
     console.log("    cd ~/altus/backend")
-    console.log("    npx medusa user -e director@clinica.mx -p 'UnaClaveLargaYUnica'")
+    console.log("    npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx")
     console.log("")
-    console.log(" Entra al panel con esa cuenta, ve a Ajustes → Personal y")
-    console.log(" asígnale el rol de Administrador. Después vuelve a ejecutar")
-    console.log(" este script.")
+    console.log(" Ese script genera la contraseña en el servidor y deja la cuenta")
+    console.log(" ya con el rol de Administrador. Entra al panel con ella para")
+    console.log(" comprobar que funciona y vuelve a ejecutar este script.")
     console.log("═══════════════════════════════════════════════════════════════")
     console.log("")
     return
