@@ -6,7 +6,7 @@ import { LayoutWithKeyboardAvoidingScroll } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
 import { useAuthCtx } from '@/contexts/auth';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import * as z from 'zod/v4';
 
 const normalizeUrl = (url: string): string => {
@@ -70,14 +70,31 @@ export default function LoginScreen() {
     }
   };
 
-  // La URL del servidor se precarga desde EXPO_PUBLIC_MEDUSA_API_URL, que se
-  // hornea en el bundle al compilar. Antes la variable existía en .env pero no
-  // se usaba en ninguna parte, así que el cajero tenía que teclear la dirección
-  // completa del servidor en cada dispositivo nuevo.
+  // La dirección del servidor, por orden de preferencia.
   //
-  // Sigue siendo editable a propósito: permite apuntar a otro servidor sin
-  // recompilar. Una sesión previa tiene prioridad sobre el valor por omisión.
-  const configuredUrl = process.env.EXPO_PUBLIC_MEDUSA_API_URL ?? '';
+  // ── POR QUÉ EL ORIGEN DE LA PROPIA PÁGINA VA PRIMERO ────────────────────
+  // Nginx sirve el POS y la API en el MISMO origen: el punto de venta en la
+  // raíz y /admin, /auth y /store reenviados al backend. Eso significa que la
+  // dirección desde la que se abrió esta página YA ES la dirección correcta
+  // del servidor, siempre, sin excepción.
+  //
+  // Antes se tomaba de EXPO_PUBLIC_MEDUSA_API_URL, horneada al compilar, que
+  // en el repositorio vale http://localhost:9000 — o sea, el propio dispositivo
+  // del cajero, no el servidor. Había que teclear la dirección a mano en cada
+  // tableta.
+  //
+  // Peor aún de cara a la mudanza: una dirección fija se rompe en cuanto el
+  // servidor cambia de red y recibe otra IP, y habría que volver a apuntar
+  // dispositivo por dispositivo. Deducirla del origen hace que siga
+  // funcionando con cualquier IP, y también más adelante con un nombre de
+  // dominio o con https.
+  //
+  // El campo sigue siendo editable: en desarrollo el POS corre en otro puerto
+  // que el backend, y ahí el origen no sirve.
+  const origenActual =
+    Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : '';
+
+  const configuredUrl = origenActual || process.env.EXPO_PUBLIC_MEDUSA_API_URL || '';
 
   const defaultValues: Partial<LoginFormData> = {
     medusaUrl:
