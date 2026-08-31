@@ -1,16 +1,38 @@
 # Servicio systemd del backend SIGH / Altus.
 #
-# Instalacion:
+# NO hace falta copiar este archivo a mano. El instalador lo hace y ademas
+# sustituye las rutas de ejemplo por las reales de la copia del repositorio:
+#
+#   sudo bash backend/deploy/instalar-servicios.sh
+#
+# Instalacion manual, si se prefiere (ajustando User y las rutas):
 #   sudo cp backend/deploy/altus.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now altus
-#
-# Ajusta User y WorkingDirectory si el despliegue no vive en /home/altus.
 
 [Unit]
 Description=SIGH Altus - Backend Medusa
 After=network.target postgresql.service redis-server.service
-Requires=postgresql.service redis-server.service
+
+# Wants y no Requires, a proposito.
+#
+# Con Requires, si PostgreSQL o Redis fallan o tardan, systemd DETIENE tambien
+# el backend y lo deja parado. En un equipo que nadie vigila eso significa que
+# la farmacia amanece sin sistema por un tropiezo momentaneo de un servicio
+# vecino, y alguien tiene que ir a levantarlo a mano.
+#
+# Con Wants se pide que se levanten, pero si no estan listos el backend
+# simplemente falla al arrancar y Restart=always lo reintenta hasta que si lo
+# estan. El resultado es el mismo cuando todo va bien y se recupera solo
+# cuando no.
+Wants=postgresql.service redis-server.service
+
+# Sin limite de reintentos.
+#
+# Por omision systemd se rinde tras unos pocos arranques fallidos seguidos y
+# deja la unidad muerta hasta que alguien intervenga. Aqui no hay nadie que
+# intervenga: es preferible que siga intentandolo indefinidamente.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

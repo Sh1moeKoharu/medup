@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+#
+# altus — mando único de los servicios de SIGH / Altus.
+#
+# Se instala como /usr/local/bin/altus (ver instalar-servicios.sh), así que en
+# el servidor basta con:
+#
+#     sudo altus estado
+#     sudo altus reiniciar
+#     sudo altus registro
+#
+# ── POR QUÉ EXISTE ──────────────────────────────────────────────────────────
+# El sistema no es un solo proceso: son cuatro piezas que deben levantarse en
+# orden (PostgreSQL, Redis, el backend, Nginx). Pedirle a alguien en la clínica
+# que recuerde cuatro nombres de unidad y el orden correcto es pedir que un día
+# reinicie sólo una y crea que ya está.
+#
+# Este script encapsula ese orden y, sobre todo, DICE si algo quedó mal en vez
+# de terminar en silencio.
+
+set -uo pipefail
+
+# Orden de arranque. El backend va al final porque depende de los tres previos.
+SERVICIOS_BASE=(postgresql redis-server nginx)
+SERVICIO_APP=altus
+TODOS=("${SERVICIOS_BASE[@]}" "$SERVICIO_APP")
+
+PUERTO_BACKEND=9000
+URL_SALUD="http://127.0.0.1:${PUERTO_BACKEND}/health"
+
+# Colores sólo si la salida es una terminal; si se redirige a un archivo o a
+# otro comando, quedan fuera para no ensuciar el texto.
+if [ -t 1 ]; then
+  ROJO=$'\033[31m'; VERDE=$'\033[32m'; AMARILLO=$'\033[33m'; GRIS=$'\033[90m'; FIN=$'\033[0m'
+else
+  ROJO=''; VERDE=''; AMARILLO=''; GRIS=''; FIN=''
+fi
+
+ok()    { echo "  ${VERDE}OK${FIN}    $*"; }
+aviso() { echo "  ${AMARILLO}AVISO${FIN} $*"; }
+falla() { echo "  ${ROJO}FALLA${FIN} $*"; }
+
+necesita_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Este comando necesita permisos de administrador. Usa:  sudo altus $*" >&2
+    exit 1
+  fi
+}
+
+# ── estado ──────────────────────────────────────────────────────────────────
+cmd_estado() {
+  echo
+  echo "SERVICIOS"
+  local problemas=0
+
+  for s in "${TODOS[@]}"; do
+    local activo habilitado
+    activo=$(systemctl is-active "$s" 2>/dev/null || true)
+    habilitado=$(systemctl is-enabled "$s" 2>/dev/null || true)
+
+    if [ "$activo" != "active" ]; then
+      falla "$(printf '%-16s' "$s") detenido"
+      problemas=$((problemas + 1))
+    elif [ "$habilitado" != "enabled" ]; then
+      # Corriendo pero sin arranque automático: al próximo reinicio del equipo
+      # no vuelve solo. Es justo el fallo que no se nota hasta que es tarde.
+      aviso "$(printf '%-16s' "$s") en marcha, pero NO arranca solo al encender"
+      problemas=$((problemas + 1))
+    else
+      ok "$(printf '%-16s' "$s") en marcha, arranca al encender"
+    fi
+  done
+
+  echo
+  echo "COMPROBACIONES"
+
+  if curl -fsS --max-time 5 "$URL_SALUD" >/dev/null 2>&1; then
+    ok "el backend responde en $URL_SALUD"
+  else
+    falla "el backend NO responde en $URL_SALUD"
+    problemas=$((problemas + 1))
+  fi
+
+  if curl -fsS --max-time 5 -o /dev/null http://127.0.0.1/ 2>/dev/null; then
+    ok "el punto de venta se sirve en el puerto 80"
+  else
+    falla "el punto de venta NO responde en el puerto 80"
+    problemas=$((problemas + 1))
+  fi
+
+  # Disco: una base de datos que se queda sin espacio deja de aceptar
+  # escrituras, y el sintoma que ve el cajero es "no puedo cobrar".
+  local uso
+  uso=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+  if [ -n "$uso" ] && [ "$uso" -ge 90 ]; then
+    falla "disco al ${uso}% — libera espacio antes de que la base deje de escribir"
+    problemas=$((problemas + 1))
+  elif [ -n "$uso" ]; then
+    ok "disco al ${uso}%"
+  fi
+
+  echo
+  if [ "$problemas" -eq 0 ]; then
+    echo "${VERDE}Todo correcto.${FIN}"
+  else
+    echo "${ROJO}${problemas} problema(s).${FIN}  Detalle:  sudo altus registro"
+  fi
+  echo
+  [ "$problemas" -eq 0 ]
+}
+
+# ── iniciar / detener / reiniciar ───────────────────────────────────────────
+cmd_iniciar() {
+  necesita_root iniciar
+  for s in "${SERVICIOS_BASE[@]}"; do
+    echo "Iniciando $s…"
+    systemctl start "$s" || falla "no se pudo iniciar $s"
+  done
+  echo "Iniciando $SERVICIO_APP…"
+  systemctl start "$SERVICIO_APP" || falla "no se pudo iniciar $SERVICIO_APP"
+  esperar_backend
+  cmd_estado
+}
+
+cmd_detener() {
+  necesita_root detener
+  # Orden inverso: primero el backend, para que no queden peticiones a medias
+  # contra una base que ya se está apagando.
+  echo "Deteniendo $SERVICIO_APP…"
+  systemctl stop "$SERVICIO_APP" || true
+  echo "Deteniendo Nginx…"
+  systemctl stop nginx || true
+  echo
+  echo "PostgreSQL y Redis se dejan en marcha a propósito: apagarlos no aporta"
+  echo "nada y sí complica el siguiente arranque. Para apagar el equipo entero:"
+  echo "   sudo shutdown -h now"
+}
+
+cmd_reiniciar() {
+  necesita_root reiniciar
+  echo "Reiniciando el backend…"
+  systemctl restart "$SERVICIO_APP" || falla "no se pudo reiniciar $SERVICIO_APP"
+  echo "Recargando Nginx…"
+  systemctl reload nginx 2>/dev/null || systemctl restart nginx || true
+  esperar_backend
+  cmd_estado
+}
+
+# El backend tarda unos segundos en aceptar peticiones. Sin esta espera, un
+# `reiniciar` informaría "no responde" simplemente por preguntar demasiado
+# pronto, y quien lo lea pensara que algo se rompio.
+esperar_backend() {
+  echo -n "Esperando a que el backend acepte peticiones"
+  for _ in $(seq 1 30); do
+    if curl -fsS --max-time 2 "$URL_SALUD" >/dev/null 2>&1; then
+      echo " listo."
+      return 0
+    fi
+    echo -n "."
+    sleep 2
+  done
+  echo " se agotó la espera."
+  return 1
+}
+
+# ── registro ────────────────────────────────────────────────────────────────
+cmd_registro() {
+  local n="${1:-80}"
+  if [ "$n" = "-f" ] || [ "$n" = "seguir" ]; then
+    echo "Mostrando el registro en vivo. Ctrl+C para salir."
+    journalctl -u "$SERVICIO_APP" -f
+  else
+    journalctl -u "$SERVICIO_APP" -n "$n" --no-pager
+  fi
+}
+
+# ── ayuda ───────────────────────────────────────────────────────────────────
+cmd_ayuda() {
+  cat <<'AYUDA'
+
+  altus — servicios de SIGH / Altus
+
+    sudo altus estado          Qué está en marcha y qué no (no cambia nada)
+    sudo altus iniciar         Levanta todo en el orden correcto
+    sudo altus reiniciar       Reinicia el backend y recarga Nginx
+    sudo altus detener         Detiene el backend y Nginx
+    sudo altus registro        Últimas 80 líneas del registro del backend
+    sudo altus registro seguir Registro en vivo (Ctrl+C para salir)
+
+  Si algo no funciona, empieza siempre por:   sudo altus estado
+
+  No hace falta ejecutar nada al encender el servidor: los servicios arrancan
+  solos, sin que nadie inicie sesión.
+
+AYUDA
+}
+
+case "${1:-ayuda}" in
+  estado|status)        shift; cmd_estado ;;
+  iniciar|start)        shift; cmd_iniciar ;;
+  detener|stop)         shift; cmd_detener ;;
+  reiniciar|restart)    shift; cmd_reiniciar ;;
+  registro|logs)        shift; cmd_registro "${1:-80}" ;;
+  ayuda|help|-h|--help) cmd_ayuda ;;
+  *)
+    echo "Orden desconocida: $1" >&2
+    cmd_ayuda
+    exit 1
+    ;;
+esac

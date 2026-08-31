@@ -1,0 +1,30 @@
+# Saltos de línea.
+#
+# El proyecto se desarrolla en Windows y se ejecuta en Linux. Un script de
+# despliegue guardado con saltos de línea de Windows falla en el servidor con
+# un error que además despista bastante:
+#
+#     bash: /usr/local/bin/altus: /usr/bin/env bash^M: bad interpreter
+#
+# Git ya normaliza por su cuenta cuando core.autocrlf está activo, pero eso es
+# configuración de cada máquina y no viaja con el repositorio. Esto sí.
+
+*               text=auto
+
+# Todo lo que ejecuta el servidor, con LF pase lo que pase.
+*.sh            text eol=lf
+backend/deploy/altus-ctl        text eol=lf
+backend/deploy/*.service        text eol=lf
+backend/deploy/*.conf           text eol=lf
+
+# Binarios: que git no intente tocarlos.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.xlsx          binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary

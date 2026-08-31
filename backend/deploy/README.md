@@ -92,18 +92,63 @@ SIGH_ALLOW_TEST_SEED=1 npm run seed
 El seed vive en el código fuente (`src/scripts/`), no en el build: se corre
 desde `~/altus/backend`, no desde `.medusa/server`.
 
-## 6. Servicio
+## 6. Servicios
+
+Un solo comando deja el equipo listo para funcionar sin nadie delante:
 
 ```
-sudo mkdir -p /etc/altus
-sudo cp ~/altus/backend/.env /etc/altus/backend.env
-sudo chown root:altus /etc/altus/backend.env && sudo chmod 640 /etc/altus/backend.env
+sudo cp ~/altus/backend/.env.template /etc/altus/backend.env   # sólo la primera vez
+sudo nano /etc/altus/backend.env                                # rellenar y guardar
 
-sudo cp ~/altus/backend/deploy/altus.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now altus
-systemctl status altus --no-pager
+sudo bash ~/altus/backend/deploy/instalar-servicios.sh
 ```
+
+El instalador es idempotente: se puede repetir las veces que haga falta.
+
+### Qué deja hecho
+
+| | |
+|---|---|
+| Unidad de systemd | instalada con las rutas **reales** de esta copia del repositorio, no las de ejemplo |
+| Arranque automático | PostgreSQL, Redis, Nginx y el backend marcados para arrancar al encender |
+| Suspensión | bloqueada, para que el equipo no se duerma solo |
+| Mando `altus` | instalado en `/usr/local/bin/altus` |
+| Comprobación | ejecuta un diagnóstico al terminar y dice si algo quedó mal |
+
+### Arranque sin iniciar sesión
+
+Es lo que hace `systemctl enable`. Los servicios los levanta **systemd durante
+el arranque del sistema**, antes de que aparezca la pantalla de acceso y con
+total independencia de que alguien entre con usuario y contraseña. La sesión de
+escritorio no interviene: se puede dejar el servidor encendido sin monitor ni
+teclado y el punto de venta responde igual.
+
+Para comprobarlo de verdad, reinicia el equipo y, **sin iniciar sesión**, abre
+el POS desde otra máquina de la red.
+
+### Uso diario
+
+```
+sudo altus estado          # qué está en marcha y qué no (no cambia nada)
+sudo altus reiniciar       # si algo va raro
+sudo altus registro        # últimas 80 líneas del backend
+sudo altus registro seguir # registro en vivo
+```
+
+`sudo altus estado` avisa de un caso que de otro modo pasa inadvertido: un
+servicio **en marcha pero sin arranque automático**. Funciona hasta el próximo
+corte de luz y entonces ya no vuelve.
+
+### Decisiones de la unidad de systemd
+
+`Wants=` en lugar de `Requires=` sobre PostgreSQL y Redis. Con `Requires`, si
+una dependencia tropieza, systemd detiene también el backend y lo deja parado
+hasta que alguien lo levante a mano — y en la clínica no hay quien lo haga. Con
+`Wants` + `Restart=always` el backend reintenta hasta que la base responde.
+
+`StartLimitIntervalSec=0`. Por omisión systemd se rinde tras unos pocos
+arranques fallidos seguidos. Sin nadie que intervenga, es preferible que siga
+intentándolo.
 
 ---
 
