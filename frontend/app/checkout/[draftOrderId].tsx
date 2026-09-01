@@ -1,6 +1,7 @@
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useRecibo } from '@/api/hooks/orders';
 import { imprimirRecibo } from '@/utils/imprimir-recibo';
+import { useAjustesImpresion } from '@/utils/ajustes-impresion';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
   useCompleteDraftOrder,
@@ -76,9 +77,10 @@ export default function CheckoutScreen() {
   const [prescriptionNumber, setPrescriptionNumber] = React.useState('');
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('cash');
 
-  // El recibo se pide al servidor sólo cuando el cajero pulsa imprimir.
+  // El recibo se pide al servidor sólo cuando hace falta imprimirlo.
   const recibo = useRecibo(draftOrderId);
   const [errorRecibo, setErrorRecibo] = React.useState('');
+  const { ajustes: ajustesImpresion } = useAjustesImpresion();
 
   const handleImprimir = async () => {
     setErrorRecibo('');
@@ -156,6 +158,26 @@ export default function CheckoutScreen() {
   }
 
   const isDraftOrder = draftOrder.data.status === 'draft';
+
+  // Impresión automática al confirmar la venta, si esta caja la tiene
+  // activada en Ajustes → Impresión. Es lo que pidió el tester: al completar la
+  // orden el ticket sale solo.
+  //
+  // El guardia `yaImpreso` importa: este efecto depende del estado de la
+  // pantalla y se re-ejecuta; sin él, una venta podría imprimirse dos veces y
+  // alguien se llevaría el duplicado.
+  const yaImpreso = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!ajustesImpresion.automatico) return;
+    if (isDraftOrder) return; // todavía no se ha confirmado la venta
+    if (yaImpreso.current) return;
+
+    yaImpreso.current = true;
+    handleImprimir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ajustesImpresion.automatico, isDraftOrder]);
+
   const customerEmail = draftOrder.data.customer?.email;
   const customerName = [draftOrder.data.customer?.first_name, draftOrder.data.customer?.last_name]
     .filter(Boolean)

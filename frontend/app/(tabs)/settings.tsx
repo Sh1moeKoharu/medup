@@ -51,6 +51,16 @@ export default function SettingsScreen() {
         >
           {settings.data?.stock_location?.name || '—'}
         </Button>
+        <Text className="mb-4 text-2xl">Impresión</Text>
+        <Button
+          onPress={() => router.push('/settings/impresion')}
+          variant="outline"
+          icon={<Antenna size={16} />}
+          iconPosition="left"
+          className="mb-8 justify-end"
+        >
+          Ticket y impresora
+        </Button>
         <Text className="mb-4 text-2xl">Restablecer</Text>
         <Button
           variant="outline"

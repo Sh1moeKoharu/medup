@@ -85,6 +85,8 @@ function App() {
           }}
         />
 
+        <Stack.Screen name="settings/impresion" options={{ headerShown: false }} />
+
         <Stack.Screen name="settings/stock-location" options={{ headerShown: false }} />
 
         <Stack.Screen name="settings/create-stock-location" options={{ headerShown: false }} />
