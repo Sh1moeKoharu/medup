@@ -17,6 +17,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
+import * as React from 'react';
+import { Platform } from 'react-native';
+import { BloqueoProvider, useBloqueo } from '@/contexts/bloqueo';
+import { PantallaBloqueada } from '@/components/PantallaBloqueada';
 
 
 const queryClient = new QueryClient({
@@ -115,6 +119,30 @@ function App() {
   );
 }
 
+/**
+ * Marca actividad del usuario, para el bloqueo por inactividad.
+ *
+ * Se escucha en fase de CAPTURA y sin interferir: solo anota la hora del ultimo
+ * gesto. Sin captura, un componente que detuviera la propagacion dejaria de
+ * contar como actividad y la caja se bloquearia en mitad del uso.
+ */
+const DetectorDeActividad: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { registrarActividad } = useBloqueo();
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    const eventos = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+    eventos.forEach((e) => document.addEventListener(e, registrarActividad, true));
+
+    return () => {
+      eventos.forEach((e) => document.removeEventListener(e, registrarActividad, true));
+    };
+  }, [registrarActividad]);
+
+  return <>{children}</>;
+};
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -125,11 +153,21 @@ export default function RootLayout() {
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <SplashScreenController />
             <AppStatusBar />
-            <GestureHandlerRootView>
-              <KeyboardProvider>
-                <App />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+            <BloqueoProvider>
+              {/* El detector va por FUERA de <App/> para que cualquier gesto en
+                  cualquier pantalla cuente como actividad. Dentro de una
+                  pantalla, salir de ella dejaria de reiniciar el contador. */}
+              <DetectorDeActividad>
+                <GestureHandlerRootView>
+                  <KeyboardProvider>
+                    <App />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </DetectorDeActividad>
+              {/* Va DESPUES de la aplicacion: queda por encima en el orden de
+                  pintado, ademas del z-index. */}
+              <PantallaBloqueada />
+            </BloqueoProvider>
             <Toast config={toastConfig} position="bottom" />
           </ThemeProvider>
         </AuthProvider>

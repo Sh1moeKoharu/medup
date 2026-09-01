@@ -7,9 +7,11 @@ import { useAuthCtx } from '@/contexts/auth';
 import { useClearSettings, useSettings } from '@/contexts/settings';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
+import { clx } from '@/utils/clx';
 import React from 'react';
 import { VERSION_COMMIT, VERSION_FECHA } from '@/utils/version.generated';
+import { useBloqueo } from '@/contexts/bloqueo';
 
 export default function SettingsScreen() {
   const queryClient = useQueryClient();
@@ -18,6 +20,7 @@ export default function SettingsScreen() {
   const clearSettings = useClearSettings();
 
   const [isDialogVisible, setIsDialogVisible] = React.useState(false);
+  const bloqueo = useBloqueo();
 
   return (
     <>
@@ -73,6 +76,38 @@ export default function SettingsScreen() {
         >
           Borrar Ajustes
         </Button>
+        <Text className="mb-4 text-2xl">Seguridad</Text>
+        <Button onPress={bloqueo.bloquear} variant="outline" className="mb-2 justify-center">
+          Pausar sesión
+        </Button>
+        <Text className="mb-4 text-sm text-gray-400">
+          Bloquea la pantalla sin cerrar sesión. El turno de caja y el carrito se
+          conservan; para volver hace falta la contraseña.
+        </Text>
+
+        <Text className="mb-2 text-sm text-gray-400">Bloquear sola tras</Text>
+        <View className="mb-2 flex-row flex-wrap gap-2">
+          {[0, 5, 10, 15, 30].map((m) => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => bloqueo.cambiarMinutos(m)}
+              className={clx('rounded-xl border px-4 py-3', {
+                'border-black bg-black': bloqueo.minutosInactividad === m,
+                'border-gray-200': bloqueo.minutosInactividad !== m,
+              })}
+            >
+              <Text className={bloqueo.minutosInactividad === m ? 'text-white' : ''}>
+                {m === 0 ? 'Nunca' : `${m} min`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text className="mb-8 text-sm text-gray-400">
+          Viene en &quot;Nunca&quot; para no estorbar durante las pruebas. Antes de
+          abrir al público conviene ponerlo en 10 o 15 minutos: es lo que protege
+          la caja cuando alguien se va sin acordarse de pausarla.
+        </Text>
+
         <Text className="mb-4 text-2xl">Versión</Text>
         {/* Viaja dentro del paquete compilado, asi que es necesariamente la
             version que se esta ejecutando. Un git pull sin recompilar deja el
