@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { AdminProductImage } from '@medusajs/types';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import * as React from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
@@ -297,8 +298,20 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
                   },
                   {
                     onSuccess: () => {
+                      // Se cierra la hoja y se VUELVE AL CATALOGO, no al carrito.
+                      //
+                      // Antes saltaba a la pantalla de cobro en cuanto se
+                      // agregaba un producto. Una venta de farmacia casi nunca
+                      // es de un solo articulo: el cajero tenia que volver al
+                      // catalogo a mano por cada uno, y en cada vuelta el sistema
+                      // le insistia con el cobro. Ir a cobrar es una decision
+                      // suya, y para eso esta el boton Cobrar del carrito.
                       animateOut();
-                      router.dismissTo('/(tabs)/cart');
+                      Toast.show({
+                        type: 'success',
+                        text1: 'Agregado al carrito',
+                        text2: productQuery.data?.product?.title,
+                      });
                     },
                   },
                 );

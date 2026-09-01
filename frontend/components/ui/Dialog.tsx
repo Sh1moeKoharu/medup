@@ -108,8 +108,20 @@ export const Dialog: React.FC<DialogProps> = ({
       {...modalProps}
       onRequestClose={onRequestClose}
     >
+      {/* CUIDADO: no poner "auto" a secas.
+
+          react-native-web deja un modal cerrado montado pero con opacity 0 y
+          pointer-events: none — invisible e inofensivo. Al forzar "auto" sin
+          condición, ese resto invisible se quedaba TRAGÁNDOSE los clics de toda
+          la pantalla, y el síntoma era que dejaba de responder el diálogo de
+          abajo: es lo que le pasaba al cajero con "Añadir Nuevo Cliente" dentro
+          de la búsqueda de paciente.
+
+          Se reactiva sólo mientras el diálogo está a la vista, que es cuando
+          hace falta vencer el pointer-events:none que react-navigation pone en
+          el <body>. */}
       <View
-        pointerEvents="auto"
+        pointerEvents={modalProps.visible ? 'auto' : 'none'}
         className={clx('flex-1 items-center justify-center bg-black/50', className)}
         style={{
           paddingTop: safeAreaInsets.top,
