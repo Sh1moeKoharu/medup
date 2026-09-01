@@ -257,6 +257,11 @@ export default function CustomerLookupScreen() {
 
   return (
     <Dialog
+      // Esta pantalla YA es una ruta modal transparente. Ver `comoRuta` en
+      // Dialog.tsx: montar además un Modal encima impedía escribir en los
+      // campos, porque su atrapador de foco y el de react-navigation se
+      // disputaban el foco sin parar.
+      comoRuta
       visible={true}
       title={modo === 'nuevo' ? 'Nuevo Paciente' : 'Búsqueda de Cliente'}
       containerClassName="max-w-2xl"
