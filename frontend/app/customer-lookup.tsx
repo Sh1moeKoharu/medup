@@ -25,79 +25,72 @@ const customerFormSchema = z.object({
   phone: z.string().optional(),
 });
 
-const AddNewCustomerButton: React.FC<{ onNewCustomer: (customer: AdminCustomer) => void }> = ({ onNewCustomer }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+/**
+ * Alta de paciente, DENTRO del mismo cuadro que la búsqueda.
+ *
+ * ── POR QUÉ NO ES UN CUADRO APARTE ──────────────────────────────────────────
+ * Antes esto abría un segundo Dialog encima del de búsqueda, y los campos no
+ * se podían rellenar: se hacía clic y no pasaba nada, aunque la X sí cerraba.
+ *
+ * La causa es el atrapador de foco de react-native-web. Cada Modal instala un
+ * escucha global de `focus` y, mientras está activo, devuelve por la fuerza el
+ * foco a su propio contenido en cuanto el foco cae fuera de él
+ * (exports/Modal/ModalFocusTrap.js). El cuadro interno se dibuja en OTRO portal
+ * colgado del <body>, o sea fuera del contenedor del externo: al tocar un campo
+ * del interno, el atrapador del externo se lo arrebataba de inmediato.
+ *
+ * Los clics llegaban —por eso la X funcionaba— pero el foco nunca se quedaba, y
+ * sin foco no se puede escribir.
+ *
+ * Un solo cuadro que cambia de contenido elimina el problema de raíz en lugar
+ * de pelearse con el atrapador. Y en un mostrador es mejor: un cuadro encima de
+ * otro, en una tableta, es difícil de usar.
+ */
+const NuevoPacienteForm: React.FC<{
+  onCreado: (customer: AdminCustomer) => void;
+  onCancelar: () => void;
+}> = ({ onCreado, onCancelar }) => {
   const createCustomer = useCreateCustomer();
-
-  // El resultado se muestra AQUI DENTRO, no con un aviso flotante.
-  //
-  // El aviso del sistema se dibuja dentro de #root, pero este cuadro es un
-  // Modal que el navegador cuelga del <body> con z-index 9999 y una capa
-  // oscura encima. O sea que el aviso de error salia DETRAS del cuadro y no se
-  // veia: si el alta fallaba, el cajero no recibia ninguna senal y concluia,
-  // con razon, que el sistema "no le deja dar de alta un cliente".
   const [error, setError] = React.useState('');
 
   return (
-    <>
-      <Button
-        variant="outline"
-        onPress={() => {
-          setIsOpen(true);
-        }}
-      >
-        Añadir Nuevo Cliente
+    <Form
+      schema={customerFormSchema}
+      onSubmit={(data, form) => {
+        setError('');
+        createCustomer.mutate(data, {
+          onSuccess: (res) => {
+            form.reset();
+            onCreado(res.customer);
+          },
+          onError: (e) => {
+            // El motivo REAL que devolvió el servidor, y aquí dentro: el aviso
+            // flotante del sistema se dibuja debajo de este cuadro y no se ve.
+            setError(getErrorMessage(e));
+          },
+        });
+      }}
+    >
+      {!!error && (
+        <InfoBanner colorScheme="error" className="mb-2">
+          {error}
+        </InfoBanner>
+      )}
+      <TextField
+        name="email"
+        placeholder="Correo Electrónico"
+        autoComplete="off"
+        autoCapitalize="none"
+        inputMode="email"
+      />
+      <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
+      <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
+      <TextField name="phone" placeholder="Número de Teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
+      <FormButton>Crear y asignar</FormButton>
+      <Button variant="outline" className="mt-2" onPress={onCancelar}>
+        Volver a la búsqueda
       </Button>
-
-      <Dialog
-        visible={isOpen}
-        title="Añadir Nuevo Cliente"
-        onClose={() => {
-          setError('');
-          setIsOpen(false);
-        }}
-        dismissOnOverlayPress={true}
-        contentClassName="flex-shrink"
-      >
-        <Form
-          schema={customerFormSchema}
-          onSubmit={(data, form) => {
-            setError('');
-            createCustomer.mutate(data, {
-              onSuccess: (res) => {
-                onNewCustomer(res.customer);
-                setError('');
-                setIsOpen(false);
-                form.reset();
-              },
-              onError: (e) => {
-                // Se muestra el motivo REAL que devolvió el servidor. Un
-                // mensaje genérico obligaría a adivinar si fue un permiso, un
-                // correo repetido o una caída de red.
-                setError(getErrorMessage(e));
-              },
-            });
-          }}
-        >
-          {!!error && (
-            <InfoBanner colorScheme="error" className="mb-2">
-              {error}
-            </InfoBanner>
-          )}
-          <TextField
-            name="email"
-            placeholder="Correo Electrónico"
-            autoComplete="off"
-            autoCapitalize="none"
-            inputMode="email"
-          />
-          <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
-          <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="words" />
-          <TextField name="phone" placeholder="Número de Teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
-          <FormButton>Crear Cliente</FormButton>
-        </Form>
-      </Dialog>
-    </>
+    </Form>
   );
 };
 
@@ -249,61 +242,77 @@ export default function CustomerLookupScreen() {
   const [selectedCustomer, setSelectedCustomer] = React.useState<AdminCustomer>();
   const updateDraftOrderCustomer = useUpdateDraftOrderCustomer();
 
+  // Un solo cuadro con dos contenidos, en lugar de dos cuadros anidados.
+  const [modo, setModo] = React.useState<'buscar' | 'nuevo'>('buscar');
+
+  const asignarYSalir = (customer: AdminCustomer) => {
+    updateDraftOrderCustomer.mutate(customer);
+    router.back();
+  };
+
   return (
     <Dialog
       visible={true}
-      title="Búsqueda de Cliente"
+      title={modo === 'nuevo' ? 'Nuevo Paciente' : 'Búsqueda de Cliente'}
       containerClassName="max-w-2xl"
       onClose={() => router.back()}
       dismissOnOverlayPress={true}
       contentClassName="flex-shrink"
     >
-      <View className="mb-4 flex-row items-center gap-2">
-        <View className="flex-1">
-          <SearchInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar clientes..."
-          />
-        </View>
-        <AddNewCustomerButton
-          onNewCustomer={(customer) => {
-            setSelectedCustomerId(customer.id);
-            setSelectedCustomer(customer);
-          }}
+      {modo === 'nuevo' ? (
+        // El paciente recién creado se asigna directo: el cajero vino aquí a
+        // ponerle nombre a esta venta, no a darlo de alta por gusto.
+        <NuevoPacienteForm
+          onCreado={asignarYSalir}
+          onCancelar={() => setModo('buscar')}
         />
-      </View>
+      ) : (
+        <>
+          <View className="mb-4 flex-row items-center gap-2">
+            <View className="flex-1">
+              <SearchInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar clientes..."
+              />
+            </View>
+            <Button variant="outline" onPress={() => setModo('nuevo')}>
+              Añadir Nuevo Cliente
+            </Button>
+          </View>
 
-      <CustomersList
-        q={searchQuery ? searchQuery : undefined}
-        selectedCustomerId={selectedCustomerId}
-        onCustomerSelect={(customer) => {
-          setSelectedCustomerId(customer.id);
-          setSelectedCustomer(customer);
-        }}
-      />
+          <CustomersList
+            q={searchQuery ? searchQuery : undefined}
+            selectedCustomerId={selectedCustomerId}
+            onCustomerSelect={(customer) => {
+              setSelectedCustomerId(customer.id);
+              setSelectedCustomer(customer);
+            }}
+          />
 
-      <Button
-        className="mb-4 mt-4"
-        disabled={!selectedCustomerId}
-        onPress={() => {
-          if (!selectedCustomerId) {
-            return;
-          }
+          <Button
+            className="mb-4 mt-4"
+            disabled={!selectedCustomerId}
+            onPress={() => {
+              if (!selectedCustomerId) {
+                return;
+              }
 
-          if (selectedCustomer) {
-            updateDraftOrderCustomer.mutate(selectedCustomer);
-          }
+              if (selectedCustomer) {
+                updateDraftOrderCustomer.mutate(selectedCustomer);
+              }
 
-          router.back();
-        }}
-      >
-        {!selectedCustomerId
-          ? 'Elige un paciente de la lista'
-          : selectedCustomer
-            ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || selectedCustomer.email}`
-            : 'Asignar cliente'}
-      </Button>
+              router.back();
+            }}
+          >
+            {!selectedCustomerId
+              ? 'Elige un paciente de la lista'
+              : selectedCustomer
+                ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || selectedCustomer.email}`
+                : 'Asignar cliente'}
+          </Button>
+        </>
+      )}
 
     </Dialog>
   );
