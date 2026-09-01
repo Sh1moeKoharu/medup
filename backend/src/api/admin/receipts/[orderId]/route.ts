@@ -56,10 +56,98 @@ function esControlado(metadata: any): boolean {
     );
 }
 
+/**
+ * Datos del negocio, desde la configuración del ticket.
+ *
+ * "Medusa Store" es el nombre que trae el motor de fábrica; no es el nombre de
+ * nadie y no debe salir impreso.
+ */
+async function leerDatosDelNegocio(req: MedusaRequest) {
+    let config = { ...RECIBO_POR_OMISION };
+    let nombreTienda = "";
+
+    try {
+        const storeService: any = req.scope.resolve(Modules.STORE);
+        const tiendas = await storeService.listStores({});
+        if (tiendas?.[0]) {
+            config = leerConfiguracion(tiendas[0].metadata);
+            nombreTienda = tiendas[0].name ?? "";
+        }
+    } catch {
+        // Sin tienda configurada: se sigue con los valores por omisión.
+    }
+
+    const nombreUtil =
+        nombreTienda && nombreTienda.toLowerCase() !== "medusa store" ? nombreTienda : "";
+
+    return {
+        config,
+        establecimiento: config.nombre || nombreUtil || "Farmacia",
+    };
+}
+
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
     try {
         const { orderId } = req.params;
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+
+        /**
+         * Ticket de muestra para probar la impresora.
+         *
+         * Lo arma ESTE mismo código, no el punto de venta. Antes la muestra se
+         * componía en el dispositivo y tomaba el nombre del canal de venta en
+         * lugar del configurado: quien configuraba el nombre del negocio y
+         * después imprimía una prueba veía otro nombre y concluía, con razón,
+         * que el ajuste no servía.
+         *
+         * Con la muestra saliendo de aquí, lo que se ve al probar es
+         * exactamente lo que va a salir en una venta real.
+         */
+        if (orderId === "muestra") {
+            const { config, establecimiento } = await leerDatosDelNegocio(req);
+
+            let moneda = "MXN";
+            try {
+                const regionService: any = req.scope.resolve(Modules.REGION);
+                const regiones = await regionService.listRegions({});
+                moneda = String(regiones?.[0]?.currency_code ?? "mxn").toUpperCase();
+            } catch {
+                // Sin región configurada; se usa el valor por omisión.
+            }
+
+            return res.json({
+                recibo: {
+                    folio: "PRUEBA",
+                    fecha: new Date().toISOString(),
+                    establecimiento,
+                    direccion: config.direccion || null,
+                    telefono: config.telefono || null,
+                    rfc: config.rfc || null,
+                    pie: config.pie || null,
+                    cajero: null,
+                    cliente: null,
+                    lineas: [
+                        {
+                            descripcion: "TICKET DE PRUEBA",
+                            controlado: false,
+                            cantidad: 1,
+                            precio_unitario: 0,
+                            importe: 0,
+                        },
+                    ],
+                    moneda,
+                    subtotal: 0,
+                    descuentos: 0,
+                    impuestos: 0,
+                    total: 0,
+                    metodo_pago: null,
+                    leyendas: [
+                        "Este ticket es solo una prueba de impresion. No corresponde a ninguna venta.",
+                        "Si lo estas leyendo en papel, la impresora esta bien configurada.",
+                    ],
+                },
+            });
+        }
 
         const { data: ordenes } = await query.graph({
             entity: "order",
@@ -126,27 +214,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
         // ── Datos del establecimiento ─────────────────────────────────────────
         // Salen de la configuración del ticket (Ajustes → Ticket en el panel).
-        // Antes se tomaba el nombre de la tienda a secas, que en una instalación
-        // nueva vale "Medusa Store" y encabezaba todos los tickets con eso.
-        let config = { ...RECIBO_POR_OMISION };
-        let nombreTienda = "";
-
-        try {
-            const storeService: any = req.scope.resolve(Modules.STORE);
-            const tiendas = await storeService.listStores({});
-            if (tiendas?.[0]) {
-                config = leerConfiguracion(tiendas[0].metadata);
-                nombreTienda = tiendas[0].name ?? "";
-            }
-        } catch {
-            // Sin tienda configurada: se sigue con los valores por omisión.
-        }
-
-        // "Medusa Store" es el nombre que trae el motor de fábrica; no es el
-        // nombre de nadie y no debe salir impreso.
-        const nombreUtil =
-            nombreTienda && nombreTienda.toLowerCase() !== "medusa store" ? nombreTienda : "";
-        const establecimiento = config.nombre || nombreUtil || "Farmacia";
+        const { config, establecimiento } = await leerDatosDelNegocio(req);
 
         // ── Líneas ────────────────────────────────────────────────────────────
         let controladosOcultos = 0;

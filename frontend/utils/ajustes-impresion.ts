@@ -86,33 +86,3 @@ export function useAjustesImpresion() {
 
   return { ajustes, cargando, actualizar };
 }
-
-/** Ticket de ejemplo para probar la impresora sin tener que hacer una venta. */
-export function reciboDePrueba(establecimiento: string, moneda: string) {
-  return {
-    folio: 'PRUEBA',
-    fecha: new Date().toISOString(),
-    establecimiento,
-    cajero: null,
-    cliente: null,
-    lineas: [
-      {
-        descripcion: 'TICKET DE PRUEBA',
-        controlado: false,
-        cantidad: 1,
-        precio_unitario: 0,
-        importe: 0,
-      },
-    ],
-    moneda,
-    subtotal: 0,
-    descuentos: 0,
-    impuestos: 0,
-    total: 0,
-    metodo_pago: null,
-    leyendas: [
-      'Este ticket es sólo una prueba de impresión. No corresponde a ninguna venta.',
-      'Si lo estás leyendo en papel, la impresora está bien configurada.',
-    ],
-  };
-}

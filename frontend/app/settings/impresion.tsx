@@ -2,8 +2,9 @@ import { InfoBanner } from '@/components/InfoBanner';
 import { Button } from '@/components/ui/Button';
 import { LayoutWithScroll } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
-import { useSettings } from '@/contexts/settings';
-import { useAjustesImpresion, reciboDePrueba } from '@/utils/ajustes-impresion';
+import { useAjustesImpresion } from '@/utils/ajustes-impresion';
+import { useMedusaSdk } from '@/contexts/auth';
+import type { Recibo } from '@/utils/imprimir-recibo';
 import { imprimirRecibo } from '@/utils/imprimir-recibo';
 import { router } from 'expo-router';
 import React from 'react';
@@ -19,23 +20,28 @@ import { Switch, TouchableOpacity, View } from 'react-native';
  * en un correo que nadie encuentra cuando hace falta.
  */
 export default function AjustesImpresionScreen() {
-  const settings = useSettings();
+  const sdk = useMedusaSdk();
   const { ajustes, cargando, actualizar } = useAjustesImpresion();
   const [aviso, setAviso] = React.useState('');
 
-  const probar = () => {
+  // La muestra la arma el SERVIDOR, con el mismo codigo que un ticket real.
+  //
+  // Antes se componia aqui y tomaba el nombre del canal de venta en lugar del
+  // configurado en Ajustes -> Ticket: quien ponia el nombre del negocio y luego
+  // imprimia una prueba veia otro nombre y concluia que el ajuste no servia.
+  const probar = async () => {
     setAviso('');
-    const ok = imprimirRecibo(
-      reciboDePrueba(
-        settings.data?.sales_channel?.name || 'Farmacia',
-        (settings.data?.region?.currency_code || 'mxn').toUpperCase()
-      ) as any
-    );
-    setAviso(
-      ok
-        ? 'Se envió el ticket de prueba. Si no salió papel, revisa que la impresora esté encendida y sea la predeterminada de Windows.'
-        : 'Este dispositivo no puede imprimir. Usa el equipo que tiene la impresora conectada.'
-    );
+    try {
+      const res = await sdk.client.fetch<{ recibo: Recibo }>('/admin/receipts/muestra');
+      const ok = imprimirRecibo(res.recibo);
+      setAviso(
+        ok
+          ? 'Se envió el ticket de prueba. Si no salió papel, revisa que la impresora esté encendida y sea la predeterminada de Windows.'
+          : 'Este dispositivo no puede imprimir. Usa el equipo que tiene la impresora conectada.'
+      );
+    } catch {
+      setAviso('No se pudo obtener el ticket de prueba del servidor.');
+    }
   };
 
   return (
