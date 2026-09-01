@@ -10,6 +10,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "node scripts/sellar-version.js && expo export --platform web --output-dir dist",
+    "postinstall": "node scripts/sellar-version.js",
     "lint": "expo lint"
   },
   "dependencies": {

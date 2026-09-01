@@ -37,3 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Sello de version: lo genera el build en cada compilacion. Rastrearlo hace
+# que cada  ensucie el repo y bloquee el siguiente Already up to date..
+utils/version.generated.ts
