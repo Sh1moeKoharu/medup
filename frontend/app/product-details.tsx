@@ -306,7 +306,11 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
                       // catalogo a mano por cada uno, y en cada vuelta el sistema
                       // le insistia con el cobro. Ir a cobrar es una decision
                       // suya, y para eso esta el boton Cobrar del carrito.
-                      animateOut();
+                      // animateOut NECESITA la funcion de cierre: en web no
+                      // anima nada, solo la ejecuta. Al quitar la navegacion al
+                      // carrito me quede sin nada que cerrara la hoja, y el
+                      // producto se quedaba tapando el catalogo.
+                      animateOut(() => router.back());
                       Toast.show({
                         type: 'success',
                         text1: 'Agregado al carrito',

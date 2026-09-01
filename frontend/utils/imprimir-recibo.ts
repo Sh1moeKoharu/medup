@@ -33,6 +33,11 @@ export type Recibo = {
   folio: number | string | null;
   fecha: string;
   establecimiento: string;
+  /** Datos del negocio, configurables desde el panel (Ticket). */
+  direccion?: string | null;
+  telefono?: string | null;
+  rfc?: string | null;
+  pie?: string | null;
   cajero: string | null;
   cliente: string | null;
   lineas: LineaRecibo[];
@@ -139,10 +144,14 @@ export function construirHtmlRecibo(r: Recibo): string {
   .leyendas { margin-top: 8px; font-size: 9px; line-height: 1.3; }
   .leyendas p { margin: 0 0 3px; }
   .gracias { margin-top: 10px; text-align: center; font-size: 10px; }
+  .dato { font-size: 10px; }
 </style>
 </head>
 <body>
   <h1>${esc(r.establecimiento)}</h1>
+  ${r.direccion ? `<div class="centro dato">${esc(r.direccion)}</div>` : ''}
+  ${r.telefono ? `<div class="centro dato">Tel. ${esc(r.telefono)}</div>` : ''}
+  ${r.rfc ? `<div class="centro dato">RFC ${esc(r.rfc)}</div>` : ''}
   <div class="centro">Comprobante de venta</div>
 
   <div class="meta">
@@ -168,7 +177,7 @@ export function construirHtmlRecibo(r: Recibo): string {
     ${r.leyendas.map((l) => `<p>${esc(l)}</p>`).join('')}
   </div>
 
-  <div class="gracias">Gracias por su compra</div>
+  ${r.pie ? `<div class="gracias">${esc(r.pie)}</div>` : ''}
 </body>
 </html>`;
 }

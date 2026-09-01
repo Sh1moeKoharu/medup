@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
+import { leerConfiguracion, RECIBO_POR_OMISION } from "../../receipt-config/route";
 
 /**
  * GET /admin/receipts/:orderId
@@ -124,14 +125,28 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         }
 
         // ── Datos del establecimiento ─────────────────────────────────────────
-        let establecimiento = "Farmacia";
+        // Salen de la configuración del ticket (Ajustes → Ticket en el panel).
+        // Antes se tomaba el nombre de la tienda a secas, que en una instalación
+        // nueva vale "Medusa Store" y encabezaba todos los tickets con eso.
+        let config = { ...RECIBO_POR_OMISION };
+        let nombreTienda = "";
+
         try {
             const storeService: any = req.scope.resolve(Modules.STORE);
             const tiendas = await storeService.listStores({});
-            establecimiento = tiendas?.[0]?.name || establecimiento;
+            if (tiendas?.[0]) {
+                config = leerConfiguracion(tiendas[0].metadata);
+                nombreTienda = tiendas[0].name ?? "";
+            }
         } catch {
-            // Sin tienda configurada: se usa el nombre genérico.
+            // Sin tienda configurada: se sigue con los valores por omisión.
         }
+
+        // "Medusa Store" es el nombre que trae el motor de fábrica; no es el
+        // nombre de nadie y no debe salir impreso.
+        const nombreUtil =
+            nombreTienda && nombreTienda.toLowerCase() !== "medusa store" ? nombreTienda : "";
+        const establecimiento = config.nombre || nombreUtil || "Farmacia";
 
         // ── Líneas ────────────────────────────────────────────────────────────
         let controladosOcultos = 0;
@@ -173,6 +188,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 folio: orden.display_id ?? null,
                 fecha: orden.created_at,
                 establecimiento,
+                direccion: config.direccion || null,
+                telefono: config.telefono || null,
+                rfc: config.rfc || null,
+                pie: config.pie || null,
                 cajero,
                 cliente: nombreCliente,
                 lineas,

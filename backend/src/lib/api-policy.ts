@@ -218,6 +218,12 @@ export const API_POLICIES: ApiPolicy[] = [
 
   // ── RECIBOS ───────────────────────────────────────────────────────────────
   {
+    path: "/admin/receipt-config",
+    write: [ROLES.ADMIN],
+    read: [ROLES.ADMIN, ROLES.AUDITOR],
+    nota: "Contenido del ticket: nombre, domicilio, RFC, leyenda al pie",
+  },
+  {
     path: "/admin/receipts",
     write: [ROLES.ADMIN],
     // Solo lectura y solo para quien despacha o audita. El medico consulta el
