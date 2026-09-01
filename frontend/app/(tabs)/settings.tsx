@@ -7,7 +7,9 @@ import { useAuthCtx } from '@/contexts/auth';
 import { useClearSettings, useSettings } from '@/contexts/settings';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { View } from 'react-native';
 import React from 'react';
+import { VERSION_COMMIT, VERSION_FECHA } from '@/utils/version.generated';
 
 export default function SettingsScreen() {
   const queryClient = useQueryClient();
@@ -71,6 +73,19 @@ export default function SettingsScreen() {
         >
           Borrar Ajustes
         </Button>
+        <Text className="mb-4 text-2xl">Versión</Text>
+        {/* Viaja dentro del paquete compilado, asi que es necesariamente la
+            version que se esta ejecutando. Un git pull sin recompilar deja el
+            servidor y lo servido desincronizados sin avisar. */}
+        <View className="mb-8 rounded-xl border border-gray-200 p-4">
+          <Text className="text-base">{VERSION_COMMIT}</Text>
+          {!!VERSION_FECHA && (
+            <Text className="text-sm text-gray-400">
+              Compilado el {new Date(VERSION_FECHA).toLocaleString('es-MX')}
+            </Text>
+          )}
+        </View>
+
         <Text className="mb-4 text-2xl">Cuenta</Text>
         <Button onPress={() => setIsDialogVisible(true)} className="mb-4">
           Cerrar Sesión
