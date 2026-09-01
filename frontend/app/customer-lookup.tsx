@@ -76,12 +76,17 @@ const NuevoPacienteForm: React.FC<{
           {error}
         </InfoBanner>
       )}
+      {/* autoFocus: el cajero abre esto para escribir un correo, asi que el
+          cursor deberia estar ya ahi. Ademas sirve de senal: si con esto SI se
+          puede escribir pero al hacer clic en otro campo no, el problema esta
+          en el camino del clic y no en el del foco. */}
       <TextField
         name="email"
         placeholder="Correo Electrónico"
         autoComplete="off"
         autoCapitalize="none"
         inputMode="email"
+        autoFocus
       />
       <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
       <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
