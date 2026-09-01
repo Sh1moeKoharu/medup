@@ -6,6 +6,7 @@ import { FormButton } from '@/components/form/FormButton';
 import { TextField } from '@/components/form/TextField';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { InfoBanner } from '@/components/InfoBanner';
+import { getErrorMessage } from '@/utils/errors';
 import { SearchInput } from '@/components/SearchInput';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -28,6 +29,15 @@ const AddNewCustomerButton: React.FC<{ onNewCustomer: (customer: AdminCustomer) 
   const [isOpen, setIsOpen] = React.useState(false);
   const createCustomer = useCreateCustomer();
 
+  // El resultado se muestra AQUI DENTRO, no con un aviso flotante.
+  //
+  // El aviso del sistema se dibuja dentro de #root, pero este cuadro es un
+  // Modal que el navegador cuelga del <body> con z-index 9999 y una capa
+  // oscura encima. O sea que el aviso de error salia DETRAS del cuadro y no se
+  // veia: si el alta fallaba, el cajero no recibia ninguna senal y concluia,
+  // con razon, que el sistema "no le deja dar de alta un cliente".
+  const [error, setError] = React.useState('');
+
   return (
     <>
       <Button
@@ -42,22 +52,38 @@ const AddNewCustomerButton: React.FC<{ onNewCustomer: (customer: AdminCustomer) 
       <Dialog
         visible={isOpen}
         title="Añadir Nuevo Cliente"
-        onClose={() => setIsOpen(false)}
+        onClose={() => {
+          setError('');
+          setIsOpen(false);
+        }}
         dismissOnOverlayPress={true}
         contentClassName="flex-shrink"
       >
         <Form
           schema={customerFormSchema}
           onSubmit={(data, form) => {
+            setError('');
             createCustomer.mutate(data, {
               onSuccess: (res) => {
                 onNewCustomer(res.customer);
+                setError('');
                 setIsOpen(false);
                 form.reset();
+              },
+              onError: (e) => {
+                // Se muestra el motivo REAL que devolvió el servidor. Un
+                // mensaje genérico obligaría a adivinar si fue un permiso, un
+                // correo repetido o una caída de red.
+                setError(getErrorMessage(e));
               },
             });
           }}
         >
+          {!!error && (
+            <InfoBanner colorScheme="error" className="mb-2">
+              {error}
+            </InfoBanner>
+          )}
           <TextField
             name="email"
             placeholder="Correo Electrónico"

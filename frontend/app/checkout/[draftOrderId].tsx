@@ -230,11 +230,11 @@ export default function CheckoutScreen() {
 
         {/* Medical / Pharmacy Extras */}
         <View className="mb-4 mt-2">
-          <Text className="text-gray-400 text-sm mb-2">Medical Prescription (optional)</Text>
+          <Text className="text-gray-400 text-sm mb-2">Receta médica (opcional)</Text>
           <TextInput
             value={prescriptionNumber}
             onChangeText={setPrescriptionNumber}
-            placeholder="Rx / Receta Number"
+            placeholder="Número de receta"
             className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4 text-base"
           />
           {draftOrder.data?.customer && (draftOrder.data.customer as any).medical_customer?.customer_type === 'b2b' && (
