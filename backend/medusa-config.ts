@@ -238,7 +238,73 @@ module.exports = defineConfig({
 
           const posScript = `<script data-altus-pos>window.__ALTUS_POS_URL__=${JSON.stringify(posUrl)};</script>`
 
-          return html.replace('</head>', `${langScript}${posScript}${menuScript}</head>`)
+          /**
+           * Salir, siempre a la vista.
+           *
+           * El panel esconde la salida detrás del avatar de la esquina, y el
+           * personal no la encuentra: en un equipo compartido eso significa
+           * sesiones que se quedan abiertas.
+           *
+           * Se inyecta aquí y no como widget por lo mismo que el menú: los
+           * widgets sólo se montan en zonas concretas —listas de productos,
+           * pedidos y clientes—, así que no aparecerían en las pantallas donde
+           * trabajan auditoría o dirección.
+           *
+           * El botón muestra también QUIÉN está dentro. En un mostrador
+           * compartido, ver con qué cuenta está abierta la sesión evita
+           * trabajar sin darse cuenta con el perfil de otro.
+           *
+           * Cierra con DELETE /auth/session, que es lo que borra la cookie de
+           * sesión, y luego lleva al inicio de sesión. Pide confirmación: un
+           * botón siempre visible se pulsa sin querer, y aquí perder la sesión
+           * a media captura cuesta trabajo rehecho.
+           */
+          const salirScript = `<script data-altus-salir>(function(){try{
+var CSS='#altus-salir{position:fixed;left:12px;bottom:12px;z-index:2147483000;'+
+'display:flex;gap:8px;align-items:center;font:500 12px/1.2 system-ui,sans-serif}'+
+'#altus-salir .p{background:rgba(255,255,255,.92);border:1px solid #e5e7eb;'+
+'border-radius:999px;padding:6px 12px;color:#374151;white-space:nowrap}'+
+'#altus-salir button{cursor:pointer;border:1px solid #e5e7eb;border-radius:999px;'+
+'padding:6px 12px;background:rgba(255,255,255,.92);color:#374151;font:inherit}'+
+'#altus-salir button:hover{background:#fff}'+
+'#altus-salir button.rojo{background:#dc2626;border-color:#dc2626;color:#fff}';
+function montar(nombre){
+  if(document.getElementById('altus-salir'))return;
+  var st=document.createElement('style');st.setAttribute('data-altus-salir','');
+  st.innerHTML=CSS;document.head.appendChild(st);
+  var c=document.createElement('div');c.id='altus-salir';
+  var quien=document.createElement('span');quien.className='p';quien.textContent=nombre;
+  var b=document.createElement('button');b.textContent='Cerrar sesión';
+  b.onclick=function(){
+    if(b.classList.contains('rojo')){
+      fetch('/auth/session',{method:'DELETE',credentials:'include'})
+        .catch(function(){})
+        .then(function(){window.location.href='/app/login'});
+      b.textContent='Saliendo…';b.disabled=true;return;
+    }
+    b.classList.add('rojo');b.textContent='Confirmar salida';
+    setTimeout(function(){
+      if(b.classList.contains('rojo')&&!b.disabled){
+        b.classList.remove('rojo');b.textContent='Cerrar sesión';
+      }
+    },4000);
+  };
+  c.appendChild(quien);c.appendChild(b);document.body.appendChild(c);
+}
+fetch('/admin/users/me',{credentials:'include'})
+ .then(function(r){return r.ok?r.json():null})
+ .then(function(d){
+   if(!d||!d.user)return;
+   var u=d.user;
+   var n=[u.first_name,u.last_name].filter(Boolean).join(' ')||u.email;
+   montar(n);
+ }).catch(function(){});
+}catch(e){}})();</script>`
+
+          return html.replace(
+            '</head>',
+            `${langScript}${posScript}${menuScript}${salirScript}</head>`
+          )
         },
       })
 
