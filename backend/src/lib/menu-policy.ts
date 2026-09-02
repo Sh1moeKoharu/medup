@@ -26,19 +26,25 @@ import { ROLES, Role } from "./roles"
  * aparecían Personal, Auditoría, Cortes de Caja y Lotes FEFO, todas puertas
  * cerradas.
  *
- * ── SOBRE EL AUDITOR ────────────────────────────────────────────────────────
- * No se le oculta nada. Su perfil es "acceso a reportes y bitácora, sólo
- * lectura": esconderle pantallas contradice el rol, y el servidor ya le impide
- * escribir en cualquier ruta. La versión anterior lo redirigía fuera de
- * productos y pedidos, lo que le impedía justamente auditar.
+ * ── SOBRE EL AUDITOR / DIRECCIÓN ────────────────────────────────────────────
+ * Se le deja LEER todo: su perfil es "reportes y bitácora, sólo lectura", y
+ * esconderle pantallas contradice el rol. El servidor ya le impide escribir en
+ * cualquier ruta.
+ *
+ * La excepción es el atajo al punto de venta. Ese no es un reporte: es una
+ * puerta a la operación, y quien no cobra no tiene por qué verla. Antes se le
+ * mostraba —criterio mío, equivocado— y el tester lo reportó dos veces.
+ *
+ * Los cortes de caja SÍ se le dejan: son un reporte, y revisarlos es
+ * exactamente lo que hace una dirección.
  *
  * `settings` nunca se oculta: es donde se cambian contraseña e idioma.
  */
 export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   [ROLES.ADMIN]: [],
 
-  // Solo lectura, pero lectura de todo.
-  [ROLES.AUDITOR]: [],
+  // Lee todo, salvo la puerta a la operación.
+  [ROLES.AUDITOR]: ["/app/pos"],
 
   [ROLES.PHARMACY]: [
     "/app/staff",

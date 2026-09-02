@@ -260,13 +260,15 @@ module.exports = defineConfig({
            * a media captura cuesta trabajo rehecho.
            */
           const salirScript = `<script data-altus-salir>(function(){try{
-var CSS='#altus-salir{position:fixed;left:12px;bottom:12px;z-index:2147483000;'+
+var CSS='#altus-salir{position:fixed;right:16px;bottom:16px;z-index:2147483000;'+
 'display:flex;gap:8px;align-items:center;font:500 12px/1.2 system-ui,sans-serif}'+
-'#altus-salir .p{background:rgba(255,255,255,.92);border:1px solid #e5e7eb;'+
-'border-radius:999px;padding:6px 12px;color:#374151;white-space:nowrap}'+
-'#altus-salir button{cursor:pointer;border:1px solid #e5e7eb;border-radius:999px;'+
-'padding:6px 12px;background:rgba(255,255,255,.92);color:#374151;font:inherit}'+
-'#altus-salir button:hover{background:#fff}'+
+'#altus-salir .p{background:#fff;border:1px solid #e5e7eb;'+
+'border-radius:999px;padding:7px 13px;color:#6b7280;white-space:nowrap;'+
+'box-shadow:0 1px 3px rgba(0,0,0,.08)}'+
+'#altus-salir button{cursor:pointer;border:1px solid #d1d5db;border-radius:999px;'+
+'padding:7px 15px;background:#111827;color:#fff;font:inherit;font-weight:600;'+
+'box-shadow:0 1px 3px rgba(0,0,0,.18)}'+
+'#altus-salir button:hover{background:#000}'+
 '#altus-salir button.rojo{background:#dc2626;border-color:#dc2626;color:#fff}';
 function montar(nombre){
   if(document.getElementById('altus-salir'))return;
