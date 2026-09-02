@@ -39,8 +39,14 @@ export const BarraDeSesion: React.FC = () => {
       // 'fixed' sólo existe en web; en móvil 'absolute' cubre igual.
       style={{
         position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as 'absolute',
-        top: 8,
-        right: 12,
+        // Abajo a la IZQUIERDA, por encima de la barra de pestanas.
+        //
+        // Arriba a la derecha chocaba con el titulo del carrito, que en pantalla
+        // grande vive justo ahi. Abajo a la izquierda esta libre en los tres
+        // perfiles: el buscador va centrado arriba, el carrito a la derecha y
+        // las pestanas ocupan el borde inferior.
+        bottom: 74,
+        left: 12,
         zIndex: 9000,
         flexDirection: 'row',
         alignItems: 'center',
