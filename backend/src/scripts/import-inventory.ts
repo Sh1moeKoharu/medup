@@ -40,6 +40,10 @@ type ParsedRow = {
   rowNumber: number
   title: string
   lab: string | null
+  /** Marca comercial, cuando la hoja la trae aparte (controlados). */
+  comercial: string | null
+  /** Distribuidor, cuando la hoja lo trae aparte del laboratorio. */
+  proveedor: string | null
   lot: string | null
   expiration: Date | null
   invoice: string | null
@@ -53,6 +57,60 @@ const SHEET_CLASSIFICATION: Record<string, { clasificacion: string; controlado: 
   MATERIAL: { clasificacion: "Material de curación", controlado: false },
   MEDICAMENTO: { clasificacion: "Medicamento", controlado: false },
   "MEDICAMENTO CONTROLADO": { clasificacion: "Controlado", controlado: true },
+}
+
+/**
+ * Localiza cada columna por su ENCABEZADO, no por su posición.
+ *
+ * ── POR QUÉ ─────────────────────────────────────────────────────────────────
+ * La primera versión leía posiciones fijas (columna 6 = existencia, etc.),
+ * porque en el archivo de abril las tres hojas coincidían. En el de agosto ya
+ * no: MATERIAL añade PROVEEDOR, MEDICAMENTO añade SEMAFORO y PROVEEDOR, y
+ * MEDICAMENTO CONTROLADO añade NOMBRE COMERCIAL en segunda posición, que
+ * desplaza todo lo demás.
+ *
+ * Leyendo por posición, ese archivo habría entrado con el laboratorio tomado
+ * como número de lote, el lote como caducidad y la FACTURA como existencia. Y
+ * no habría fallado: habría cargado cantidades sin sentido en silencio, que es
+ * la peor forma de equivocarse en un inventario.
+ *
+ * Por nombre, además, el formato puede cambiar otra vez sin que haya que tocar
+ * esto.
+ */
+function localizarColumnas(worksheet: any, headerRow: number) {
+  const encabezados = new Map<string, number>()
+  const fila = worksheet.getRow(headerRow)
+
+  fila.eachCell({ includeEmpty: false }, (celda: any, col: number) => {
+    const texto = (cellToString(celda.value) ?? "").trim().toUpperCase()
+    if (texto) encabezados.set(texto, col)
+  })
+
+  /** Coincidencia por igualdad y, si no, por prefijo. */
+  const buscar = (...nombres: string[]): number | null => {
+    for (const nombre of nombres) {
+      const exacto = encabezados.get(nombre)
+      if (exacto) return exacto
+    }
+    for (const [texto, col] of encabezados) {
+      for (const nombre of nombres) {
+        if (texto.startsWith(nombre)) return col
+      }
+    }
+    return null
+  }
+
+  return {
+    encabezados: [...encabezados.keys()],
+    titulo: buscar("MEDICAMENTO", "PRODUCTO", "DESCRIPCION"),
+    comercial: buscar("NOMBRE COMERCIAL"),
+    laboratorio: buscar("LABORATORIO"),
+    lote: buscar("LOTE"),
+    caducidad: buscar("CADUCIDAD", "FECHA DE CADUCIDAD"),
+    factura: buscar("FACTURA"),
+    proveedor: buscar("PROVEEDOR"),
+    existencia: buscar("EXISTENCIA", "CANTIDAD", "STOCK"),
+  }
 }
 
 /** Normaliza celdas que Excel entrega como número, fecha o texto. */
@@ -211,23 +269,51 @@ export default async function importInventory({ container, args }: ExecArgs) {
       continue
     }
 
+    const col = localizarColumnas(worksheet, headerRow)
+
+    // Sin estas tres no se puede importar nada de la hoja. Se aborta en lugar
+    // de adivinar posiciones: cargar un inventario con las columnas cruzadas es
+    // peor que no cargarlo.
+    const faltan = [
+      !col.titulo && "MEDICAMENTO",
+      !col.lote && "LOTE",
+      !col.caducidad && "CADUCIDAD",
+      !col.existencia && "EXISTENCIA",
+    ].filter(Boolean)
+
+    if (faltan.length) {
+      logger.warn(
+        `Hoja "${worksheet.name}": faltan columnas (${faltan.join(", ")}). Encabezados encontrados: ${col.encabezados.join(" | ")}. Se omite la hoja.`
+      )
+      continue
+    }
+
+    console.log(
+      `  ${sheetName}: titulo=col${col.titulo} lote=col${col.lote} ` +
+      `caducidad=col${col.caducidad} existencia=col${col.existencia}` +
+      (col.comercial ? ` comercial=col${col.comercial}` : "")
+    )
+
+    const celda = (row: any, c: number | null) =>
+      c ? cellToString(row.getCell(c).value) : null
+
     for (let r = headerRow + 1; r <= worksheet.rowCount; r++) {
       const row = worksheet.getRow(r)
-      const title = cellToString(row.getCell(1).value)
+      const title = celda(row, col.titulo)
 
       if (!title || ["TOTAL", "0"].includes(title.toUpperCase())) {
         continue
       }
 
-      const lot = cellToString(row.getCell(3).value)
-      const expiration = parseExpiration(row.getCell(4).value)
-      const quantity = parseQuantity(row.getCell(6).value)
+      const lot = celda(row, col.lote)
+      const expiration = parseExpiration(row.getCell(col.caducidad!).value)
+      const quantity = parseQuantity(row.getCell(col.existencia!).value)
 
       let problem: string | null = null
       if (!lot) {
         problem = "sin número de lote"
       } else if (!expiration) {
-        const raw = cellToString(row.getCell(4).value)
+        const raw = celda(row, col.caducidad)
         problem = `caducidad ilegible${raw ? ` ("${raw}")` : " (vacía)"}`
       } else if (quantity === null) {
         problem = "existencia vacía o inválida"
@@ -237,10 +323,12 @@ export default async function importInventory({ container, args }: ExecArgs) {
         sheet: sheetName,
         rowNumber: r,
         title: normalizeTitle(title),
-        lab: cellToString(row.getCell(2).value),
+        lab: celda(row, col.laboratorio),
+        comercial: celda(row, col.comercial),
+        proveedor: celda(row, col.proveedor),
         lot,
         expiration,
-        invoice: cellToString(row.getCell(5).value),
+        invoice: celda(row, col.factura),
         quantity: quantity ?? 0,
         problem,
       })
