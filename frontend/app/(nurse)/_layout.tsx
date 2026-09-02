@@ -1,3 +1,5 @@
+import { GuardaDeRol } from '@/components/GuardaDeRol';
+import { ROLES_ENFERMERIA } from '@/constants/acceso';
 import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/HapticTab';
@@ -12,6 +14,7 @@ export const unstable_settings = {
 
 export default function NurseTabLayout() {
   return (
+    <GuardaDeRol permitidos={ROLES_ENFERMERIA}>
     <Tabs
       detachInactiveScreens={false}
       screenOptions={{
@@ -46,5 +49,6 @@ export default function NurseTabLayout() {
         }}
       />
     </Tabs>
+    </GuardaDeRol>
   );
 }

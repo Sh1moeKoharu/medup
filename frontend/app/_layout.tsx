@@ -21,6 +21,7 @@ import * as React from 'react';
 import { Platform } from 'react-native';
 import { BloqueoProvider, useBloqueo } from '@/contexts/bloqueo';
 import { PantallaBloqueada } from '@/components/PantallaBloqueada';
+import { BarraDeSesion } from '@/components/BarraDeSesion';
 
 
 const queryClient = new QueryClient({
@@ -103,6 +104,7 @@ function App() {
 
         <Stack.Screen name="settings/create-sales-channel" options={{ headerShown: false }} />
 
+        <Stack.Screen name="sin-pos" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" options={{ headerShown: false }} />
       </Stack.Protected>
 
@@ -166,6 +168,7 @@ export default function RootLayout() {
               </DetectorDeActividad>
               {/* Va DESPUES de la aplicacion: queda por encima en el orden de
                   pintado, ademas del z-index. */}
+              <BarraDeSesion />
               <PantallaBloqueada />
             </BloqueoProvider>
             <Toast config={toastConfig} position="bottom" />

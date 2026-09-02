@@ -1,3 +1,5 @@
+import { GuardaDeRol } from '@/components/GuardaDeRol';
+import { ROLES_CAJA } from '@/constants/acceso';
 import { Tabs } from 'expo-router';
 
 import { useCurrentDraftOrder } from '@/api/hooks/draft-orders';
@@ -20,6 +22,7 @@ export default function TabLayout() {
   const draftOrder = useCurrentDraftOrder();
 
   return (
+    <GuardaDeRol permitidos={ROLES_CAJA}>
     <Tabs
       detachInactiveScreens={false}
       screenOptions={{
@@ -89,5 +92,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </GuardaDeRol>
   );
 }
