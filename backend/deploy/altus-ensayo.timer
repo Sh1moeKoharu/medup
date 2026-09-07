@@ -1,0 +1,15 @@
+# Cuándo se ensaya la restauración: los domingos a las 04:00.
+#
+# Después del respaldo nocturno (02:30) y antes de que abra la clínica, para
+# que la carga extra sobre PostgreSQL no coincida con nadie trabajando.
+
+[Unit]
+Description=SIGH Altus - Ensayo semanal de restauración
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

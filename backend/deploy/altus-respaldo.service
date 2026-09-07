@@ -1,0 +1,36 @@
+# Respaldo nocturno del SIGH / Altus.
+#
+# No hace falta copiar esto a mano: el instalador lo hace y sustituye la ruta
+# de ejemplo por la real.
+#
+#   sudo bash backend/deploy/instalar-servicios.sh
+#
+# Lo dispara altus-respaldo.timer. Para lanzarlo ahora mismo:
+#   sudo systemctl start altus-respaldo.service
+#   sudo journalctl -u altus-respaldo -n 60
+
+[Unit]
+Description=SIGH Altus - Respaldo cifrado de la base de datos
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+
+# Como root: lee /etc/altus/backend.env y la clave de cifrado, que son 600.
+User=root
+
+# Esperar a que PostgreSQL acepte conexiones, hasta un minuto.
+#
+# Con Persistent=true en el temporizador, un respaldo que tocaba mientras el
+# servidor estaba apagado se lanza nada más encender — justo cuando PostgreSQL
+# todavía está levantándose. Sin esta espera, ese respaldo se perdería.
+#
+# No se usa Restart=: systemd no lo admite en unidades Type=oneshot y se
+# negaría a cargar el servicio entero.
+ExecStartPre=/bin/bash -c 'for i in $(seq 30); do pg_isready -q && exit 0; sleep 2; done; exit 1'
+
+ExecStart=/bin/bash /home/altus/altus/backend/deploy/respaldar.sh
+
+StandardOutput=journal
+StandardError=journal

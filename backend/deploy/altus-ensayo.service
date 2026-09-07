@@ -1,0 +1,28 @@
+# Ensayo semanal de restauración.
+#
+# ── POR QUÉ ESTO EXISTE ─────────────────────────────────────────────────────
+# Un respaldo que nunca se restauró no se sabe si sirve. El fallo clásico no es
+# que el respaldo no se haga: es que se hace durante meses, nadie lo prueba, y
+# el día que hace falta resulta que llevaba medio año guardando una base vacía.
+#
+# Esto restaura el último respaldo en una base DESECHABLE, compara los conteos
+# de filas con el manifiesto y borra la base de prueba. La base real no se toca.
+#
+# Ver el resultado del último ensayo:
+#   sudo journalctl -u altus-ensayo -n 60
+
+[Unit]
+Description=SIGH Altus - Ensayo de restauración del último respaldo
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=root
+
+ExecStartPre=/bin/bash -c 'for i in $(seq 30); do pg_isready -q && exit 0; sleep 2; done; exit 1'
+
+ExecStart=/bin/bash /home/altus/altus/backend/deploy/restaurar.sh --ensayo
+
+StandardOutput=journal
+StandardError=journal

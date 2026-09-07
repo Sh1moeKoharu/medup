@@ -1,0 +1,22 @@
+# Cuándo se respalda: todas las noches a las 02:30.
+#
+# Se instala con:  sudo bash backend/deploy/instalar-servicios.sh
+# Comprobar:       systemctl list-timers 'altus-*'
+
+[Unit]
+Description=SIGH Altus - Respaldo nocturno
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+
+# Si el servidor estaba apagado a esa hora, se respalda al encender.
+#
+# En una clínica es lo normal: el equipo se apaga el viernes y se enciende el
+# lunes. Sin esto, ese fin de semana no habría respaldo y nadie se enteraría.
+Persistent=true
+
+# Un margen aleatorio para no coincidir siempre con otras tareas nocturnas.
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

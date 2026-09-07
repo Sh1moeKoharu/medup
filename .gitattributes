@@ -15,6 +15,7 @@
 *.sh            text eol=lf
 backend/deploy/altus-ctl        text eol=lf
 backend/deploy/*.service        text eol=lf
+backend/deploy/*.timer          text eol=lf
 backend/deploy/*.conf           text eol=lf
 
 # Binarios: que git no intente tocarlos.

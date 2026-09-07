@@ -175,6 +175,70 @@ cmd_registro() {
 }
 
 # ── ayuda ───────────────────────────────────────────────────────────────────
+# Estado de los respaldos de un vistazo.
+#
+# Responde a las tres preguntas que importan y que no se contestan mirando si
+# el temporizador esta activo: si hay respaldos, si el ultimo es RECIENTE, y si
+# alguna vez se comprobo que se pueden restaurar. Un temporizador en marcha que
+# lleva un mes fallando se ve igual de verde que uno que funciona.
+cmd_respaldo() {
+  local dir=/var/backups/altus
+  echo
+  echo "RESPALDOS"
+
+  local ultimo
+  ultimo="$(find "$dir" -name 'altus-*.tar.gz.gpg' -type f -printf '%T@ %p
+' 2>/dev/null             | sort -rn | head -1 | cut -d' ' -f2-)"
+
+  if [ -z "$ultimo" ]; then
+    falla "no hay ningun respaldo en $dir"
+    echo "        Crea el primero:  sudo systemctl start altus-respaldo.service"
+  else
+    local horas
+    horas=$(( ( $(date +%s) - $(stat -c %Y "$ultimo") ) / 3600 ))
+    local cuantos
+    cuantos="$(find "$dir" -name 'altus-*.tar.gz.gpg' -type f | wc -l)"
+
+    if [ "$horas" -lt 48 ]; then
+      ok "ultimo: $(basename "$ultimo") (hace ${horas} h)"
+    else
+      falla "ultimo: $(basename "$ultimo") (hace ${horas} h — deberia ser de anoche)"
+    fi
+    ok "$cuantos copia(s) guardadas, $(du -sh "$dir" 2>/dev/null | cut -f1) en total"
+  fi
+
+  if [ -n "${ALTUS_RESPALDO_DESTINO:-}" ] || grep -q '^ALTUS_RESPALDO_DESTINO=' /etc/altus/backend.env 2>/dev/null; then
+    ok "hay copia fuera del servidor configurada"
+  else
+    aviso "las copias viven SOLO en este equipo (falta ALTUS_RESPALDO_DESTINO)"
+  fi
+
+  echo
+  echo "ULTIMO ENSAYO DE RESTAURACION"
+  if systemctl list-unit-files altus-ensayo.timer --no-legend 2>/dev/null | grep -q .; then
+    local cuando
+    cuando="$(systemctl show altus-ensayo.service -p ExecMainExitTimestamp --value 2>/dev/null)"
+    local codigo
+    codigo="$(systemctl show altus-ensayo.service -p ExecMainStatus --value 2>/dev/null)"
+    if [ -z "$cuando" ]; then
+      aviso "nunca se ha ejecutado. Un respaldo sin ensayar no se sabe si sirve."
+      echo "        Pruebalo ahora:  sudo systemctl start altus-ensayo.service"
+    elif [ "$codigo" = "0" ]; then
+      ok "$cuando — se restauro correctamente"
+    else
+      falla "$cuando — FALLO (codigo $codigo)"
+      echo "        Detalles:  sudo journalctl -u altus-ensayo -n 60"
+    fi
+  else
+    aviso "el ensayo automatico no esta instalado"
+  fi
+
+  echo
+  echo "  Ensayar ahora (no toca la base real):"
+  echo "    sudo systemctl start altus-ensayo.service && sudo journalctl -u altus-ensayo -n 40"
+  echo
+}
+
 cmd_ayuda() {
   cat <<'AYUDA'
 
@@ -186,6 +250,7 @@ cmd_ayuda() {
     sudo altus detener         Detiene el backend y Nginx
     sudo altus registro        Últimas 80 líneas del registro del backend
     sudo altus registro seguir Registro en vivo (Ctrl+C para salir)
+    sudo altus respaldo        Si hay respaldos y si se comprobo que sirven
 
   Si algo no funciona, empieza siempre por:   sudo altus estado
 
@@ -201,6 +266,7 @@ case "${1:-ayuda}" in
   detener|stop)         shift; cmd_detener ;;
   reiniciar|restart)    shift; cmd_reiniciar ;;
   registro|logs)        shift; cmd_registro "${1:-80}" ;;
+  respaldo|backup)      shift; cmd_respaldo ;;
   ayuda|help|-h|--help) cmd_ayuda ;;
   *)
     echo "Orden desconocida: $1" >&2

@@ -94,6 +94,49 @@ ok "instalada /etc/systemd/system/altus.service"
 systemctl daemon-reload
 ok "systemd recargado"
 
+# ── 2b. Respaldos ─────────────────────────────────────────────────────────
+titulo "RESPALDOS"
+
+for u in altus-respaldo.service altus-respaldo.timer altus-ensayo.service altus-ensayo.timer; do
+  if [ ! -f "$DIR_DEPLOY/$u" ]; then
+    falla "no se encuentra $DIR_DEPLOY/$u"
+    continue
+  fi
+  sed -e "s|/home/altus/altus/backend|$DIR_BACKEND|g"       "$DIR_DEPLOY/$u" > "/etc/systemd/system/$u"
+done
+systemctl daemon-reload
+ok "unidades de respaldo instaladas"
+
+install -d -m 700 /var/backups/altus
+ok "carpeta /var/backups/altus"
+
+# La frase de paso se genera una sola vez. Si ya existe NO se toca: cambiarla
+# dejaria ilegibles todos los respaldos anteriores.
+CLAVE=/etc/altus/respaldo.pass
+CLAVE_NUEVA=0
+if [ -s "$CLAVE" ]; then
+  ok "clave de cifrado ya existente (no se toca)"
+else
+  install -d -m 750 /etc/altus
+  openssl rand -base64 32 | tr -d '
+' > "$CLAVE"
+  chmod 600 "$CLAVE"
+  CLAVE_NUEVA=1
+  ok "clave de cifrado generada"
+fi
+
+for t in altus-respaldo.timer altus-ensayo.timer; do
+  if systemctl enable --now "$t" >/dev/null 2>&1; then
+    ok "$(printf '%-22s' "$t") programado"
+  else
+    falla "$(printf '%-22s' "$t") no se pudo programar"
+  fi
+done
+
+echo
+echo "  Respaldo cada noche a las 02:30. Ensayo de restauracion los domingos"
+echo "  a las 04:00, sobre una base desechable: la real no se toca."
+
 # ── 3. Arranque automático al encender ──────────────────────────────────────
 titulo "ARRANQUE AUTOMÁTICO AL ENCENDER"
 echo "  (esto es lo que hace que no haga falta iniciar sesión)"
@@ -176,9 +219,33 @@ ${NEGRITA}LISTO.${FIN}
       sudo altus estado       ver si todo está bien
       sudo altus reiniciar    si algo va raro
       sudo altus registro     ver qué pasó
-
-  ${AMARILLO}Queda pendiente y es importante:${FIN} este equipo no tiene copias de
-  seguridad de la base de datos. Si el disco falla en la clínica, se pierde
-  todo lo capturado. Pídelo y lo preparo.
+      sudo altus respaldo     ver los respaldos y su último ensayo
 
 RESUMEN
+
+if [ "$CLAVE_NUEVA" = "1" ]; then
+  cat <<CLAVE_AVISO
+${ROJO}${NEGRITA}  APUNTA ESTO ANTES DE CERRAR LA TERMINAL${FIN}
+
+  Los respaldos van cifrados con esta frase:
+
+      ${NEGRITA}$(cat "$CLAVE")${FIN}
+
+  Ahora mismo la frase vive en el MISMO disco que los datos que protege. Si ese
+  disco falla —que es justo el caso para el que existen los respaldos— se
+  pierden los dos a la vez y las copias no se pueden abrir.
+
+  Guárdala fuera del servidor: en el gestor de contraseñas, o impresa en un
+  sobre. No se vuelve a mostrar, y sin ella ningún respaldo se puede recuperar.
+
+CLAVE_AVISO
+fi
+
+cat <<PENDIENTE
+  ${AMARILLO}Falta una cosa para que esto sea un respaldo de verdad:${FIN} hoy las copias
+  se quedan en este mismo equipo. Define ${NEGRITA}ALTUS_RESPALDO_DESTINO${FIN} en
+  /etc/altus/backend.env para que salgan también a otra máquina:
+
+      ALTUS_RESPALDO_DESTINO=usuario@equipo:/respaldos/altus/
+
+PENDIENTE

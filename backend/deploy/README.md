@@ -318,11 +318,57 @@ administrador. La solución correcta es poner TLS delante.
 
 ---
 
+## Respaldos
+
+Los instala `instalar-servicios.sh` y corren solos.
+
+| Cuándo | Qué |
+|---|---|
+| Cada noche, 02:30 | Respaldo cifrado → `/var/backups/altus` (se conservan 14 días) |
+| Domingos, 04:00 | Ensayo de restauración sobre una base desechable |
+
+```bash
+sudo altus respaldo                                  # ¿hay copias? ¿sirven?
+sudo systemctl start altus-respaldo.service          # respaldar ahora
+sudo bash backend/deploy/restaurar.sh --listar       # qué copias hay
+sudo bash backend/deploy/restaurar.sh --ensayo       # comprobar sin tocar nada
+sudo bash backend/deploy/restaurar.sh <archivo>      # restaurar de verdad
+```
+
+**El ensayo es la mitad que importa.** El fallo clásico no es que el respaldo
+no se haga: es que se hace durante meses, nadie lo prueba, y el día que hace
+falta resultó que llevaba medio año guardando una base vacía. Por eso cada
+respaldo lleva un manifiesto con el conteo de filas, y el ensayo restaura en una
+base desechable y compara. Si los números cuadran, el respaldo sirve; y esa es
+la única forma de saberlo.
+
+Dentro del archivo van la base de datos, los archivos subidos y
+`/etc/altus/backend.env`. La configuración va incluida a propósito: sin
+`JWT_SECRET` ni `COOKIE_SECRET`, una base restaurada no da un sistema que
+funcione. Por eso el conjunto se cifra —contiene la contraseña de la base— con
+AES-256 y la frase de `/etc/altus/respaldo.pass`.
+
+### Las dos cosas que hay que hacer a mano
+
+1. **Sacar la frase de paso del servidor.** Se genera en la instalación y se
+   muestra una sola vez. Mientras viva únicamente en `/etc/altus/respaldo.pass`,
+   el disco que se lleve los datos se lleva también la llave, y las copias no se
+   podrán abrir. Al gestor de contraseñas, o impresa.
+
+2. **Configurar el destino externo**, en `/etc/altus/backend.env`:
+
+   ```
+   ALTUS_RESPALDO_DESTINO=usuario@equipo:/respaldos/altus/
+   ```
+
+   Sin esto las copias se quedan en la misma máquina que protegen, y el script
+   lo avisa en cada ejecución. Un respaldo que vive en el disco que puede
+   fallar no es un respaldo.
+
+---
+
 ## Pendientes conocidos
 
-- **Respaldos**: `pg_dump` cifrado y fuera del servidor. Un respaldo que vive
-  en la misma máquina no es un respaldo; y uno que nunca se restauró tampoco
-  cuenta.
 - **Nginx + TLS**: requisito real, no un extra (ver la trampa de la cookie).
 - **`MEDUSA_WORKER_MODE`**: si se separa en `server` + `worker`, debe existir
   una instancia `worker`. Los jobs `check-expirations` y
