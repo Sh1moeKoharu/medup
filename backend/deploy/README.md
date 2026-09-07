@@ -367,9 +367,63 @@ AES-256 y la frase de `/etc/altus/respaldo.pass`.
 
 ---
 
+## TLS y el puerto 9000
+
+```bash
+sudo bash backend/deploy/preparar-tls.sh
+sudo altus tls          # estado del certificado y de las dos puertas
+```
+
+Se puede repetir cuando haga falta: la segunda vez renueva el certificado del
+servidor reutilizando la misma autoridad, así que **los equipos de la clínica no
+hay que volver a tocarlos**.
+
+### Por qué una autoridad propia
+
+Let's Encrypt necesita un dominio público y llegar al servidor desde internet.
+Este servidor vive en la red interna de la clínica y no tiene ninguna de las dos
+cosas.
+
+Un certificado autofirmado suelto sería peor que inútil: el navegador avisa cada
+vez, y en una semana el personal ha aprendido a saltarse avisos de seguridad sin
+leerlos. Con una autoridad propia se firma una vez, se instala en los equipos y
+a partir de ahí no hay ningún aviso.
+
+El coste conviene saberlo antes de empezar: **hay que pasar por cada equipo una
+vez** para instalar la autoridad, descargable desde `https://<ip>/ca/altus-ca.crt`.
+Firefox usa su propio almacén, aparte del de Windows.
+
+### El puerto 9000 no se cierra con cortafuegos
+
+Se pone `HOST=127.0.0.1` y el backend deja de escuchar hacia la red. Una regla
+de cortafuegos es una segunda puerta que hay que acordarse de mantener cerrada;
+un proceso que sólo acepta conexiones locales es una puerta que no existe. Nginx
+le sigue hablando por `127.0.0.1`, que es exactamente lo que se quiere.
+
+### El orden importa
+
+El certificado se emite, se pone en nginx y **se comprueba que responde por
+HTTPS** antes de tocar el backend. Al revés —quitando primero
+`ALLOW_INSECURE_COOKIES`— un fallo en el certificado dejaría a todo el mundo sin
+poder iniciar sesión, incluido quien tuviera que arreglarlo. El script se detiene
+si la comprobación falla, y en cada paso deja escrito cómo volver atrás.
+
+### Dos trampas conocidas
+
+**La IP va dentro del certificado.** Si el router se la cambia, deja de coincidir
+y vuelven los avisos — el mismo tropiezo de la mudanza. Hay que reservar la IP
+por MAC en el router. `altus tls` compara la IP actual contra el certificado y
+avisa si dejaron de coincidir.
+
+**Sin HSTS, a propósito.** Diría al navegador "esta dirección siempre por https,
+sin excusas", y si el certificado caduca o hay que volver atrás un rato, los
+equipos se negarían a abrir el sistema hasta limpiarlos uno por uno. Además no
+se aplica a direcciones IP, que es como entra casi todo el mundo aquí.
+
+---
+
 ## Pendientes conocidos
 
-- **Nginx + TLS**: requisito real, no un extra (ver la trampa de la cookie).
 - **`MEDUSA_WORKER_MODE`**: si se separa en `server` + `worker`, debe existir
   una instancia `worker`. Los jobs `check-expirations` y
   `block-expired-batches` sólo corren ahí, y una instalación con puro `server`

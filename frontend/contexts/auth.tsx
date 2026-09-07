@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as React from 'react';
 import { Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { resolverUrlServidor } from '@/utils/origen';
 
 const setStorageItemAsync = async (key: string, value: string) => {
   if (Platform.OS === 'web') {
@@ -184,7 +185,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     const loadAuthState = async () => {
       try {
-        const medusaUrl = await getStorageItemAsync('medusaUrl');
+        // Si el servidor paso a https, la direccion guardada con http la
+        // bloquearia el navegador. Ver utils/origen.ts.
+        const medusaUrl = resolverUrlServidor(
+          await getStorageItemAsync('medusaUrl')
+        );
         const userEmail = await getStorageItemAsync('userEmail');
         const apiKey = await getStorageItemAsync('apiKey');
 

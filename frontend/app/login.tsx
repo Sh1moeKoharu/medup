@@ -6,8 +6,9 @@ import { LayoutWithKeyboardAvoidingScroll } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
 import { useAuthCtx } from '@/contexts/auth';
 import { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import * as z from 'zod/v4';
+import { resolverUrlServidor } from '@/utils/origen';
 
 const normalizeUrl = (url: string): string => {
   if (!url) return url;
@@ -91,15 +92,13 @@ export default function LoginScreen() {
   //
   // El campo sigue siendo editable: en desarrollo el POS corre en otro puerto
   // que el backend, y ahí el origen no sirve.
-  const origenActual =
-    Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : '';
-
-  const configuredUrl = origenActual || process.env.EXPO_PUBLIC_MEDUSA_API_URL || '';
-
+  // El caso https/http lo resuelve resolverUrlServidor: una direccion guardada
+  // con http dentro de una pagina https la bloquea el navegador, y el origen
+  // actual es siempre la respuesta correcta. Ver utils/origen.ts.
   const defaultValues: Partial<LoginFormData> = {
     medusaUrl:
       auth.state.status !== 'loading'
-        ? (auth.state.medusaUrl ?? configuredUrl)
+        ? resolverUrlServidor(auth.state.medusaUrl)
         : '',
     email: '',
     password: '',

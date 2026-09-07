@@ -187,8 +187,8 @@ cmd_respaldo() {
   echo "RESPALDOS"
 
   local ultimo
-  ultimo="$(find "$dir" -name 'altus-*.tar.gz.gpg' -type f -printf '%T@ %p
-' 2>/dev/null             | sort -rn | head -1 | cut -d' ' -f2-)"
+  ultimo="$(find "$dir" -name 'altus-*.tar.gz.gpg' -type f -printf '%T@ %p\n' \
+            2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
 
   if [ -z "$ultimo" ]; then
     falla "no hay ningun respaldo en $dir"
@@ -239,6 +239,77 @@ cmd_respaldo() {
   echo
 }
 
+# Estado del cifrado y de las dos puertas que deben estar cerradas.
+#
+# Un certificado caducado tumba el sistema una manana sin previo aviso, asi que
+# aqui se avisa CON antelacion en vez de decir solo si existe. Y se comprueban
+# las dos cosas que TLS venia a arreglar: que el 9000 ya no escuche hacia la red
+# y que la bandera de cookies inseguras se haya ido.
+cmd_tls() {
+  local dir=/etc/altus/tls
+  echo
+  echo "CERTIFICADO"
+
+  if [ ! -s "$dir/servidor.crt" ]; then
+    aviso "no hay certificado; el sistema va sin cifrar"
+    echo "        Instalalo:  sudo bash ~/altus/backend/deploy/preparar-tls.sh"
+  else
+    local fin dias
+    fin="$(openssl x509 -in "$dir/servidor.crt" -noout -enddate 2>/dev/null | cut -d= -f2)"
+    dias=$(( ( $(date -d "$fin" +%s) - $(date +%s) ) / 86400 ))
+
+    if [ "$dias" -lt 0 ]; then
+      falla "CADUCO hace $(( -dias )) dias ($fin)"
+      echo "        Renuevalo ya:  sudo bash ~/altus/backend/deploy/preparar-tls.sh"
+    elif [ "$dias" -lt 30 ]; then
+      falla "caduca en $dias dias ($fin)"
+      echo "        Renuevalo:  sudo bash ~/altus/backend/deploy/preparar-tls.sh"
+      echo "        No hay que volver a tocar los equipos de la clinica."
+    else
+      ok "valido $dias dias mas (hasta $fin)"
+    fi
+
+    echo "        Sirve para:"
+    openssl x509 -in "$dir/servidor.crt" -noout -ext subjectAltName 2>/dev/null       | tail -n +2 | sed 's/^ */          /'
+
+    # Una IP que cambio deja el certificado sin valer para la direccion nueva.
+    local ip_actual
+    ip_actual="$(hostname -I 2>/dev/null | xargs -n1 \
+                 | grep -E '^(192|10|172)\.' | head -1)"
+    if [ -n "$ip_actual" ]; then
+      if openssl x509 -in "$dir/servidor.crt" -noout -ext subjectAltName 2>/dev/null | grep -q "IP Address:$ip_actual"; then
+        ok "coincide con la IP actual ($ip_actual)"
+      else
+        falla "la IP actual ($ip_actual) NO esta en el certificado"
+        echo "        El router se la cambio. Reserva la IP por MAC y vuelve a emitirlo:"
+        echo "          sudo bash ~/altus/backend/deploy/preparar-tls.sh --ip $ip_actual"
+      fi
+    fi
+  fi
+
+  echo
+  echo "PUERTA DEL BACKEND (9000)"
+  if ss -ltn 2>/dev/null | grep -qE '0\.0\.0\.0:9000|\[::\]:9000'; then
+    falla "escucha hacia toda la red: se puede entrar saltandose el cifrado"
+    echo "        Pon HOST=127.0.0.1 en /etc/altus/backend.env y reinicia."
+  elif ss -ltn 2>/dev/null | grep -q '127.0.0.1:9000'; then
+    ok "solo acepta conexiones locales (se entra por nginx, cifrado)"
+  else
+    aviso "no se pudo determinar; el backend podria estar parado"
+  fi
+
+  echo
+  echo "COOKIES"
+  if grep -q '^ALLOW_INSECURE_COOKIES=1' /etc/altus/backend.env 2>/dev/null; then
+    falla "ALLOW_INSECURE_COOKIES sigue encendida"
+    echo "        La cookie de sesion viaja sin marcar como Secure."
+    echo "        No debe convivir con datos de pacientes reales."
+  else
+    ok "la cookie de sesion se marca como Secure"
+  fi
+  echo
+}
+
 cmd_ayuda() {
   cat <<'AYUDA'
 
@@ -251,6 +322,7 @@ cmd_ayuda() {
     sudo altus registro        Últimas 80 líneas del registro del backend
     sudo altus registro seguir Registro en vivo (Ctrl+C para salir)
     sudo altus respaldo        Si hay respaldos y si se comprobo que sirven
+    sudo altus tls             Estado del cifrado y del puerto 9000
 
   Si algo no funciona, empieza siempre por:   sudo altus estado
 
@@ -267,6 +339,7 @@ case "${1:-ayuda}" in
   reiniciar|restart)    shift; cmd_reiniciar ;;
   registro|logs)        shift; cmd_registro "${1:-80}" ;;
   respaldo|backup)      shift; cmd_respaldo ;;
+  tls|https|cert)       shift; cmd_tls ;;
   ayuda|help|-h|--help) cmd_ayuda ;;
   *)
     echo "Orden desconocida: $1" >&2
