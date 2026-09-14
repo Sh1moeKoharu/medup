@@ -26,7 +26,7 @@ export const RegionSelectionStep: React.FC<RegionSelectionStepProps> = ({
       <Text className="mb-6 text-4xl">Configuración inicial</Text>
       <Text className="mb-2 text-2xl">Elige una región</Text>
       <Text className="mb-6 text-gray-300">
-        Select a region that defines your market area, currency, and tax settings.
+        Elige la región, que determina la moneda y los impuestos del punto de venta.
       </Text>
 
       <RegionList selectedRegionId={selectedRegion} onRegionSelect={handleRegionSelect} />

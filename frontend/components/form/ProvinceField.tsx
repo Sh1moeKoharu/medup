@@ -13,7 +13,7 @@ interface ProvinceFieldProps {
 export function ProvinceField({
   name,
   countryFieldName,
-  placeholder = 'Province/state (optional)',
+  placeholder = 'Estado (opcional)',
   className = '',
 }: ProvinceFieldProps) {
   const { control } = useFormContext();

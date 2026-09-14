@@ -21,7 +21,7 @@ export default function DoctorSettingsScreen() {
     <>
       <LayoutWithScroll>
         <Text className="mt-8 mb-6 text-4xl">Ajustes</Text>
-        <Text className="mb-4 text-2xl">Canal de Ventas</Text>
+        <Text className="mb-4 text-2xl">Canal de ventas</Text>
         <Button
           onPress={() => router.push('/settings/sales-channel')}
           variant="outline"
@@ -59,11 +59,11 @@ export default function DoctorSettingsScreen() {
           }}
           className="mb-8"
         >
-          Borrar Ajustes
+          Borrar ajustes
         </Button>
         <Text className="mb-4 text-2xl">Cuenta</Text>
         <Button onPress={() => setIsDialogVisible(true)} className="mb-4">
-          Cerrar Sesión
+          Cerrar sesión
         </Button>
         <Text className="text-gray-300">Saldrás de tu cuenta.</Text>
       </LayoutWithScroll>
@@ -76,7 +76,7 @@ export default function DoctorSettingsScreen() {
           await auth.logout();
         }}
         onClose={() => setIsDialogVisible(false)}
-        submitText="Cerrar Sesión"
+        submitText="Cerrar sesión"
         cancelText="Cancelar"
         title="¿Estás seguro de que quieres cerrar sesión?"
         visible={isDialogVisible}

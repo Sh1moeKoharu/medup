@@ -14,10 +14,10 @@ export default function SalesChannelScreen() {
 
   return (
     <Layout className="pb-6">
-      <Text className="mb-6 text-4xl">Setting Up</Text>
+      <Text className="mb-6 text-4xl">Configuración</Text>
       <Text className="mb-2 text-2xl">Elige un canal de venta</Text>
       <Text className="mb-6 text-gray-300">
-        Select an existing sales channel from the list or create a new one to proceed.
+        Elige un canal de venta de la lista, o crea uno nuevo para continuar.
       </Text>
 
       <SalesChannelList selectedSalesChannelId={selectedSalesChannel} onSalesChannelSelect={setSelectedSalesChannel} />

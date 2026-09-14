@@ -6,6 +6,7 @@ import { clx } from '@/utils/clx';
 import React from 'react';
 import { FlatList, ListRenderItemInfo, TextInput, TouchableOpacity, View } from 'react-native';
 import { BaseSelectField, BaseSelectProps, SelectOption } from './BaseSelectField';
+import { color } from '@/theme/tokens';
 
 interface TMultiSelectOption {
   label: string;
@@ -31,7 +32,7 @@ const MultiSelectOption: React.FC<{
     >
       {option.label}
     </Text>
-    {isSelected && <Check size={16} color="#4E78E5" />}
+    {isSelected && <Check size={16} color={color.acento} />}
   </TouchableOpacity>
 );
 
@@ -101,9 +102,9 @@ export function MultiSelectField({
         {searchable && (
           <View className="border-b border-gray-200 p-4">
             <TextInput
-              className="rounded-lg border border-gray-200 px-4 py-3"
+              className="rounded-xl border border-gray-300 px-4 py-3"
               placeholder="Buscar opciones..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={color.textoTerciario}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -123,7 +124,7 @@ export function MultiSelectField({
           ListEmptyComponent={
             <View className="items-center p-8">
               <Text className="text-gray-500">
-                {searchable && searchQuery ? 'No options found' : 'No hay opciones disponibles'}
+                {searchable && searchQuery ? 'Sin resultados' : 'No hay opciones disponibles'}
               </Text>
             </View>
           }

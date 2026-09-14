@@ -18,6 +18,7 @@ import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { formatDate } from '@/utils/date';
+import { LOCALE_DINERO, MONEDA_POR_OMISION } from '@/utils/dinero';
 import { AdminOrderLineItem } from '@medusajs/types';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -44,9 +45,10 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
       </View>
       <View className="flex-1 flex-col gap-2">
         <Text>{item.product_title}</Text>
-        {item.variant && item.variant.options && item.variant.options.length > 0 && (
+        {/* En un catálogo de una sola presentación, la opción se llama «Default»: no dice nada. */}
+        {item.variant?.options?.some((o) => o.value && o.value !== 'Default') && (
           <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
-            {item.variant.options.map((option) => (
+            {item.variant.options.filter((o) => o.value !== 'Default').map((option) => (
               <View className="flex-row gap-1" key={option.id}>
                 <Text className="text-sm text-gray-400">{option.option?.title || option.option_id}:</Text>
                 <Text className="text-sm">{option.value}</Text>
@@ -56,9 +58,9 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
         )}
       </View>
       <Text className="ml-auto">
-        {item.unit_price.toLocaleString('en-US', {
+        {item.unit_price.toLocaleString(LOCALE_DINERO, {
           style: 'currency',
-          currency: draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code,
+          currency: draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
           currencyDisplay: 'narrowSymbol',
         })}
       </Text>
@@ -76,6 +78,10 @@ export default function CheckoutScreen() {
   const addCashMovement = useAddCashMovement();
   const [prescriptionNumber, setPrescriptionNumber] = React.useState('');
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('cash');
+  // Los 4 a 6 dígitos del comprobante de la terminal. Obligatorios con tarjeta:
+  // es lo que cruza la venta con el banco cuando algo no cuadra.
+  const [cardReference, setCardReference] = React.useState('');
+  const referenciaValida = /^\d{4,6}$/.test(cardReference.trim());
 
   // El recibo se pide al servidor sólo cuando hace falta imprimirlo.
   const recibo = useRecibo(draftOrderId);
@@ -98,6 +104,43 @@ export default function CheckoutScreen() {
     }
   };
   const [cashReceived, setCashReceived] = React.useState('');
+
+  /**
+   * Impresión automática al confirmar la venta, si esta caja la tiene activada
+   * en Ajustes → Impresión. Lo pidió el tester: al completar la orden el ticket
+   * sale solo.
+   *
+   * ── POR QUÉ ESTOS HOOKS VIVEN AQUÍ Y NO MÁS ABAJO ─────────────────────────
+   * Estaban declarados DESPUÉS de los `return` tempranos de esta pantalla (el
+   * de error y el de carrito vacío). React exige que los hooks se ejecuten en
+   * el mismo orden en cada render: mientras la orden cargaba, el componente
+   * salía antes y estos dos no llegaban a ejecutarse; al llegar los datos, sí.
+   * React contaba más hooks que en el render anterior y lanzaba
+   *
+   *     Rendered more hooks than during the previous render.
+   *
+   * Resultado: la pantalla de COBRO reventaba entera. El cajero no podía
+   * completar ninguna venta desde la interfaz.
+   *
+   * El guardia `yaImpreso` sigue haciendo falta: este efecto se re-ejecuta, y
+   * sin él una venta podría imprimirse dos veces y alguien se llevaría el
+   * duplicado.
+   */
+  const yaImpreso = React.useRef(false);
+
+  // Se calcula con encadenamiento opcional porque ahora corre también mientras
+  // los datos aún no han llegado.
+  const ventaConfirmada = !!draftOrder.data && draftOrder.data.status !== 'draft';
+
+  React.useEffect(() => {
+    if (!ajustesImpresion.automatico) return;
+    if (!ventaConfirmada) return;
+    if (yaImpreso.current) return;
+
+    yaImpreso.current = true;
+    handleImprimir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ajustesImpresion.automatico, ventaConfirmada]);
 
   const renderItem = React.useCallback<ListRenderItem<AdminOrderLineItem>>(
     ({ item }) => <DraftOrderItem item={item} />,
@@ -126,7 +169,7 @@ export default function CheckoutScreen() {
             isPending={draftOrder.isRefetching || settings.isRefetching}
             variant="outline"
           >
-            Try Again
+            Reintentar
           </Button>
         </View>
       </Layout>
@@ -141,8 +184,8 @@ export default function CheckoutScreen() {
           <ShoppingCart size={24} />
           <Text className="text-xl">El carrito está vacío</Text>
           <Text className="text-center text-gray-300">
-            It seems you have no items in your cart.{'\n'}Please add items to your cart before{'\n'}proceeding to
-            checkout.
+            No has añadido nada todavía. Vuelve al carrito, añade los productos y{'\n'}regresa aquí para
+            cobrar.
           </Text>
         </View>
         <View className="flex-row gap-2">
@@ -150,7 +193,7 @@ export default function CheckoutScreen() {
             Volver al carrito
           </Button>
           <Button className="flex-1" disabled>
-            Complete Order
+            Completar orden
           </Button>
         </View>
       </Layout>
@@ -158,26 +201,6 @@ export default function CheckoutScreen() {
   }
 
   const isDraftOrder = draftOrder.data.status === 'draft';
-
-  // Impresión automática al confirmar la venta, si esta caja la tiene
-  // activada en Ajustes → Impresión. Es lo que pidió el tester: al completar la
-  // orden el ticket sale solo.
-  //
-  // El guardia `yaImpreso` importa: este efecto depende del estado de la
-  // pantalla y se re-ejecuta; sin él, una venta podría imprimirse dos veces y
-  // alguien se llevaría el duplicado.
-  const yaImpreso = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!ajustesImpresion.automatico) return;
-    if (isDraftOrder) return; // todavía no se ha confirmado la venta
-    if (yaImpreso.current) return;
-
-    yaImpreso.current = true;
-    handleImprimir();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ajustesImpresion.automatico, isDraftOrder]);
-
   const customerEmail = draftOrder.data.customer?.email;
   const customerName = [draftOrder.data.customer?.first_name, draftOrder.data.customer?.last_name]
     .filter(Boolean)
@@ -198,7 +221,7 @@ export default function CheckoutScreen() {
           ListFooterComponent={() =>
             !isPosDefaultCustomer ? (
               <View className="mb-10 mt-4">
-                <Text className="mb-6 text-2xl">Information</Text>
+                <Text className="mb-6 text-2xl">Datos del paciente</Text>
 
                 {customerName && (
                   <View className="mb-4 flex-row">
@@ -209,14 +232,14 @@ export default function CheckoutScreen() {
                   </View>
                 )}
                 <View className="mb-4 flex-row">
-                  <Text className="w-24 text-gray-300">E-Mail</Text>
+                  <Text className="w-24 text-gray-300">Correo</Text>
                   <View className="flex-1">
                     <Text>{customerEmail}</Text>
                   </View>
                 </View>
                 {customerPhone && (
                   <View className="flex-row">
-                    <Text className="w-24 text-gray-300">Phone</Text>
+                    <Text className="w-24 text-gray-300">Teléfono</Text>
                     <View className="flex-1">
                       <Text>{customerPhone}</Text>
                     </View>
@@ -238,10 +261,10 @@ export default function CheckoutScreen() {
             className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4 text-base"
           />
           {draftOrder.data?.customer && (draftOrder.data.customer as any).medical_customer?.customer_type === 'b2b' && (
-            <View className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-xl">
-              <Text className="text-purple-700 font-bold">B2B Hospital Pricing Applied</Text>
-              <Text className="text-purple-600 text-xs mt-1">
-                Policy/Company: {(draftOrder.data.customer as any).medical_customer.company_name}
+            <View className="mt-4 p-3 bg-info-200 border border-info-300 rounded-xl">
+              <Text className="text-info-500 font-bold">Precio de convenio aplicado</Text>
+              <Text className="text-info-500 text-xs mt-1">
+                Convenio: {(draftOrder.data.customer as any).medical_customer.company_name}
               </Text>
             </View>
           )}
@@ -251,9 +274,9 @@ export default function CheckoutScreen() {
           <View className="flex-row justify-between">
             <Text className="text-sm text-gray-400">Impuestos</Text>
             <Text className="text-sm text-gray-400">
-              {draftOrder.data.tax_total?.toLocaleString('en-US', {
+              {draftOrder.data.tax_total?.toLocaleString(LOCALE_DINERO, {
                 style: 'currency',
-                currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code,
+                currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
                 currencyDisplay: 'narrowSymbol',
               })}
             </Text>
@@ -261,20 +284,20 @@ export default function CheckoutScreen() {
           <View className="flex-row justify-between">
             <Text className="text-sm text-gray-400">Subtotal</Text>
             <Text className="text-sm text-gray-400">
-              {draftOrder.data.subtotal?.toLocaleString('en-US', {
+              {draftOrder.data.subtotal?.toLocaleString(LOCALE_DINERO, {
                 style: 'currency',
-                currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code,
+                currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
                 currencyDisplay: 'narrowSymbol',
               })}
             </Text>
           </View>
           {typeof draftOrder.data.discount_total === 'number' && draftOrder.data.discount_total > 0 && (
             <View className="flex-row justify-between">
-              <Text className="text-sm text-gray-400">Discount</Text>
+              <Text className="text-sm text-gray-400">Descuento</Text>
               <Text className="text-sm text-gray-400">
-                {(draftOrder.data.discount_total * -1)?.toLocaleString('en-US', {
+                {(draftOrder.data.discount_total * -1)?.toLocaleString(LOCALE_DINERO, {
                   style: 'currency',
-                  currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code,
+                  currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
                   currencyDisplay: 'narrowSymbol',
                 })}
               </Text>
@@ -285,17 +308,17 @@ export default function CheckoutScreen() {
         <View className="mb-6 flex-row justify-between">
           <Text className="text-lg">Total</Text>
           <Text className="text-lg">
-            {draftOrder.data.total?.toLocaleString('en-US', {
+            {draftOrder.data.total?.toLocaleString(LOCALE_DINERO, {
               style: 'currency',
-              currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code,
+              currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
               currencyDisplay: 'narrowSymbol',
             })}
           </Text>
         </View>
 
-        {/* ── Método de Pago ── */}
+        {/* ── Método de pago ── */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm text-gray-400">Método de Pago</Text>
+          <Text className="mb-2 text-sm text-gray-400">Método de pago</Text>
           <View className="flex-row gap-2">
             {PAYMENT_METHODS.map((method) => (
               <TouchableOpacity
@@ -319,10 +342,28 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {/* ── Referencia de la terminal (solo con tarjeta) ── */}
+        {paymentMethod === 'card' && (
+          <View className="mb-4">
+            <Text className="mb-2 text-sm text-gray-400">Referencia de la terminal (4 a 6 dígitos)</Text>
+            <TextInput
+              value={cardReference}
+              onChangeText={(t) => setCardReference(t.replace(/\D/g, '').slice(0, 6))}
+              placeholder="Últimos dígitos del comprobante"
+              keyboardType="number-pad"
+              maxLength={6}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4 text-xl text-center"
+            />
+            {cardReference !== '' && !referenciaValida && (
+              <Text className="mt-1 text-xs text-error-500">Son de 4 a 6 dígitos.</Text>
+            )}
+          </View>
+        )}
+
         {/* ── Efectivo recibido (solo si pago en efectivo) ── */}
         {paymentMethod === 'cash' && draftOrder.data.total > 0 && (
           <View className="mb-4">
-            <Text className="mb-2 text-sm text-gray-400">Efectivo Recibido</Text>
+            <Text className="mb-2 text-sm text-gray-400">Efectivo recibido</Text>
             <TextInput
               value={cashReceived}
               onChangeText={setCashReceived}
@@ -331,31 +372,37 @@ export default function CheckoutScreen() {
               className="w-full rounded-xl border border-gray-200 bg-gray-50 p-4 text-xl text-center"
             />
             {cashReceived && Number(cashReceived) > 0 && (
-              <View className="mt-2 rounded-xl border border-green-200 bg-green-50 p-3">
+              <View className="mt-2 rounded-xl border border-success-300 bg-success-200 p-3">
                 <View className="flex-row justify-between">
-                  <Text className="text-green-700">Cambio:</Text>
-                  <Text className="text-lg font-bold text-green-700">
-                    {Math.max(0, Number(cashReceived) - (draftOrder.data.total || 0)).toLocaleString('en-US', {
+                  <Text className="text-success-500">Cambio:</Text>
+                  <Text className="text-lg font-bold text-success-500">
+                    {Math.max(0, Number(cashReceived) - (draftOrder.data.total || 0)).toLocaleString(LOCALE_DINERO, {
                       style: 'currency',
-                      currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code,
+                      currency: draftOrder.data.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION,
                       currencyDisplay: 'narrowSymbol',
                     })}
                   </Text>
                 </View>
                 {Number(cashReceived) < (draftOrder.data.total || 0) && (
-                  <Text className="mt-1 text-xs text-red-500">Monto insuficiente</Text>
+                  <Text className="mt-1 text-xs text-error-500">Monto insuficiente</Text>
                 )}
               </View>
             )}
           </View>
         )}
 
-        {/* ── Aviso si no hay sesión de caja ── */}
+        {/* ── Sin turno no se cobra ──
+            Antes la venta se completaba igual y el método de pago se perdía
+            (el ticket salía sin él). Ahora el servidor exige turno abierto
+            (409) y aquí se manda a abrirlo con el fondo inicial. */}
         {!cashSession.isLoading && !cashSession.data && (
-          <View className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
-            <Text className="text-xs text-yellow-700">
-              No hay sesión de caja abierta. El pago se registrará pero no se vinculará a un corte de caja.
+          <View className="mb-4 gap-2 rounded-xl border border-warning-300 bg-warning-200 p-3">
+            <Text className="text-sm text-warning-500">
+              No tienes un turno de caja abierto. Ábrelo con el fondo inicial para poder cobrar.
             </Text>
+            <Button variant="outline" className="self-start px-4 py-2" onPress={() => router.push('/(tabs)/cash-register')}>
+              Abrir turno de caja
+            </Button>
           </View>
         )}
 
@@ -380,17 +427,23 @@ export default function CheckoutScreen() {
                     payment_method: paymentMethod,
                     amount: draftOrder.data?.total || 0,
                     order_id: draftOrderId,
+                    reference: paymentMethod === 'card' ? cardReference.trim() : undefined,
                     description: `Venta POS - ${PAYMENT_METHODS.find(m => m.key === paymentMethod)?.label}`,
                   });
                 } catch (e) {
-                  // Continuar con la orden aunque falle el registro
-                  console.warn('Failed to register cash movement:', e);
+                  // Si el movimiento no se registró (referencia rechazada,
+                  // turno cerrado), la venta NO se completa: quedaría sin
+                  // método de pago en el corte.
+                  console.warn('No se registró el movimiento de caja:', e);
+                  return;
                 }
               }
               completeOrder.mutate();
             }}
             disabled={
               !isDraftOrder ||
+              !cashSession.data ||
+              (paymentMethod === 'card' && !referenciaValida) ||
               (paymentMethod === 'cash' &&
                 draftOrder.data?.total > 0 &&
                 cashReceived !== '' &&
@@ -398,7 +451,7 @@ export default function CheckoutScreen() {
             }
             isPending={completeOrder.isPending || addCashMovement.isPending}
           >
-            Completar Orden
+            Completar orden
           </Button>
         </View>
       </Layout>
@@ -424,7 +477,7 @@ export default function CheckoutScreen() {
         </InfoBanner>
 
         {/* Imprimir va primero y en sólido: es lo que el cajero hace en la
-            inmensa mayoría de las ventas, con el cliente esperando delante.
+            inmensa mayoría de las ventas, con el paciente esperando delante.
             Ver la orden es la excepción. */}
         <Button
           className="mb-2"

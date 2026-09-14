@@ -27,9 +27,21 @@ import { Platform } from 'react-native';
  * En desarrollo el POS corre en un puerto y el backend en otro, los dos por
  * http. Como la página no va por https, esta corrección no se activa y la
  * dirección escrita a mano se respeta.
+ *
+ * ── EN DESARROLLO, SIN NADA GUARDADO, MANDA LA VARIABLE ─────────────────────
+ * Añadido al integrar esta rama. Cuando no hay dirección guardada, devolver el
+ * origen es correcto en el servidor —nginx sirve las dos cosas juntas— pero en
+ * desarrollo el origen es el 8081, que es el servidor de Expo y no el backend.
+ * El resultado era un 404 contra `localhost:8081/auth/user/emailpass` que en
+ * pantalla se leía como «No se encontró lo que se pedía»: hacía mirar la
+ * contraseña cuando lo que estaba mal era la dirección.
+ *
+ * Así que en desarrollo la variable de entorno va primero, que es la única que
+ * sabe dónde está el backend. En producción no cambia nada.
  */
 export function resolverUrlServidor(guardada?: string | null): string {
-  const respaldo = guardada || process.env.EXPO_PUBLIC_MEDUSA_API_URL || '';
+  const deEntorno = process.env.EXPO_PUBLIC_MEDUSA_API_URL || '';
+  const respaldo = guardada || deEntorno;
 
   if (Platform.OS !== 'web' || typeof window === 'undefined') {
     return respaldo;
@@ -41,7 +53,7 @@ export function resolverUrlServidor(guardada?: string | null): string {
   }
 
   if (!guardada) {
-    return origen;
+    return __DEV__ ? deEntorno || origen : origen;
   }
 
   // Sólo el caso que el navegador va a bloquear: página cifrada, dirección

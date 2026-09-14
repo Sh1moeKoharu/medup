@@ -5,7 +5,7 @@ import { SafeAreaViewProps } from 'react-native-safe-area-context';
 
 export const CartSkeleton: React.FC<SafeAreaViewProps> = ({ ...props }) => (
   <Layout {...props}>
-    <Text className="mb-6 text-4xl">Cart</Text>
+    <Text className="mb-6 text-4xl">Carrito</Text>
     <View className="flex-row items-center justify-between border-b border-gray-200 pb-6">
       <View>
         <View className="mb-2 h-6 w-32 rounded-md bg-gray-200" />

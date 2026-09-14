@@ -5,7 +5,7 @@ import { resolveRequestActor } from "../../../lib/require-role";
 /**
  * GET /admin/cash-sessions
  * Lista todas las sesiones de caja, con filtros opcionales
- * Query params: ?status=open|closed&cashier_id=xxx&limit=20&offset=0
+ * Query params: ?status=open|closed&cashier_id=xxx&from=&to=&limit=20&offset=0
  */
 export async function GET(
     req: MedusaRequest,
@@ -13,11 +13,17 @@ export async function GET(
 ) {
     try {
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        const { status, cashier_id, limit = "20", offset = "0" } = req.query as Record<string, string>;
+        const { status, cashier_id, from, to, limit = "20", offset = "0" } = req.query as Record<string, string>;
 
         const filters: Record<string, any> = {};
         if (status) filters.status = status;
         if (cashier_id) filters.cashier_id = cashier_id;
+        // Rango sobre la apertura: es la fecha del turno.
+        if (from || to) {
+            filters.opened_at = {};
+            if (from) filters.opened_at.$gte = new Date(from).toISOString();
+            if (to) filters.opened_at.$lte = new Date(to).toISOString();
+        }
 
         const { data: sessions } = await query.graph({
             entity: "cash_session",
@@ -84,20 +90,6 @@ export async function POST(
             sales_channel_id,
         } = req.body as any;
 
-        // Verificar que no haya una sesión abierta ya
-        const { data: openSessions } = await query.graph({
-            entity: "cash_session",
-            fields: ["id"],
-            filters: { status: "open" },
-        });
-
-        if (openSessions && openSessions.length > 0) {
-            return res.status(400).json({
-                message: "Ya existe una sesión de caja abierta. Ciérrala antes de abrir una nueva.",
-                existing_session_id: openSessions[0].id,
-            });
-        }
-
         // Identidad del cajero: de la sesión, nunca del cuerpo.
         const actor = await resolveRequestActor(req);
 
@@ -107,6 +99,21 @@ export async function POST(
             return res.status(401).json({
                 message:
                     "No se pudo identificar al usuario. Vuelve a iniciar sesión para abrir la caja.",
+            });
+        }
+
+        // Un turno por CAJERO, no uno global: dos cajas pueden trabajar a la
+        // vez. Lo que no puede es la misma persona tener dos abiertos.
+        const { data: openSessions } = await query.graph({
+            entity: "cash_session",
+            fields: ["id"],
+            filters: { status: "open", cashier_id: actor.id },
+        });
+
+        if (openSessions && openSessions.length > 0) {
+            return res.status(400).json({
+                message: "Ya tienes un turno de caja abierto. Ciérralo antes de abrir otro.",
+                existing_session_id: openSessions[0].id,
             });
         }
 

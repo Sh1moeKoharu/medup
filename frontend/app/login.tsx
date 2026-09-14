@@ -4,11 +4,15 @@ import { TextField } from '@/components/form/TextField';
 import { InfoBanner } from '@/components/InfoBanner';
 import { LayoutWithKeyboardAvoidingScroll } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
-import { useAuthCtx } from '@/contexts/auth';
-import { useState } from 'react';
-import { View } from 'react-native';
-import * as z from 'zod/v4';
+import { ROLES, normalizeRole } from '@/constants/roles';
+import { leerApiKey, useAuthCtx } from '@/contexts/auth';
 import { resolverUrlServidor } from '@/utils/origen';
+import { irAlPanel } from '@/utils/panel';
+import { aIdentificador } from '@/utils/usuario';
+import { useState } from 'react';
+import { useFormContext, useWatch } from 'react-hook-form';
+import { Platform, TouchableOpacity, View } from 'react-native';
+import * as z from 'zod/v4';
 
 const normalizeUrl = (url: string): string => {
   if (!url) return url;
@@ -51,21 +55,112 @@ const loginSchema = z.object({
         message: 'Por favor ingrese una URL válida de Medusa',
       },
     ),
-  email: z.email('Por favor ingrese un correo válido').min(3, 'El correo es requerido'),
+  // Se entra con NOMBRE DE USUARIO. Aquí no se valida la forma: quien todavía
+  // no esté migrado entra con su correo completo, y las dos cosas son válidas.
+  // Lo que decide es el servidor, y su respuesta ya se enseña traducida.
+  email: z.string().min(3, 'Escribe tu usuario'),
   password: z.string().min(1, 'La contraseña es requerida'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+/**
+ * La dirección del servidor, escondida hasta que hace falta.
+ *
+ * ── POR QUÉ NO ES UN CAMPO MÁS ──────────────────────────────────────────────
+ * Era el PRIMERO de los tres, y el más prominente, lo que hacía que la pantalla
+ * pareciera un formulario de configuración en vez de un inicio de sesión. Pero
+ * es un dato que un cajero no debe tocar nunca: en producción se deduce sola
+ * del origen de la página, porque nginx sirve el punto de venta y la API desde
+ * la misma dirección. Sólo hace falta escribirla en desarrollo, donde el POS
+ * corre en otro puerto que el backend.
+ *
+ * Así que se muestra como una nota al pie con la máquina a la que se va a
+ * conectar —que es lo único que alguien necesita comprobar de un vistazo— y el
+ * campo aparece al pulsar «Cambiar».
+ *
+ * Se abre solo si la dirección no vale: si no, el formulario no dejaría entrar
+ * y el motivo estaría escondido.
+ */
+function DireccionDelServidor({ cargando }: { cargando: boolean }) {
+  const [abiertoAMano, setAbiertoAMano] = useState(false);
+  const { formState } = useFormContext();
+  const url = useWatch({ name: 'medusaUrl' }) as string | undefined;
+
+  const abierto = abiertoAMano || !!formState.errors.medusaUrl;
+
+  if (abierto) {
+    return (
+      <TextField
+        name="medusaUrl"
+        floatingPlaceholder
+        placeholder="Dirección del servidor"
+        keyboardType="url"
+        autoCapitalize="none"
+        autoCorrect={false}
+        readOnly={cargando}
+        textContentType="URL"
+        autoComplete="url"
+        testID="loginShopUrl"
+      />
+    );
+  }
+
+  let maquina = url ?? '';
+  try {
+    if (url) maquina = new URL(url).host;
+  } catch {
+    // Se queda con el texto tal cual: si no es una URL válida, el formulario ya
+    // va a abrir el campo por su cuenta.
+  }
+
+  return (
+    <View className="flex-row flex-wrap items-center justify-center gap-x-2">
+      <Text className="text-xs text-gray-400">
+        Servidor: {maquina || 'sin definir'}
+      </Text>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Cambiar la dirección del servidor"
+        className="min-h-toque justify-center px-1"
+        onPress={() => setAbiertoAMano(true)}
+      >
+        <Text className="text-xs text-active-500">Cambiar</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   const auth = useAuthCtx();
 
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Administración entra directa al PANEL, no al punto de venta.
+   *
+   * ── POR QUÉ ─────────────────────────────────────────────────────────────
+   * Su trabajo —configuración, personal, autorizaciones, reportes— vive
+   * entero allá. Aterrizar en la caja registradora y tener que dar otro paso
+   * era el orden equivocado para el único perfil que casi nunca cobra.
+   *
+   * ── POR QUÉ SÓLO AL ENTRAR, Y NO SIEMPRE ────────────────────────────────
+   * Si el salto se hiciera en cada arranque, Administración no podría usar el
+   * punto de venta NUNCA: al pulsar «Punto de venta» desde el panel llegaría
+   * aquí con la sesión ya abierta y se la devolvería al panel, en bucle.
+   *
+   * Haciéndolo sólo tras un inicio de sesión, el que entra va al panel y el
+   * que llega desde el panel se queda donde quiso ir. Sigue teniendo acceso a
+   * todo; lo que cambia es por dónde empieza.
+   */
   const handleLogin = async (data: LoginFormData) => {
     setError(null);
     try {
-      await auth.login(data.medusaUrl, data.email, data.password);
+      const rol = await auth.login(data.medusaUrl, aIdentificador(data.email), data.password);
+
+      if (normalizeRole(rol) === ROLES.ADMIN) {
+        await irAlPanel(data.medusaUrl, (await leerApiKey()) ?? '');
+      }
     } catch (err: any) {
       setError(err?.message || 'Error al iniciar sesión. Por favor, intente de nuevo.');
     }
@@ -90,11 +185,18 @@ export default function LoginScreen() {
   // funcionando con cualquier IP, y también más adelante con un nombre de
   // dominio o con https.
   //
-  // El campo sigue siendo editable: en desarrollo el POS corre en otro puerto
-  // que el backend, y ahí el origen no sirve.
-  // El caso https/http lo resuelve resolverUrlServidor: una direccion guardada
-  // con http dentro de una pagina https la bloquea el navegador, y el origen
-  // actual es siempre la respuesta correcta. Ver utils/origen.ts.
+  // ── LOS DOS CASOS RAROS VIVEN EN utils/origen.ts ───────────────────────
+  // Uno lo trajo la rama de despliegue: una dirección guardada con http dentro
+  // de una página https la BLOQUEA el navegador, y el día que el servidor pase
+  // a https todas las tabletas que ya entraron dejarían de funcionar a la vez.
+  //
+  // El otro es de desarrollo: sin nada guardado, el origen es el 8081, que es
+  // el servidor de Expo y no el backend. Daba un 404 que en pantalla se leía
+  // como «No se encontró lo que se pedía» y hacía mirar la contraseña.
+  //
+  // Los dos son la misma pregunta —con qué dirección hablar— y se responden en
+  // un solo sitio.
+
   const defaultValues: Partial<LoginFormData> = {
     medusaUrl:
       auth.state.status !== 'loading'
@@ -104,58 +206,83 @@ export default function LoginScreen() {
     password: '',
   };
 
+  const cargando = auth.state.status === 'loading';
+
+  /*
+   * ── LA COMPOSICIÓN ─────────────────────────────────────────────────────────
+   * Antes eran tres campos y un botón alineados a la izquierda, arriba del todo
+   * de una pantalla vacía: se veía como el formulario de configuración de una
+   * herramienta, no como la puerta de entrada del software de una clínica.
+   *
+   * Ahora la tarjeta blanca se centra sobre el lienzo crema. Es el principio 1
+   * del sistema hecho pantalla: como el lienzo está un punto por debajo del
+   * blanco, la tarjeta se separa sola y no necesita borde, sólo la sombra más
+   * suave de las tres. La marca va encima en peso ligero, que es de donde el
+   * sistema saca la jerarquía, y no en negrita ni en grande.
+   *
+   * La medida baja de 576 a 384 px. Un formulario de dos campos estirado a lo
+   * ancho de una tableta se lee peor, no mejor.
+   */
   return (
-    <LayoutWithKeyboardAvoidingScroll>
+    <LayoutWithKeyboardAvoidingScroll
+      // El centrado va por `style` y no por clase: `contentContainerClassName`
+      // lo traduce NativeWind sobre el ScrollView de
+      // react-native-keyboard-controller, y ahí no llegó a aplicarse. Se
+      // comprobó sobre la página: el contenedor no tenía ni `flex-grow` ni
+      // `justify-content`.
+      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+    >
       <View className="items-center">
-        <View className="w-full max-w-xl gap-6">
-          <Text className="text-4xl">Iniciar Sesión</Text>
-          {error && <InfoBanner colorScheme="error">{error}</InfoBanner>}
+        <View className="w-full max-w-sm">
+          <View className="mb-7 items-center">
+            <Text className="text-4xl">Altus</Text>
+            <Text className="mt-1 text-sm text-gray-400">Punto de venta de la clínica</Text>
+          </View>
+
           <Form
-            key={auth.state.status === 'loading' ? 'loading' : 'form'}
+            key={cargando ? 'loading' : 'form'}
             schema={loginSchema}
             onSubmit={handleLogin}
             defaultValues={defaultValues}
-            className="gap-6"
+            className="gap-5"
           >
-            <TextField
-              name="medusaUrl"
-              floatingPlaceholder
-              placeholder="URL de la Tienda"
-              keyboardType="url"
-              autoCapitalize="none"
-              autoCorrect={false}
-              readOnly={auth.state.status === 'loading'}
-              textContentType="URL"
-              autoComplete="url"
-              testID="loginShopUrl"
-            />
+            <View className="rounded-2xl bg-white p-6 shadow-card">
+              <Text className="mb-5 text-sm text-gray-400">Iniciar sesión</Text>
 
-            <TextField
-              name="email"
-              floatingPlaceholder
-              placeholder="Correo Electrónico"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              readOnly={auth.state.status === 'loading'}
-              textContentType="emailAddress"
-              autoComplete="email"
-              testID="loginEmail"
-            />
+              {error && <InfoBanner colorScheme="error" className="mb-4">{error}</InfoBanner>}
 
-            <TextField
-              name="password"
-              floatingPlaceholder
-              placeholder="Contraseña"
-              secureTextEntry
-              autoCapitalize="none"
-              readOnly={auth.state.status === 'loading'}
-              textContentType="password"
-              autoComplete="password"
-              testID="loginPassword"
-            />
+              <View className="gap-4">
+                <TextField
+                  name="email"
+                  floatingPlaceholder
+                  placeholder="Usuario"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  readOnly={cargando}
+                  textContentType="username"
+                  autoComplete="username"
+                  testID="loginEmail"
+                />
 
-            <FormButton isPending={auth.state.status === 'loading'}>Entrar</FormButton>
+                <TextField
+                  name="password"
+                  floatingPlaceholder
+                  placeholder="Contraseña"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  readOnly={cargando}
+                  textContentType="password"
+                  autoComplete="password"
+                  testID="loginPassword"
+                />
+              </View>
+
+              <FormButton className="mt-6" isPending={cargando}>
+                Entrar
+              </FormButton>
+            </View>
+
+            <DireccionDelServidor cargando={cargando} />
           </Form>
         </View>
       </View>

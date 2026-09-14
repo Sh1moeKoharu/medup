@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { OptionPicker } from '@/components/ui/OptionPicker';
 import { QuantityPicker } from '@/components/ui/QuantityPicker';
 import { Text } from '@/components/ui/Text';
+import { useReceta } from '@/contexts/receta';
 import { useSettings } from '@/contexts/settings';
 import { AdminProductImage } from '@medusajs/types';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -15,6 +16,8 @@ import { Image, ScrollView, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import Carousel, { CarouselRenderItem, ICarouselInstance, Pagination } from 'react-native-reanimated-carousel';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
+import { color } from '@/theme/tokens';
+import { formatearDinero } from '@/utils/dinero';
 
 const ProductImagesCarousel: React.FC<{ images: AdminProductImage[] }> = ({ images }) => {
   const windowDimensions = useSafeAreaFrame();
@@ -83,11 +86,11 @@ const ProductImagesCarousel: React.FC<{ images: AdminProductImage[] }> = ({ imag
         dotStyle={{
           width: (width - 32) / images.length,
           height: 1.5,
-          backgroundColor: '#B5B5B5',
+          backgroundColor: color.textoTerciario,
         }}
         activeDotStyle={{
           overflow: 'hidden',
-          backgroundColor: '#1B1B1B',
+          backgroundColor: color.tinta,
         }}
         containerStyle={{
           position: 'absolute',
@@ -110,8 +113,12 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
   const params = useLocalSearchParams<{
     productId: string;
     productName: string;
+    /** 'receta': se abrió desde el catálogo médico; añade a la receta, no al carrito. */
+    destino?: 'receta';
   }>();
-  const { productId, productName } = params;
+  const { productId, productName, destino } = params;
+  const paraReceta = destino === 'receta';
+  const receta = useReceta();
   const productQuery = useProduct(productId);
   const addToDraftOrder = useAddToDraftOrder({
     onError: (error) => {
@@ -178,8 +185,8 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
           {productQuery.data.product.images && productQuery.data.product.images.length ? (
             <ProductImagesCarousel images={productQuery.data.product.images} />
           ) : (
-            <View className="flex-1 items-center justify-center bg-gray-300">
-              <Text className="text-gray-500">Sin Imagen</Text>
+            <View className="flex-1 items-center justify-center bg-gray-200">
+              <Text className="text-gray-500">Sin imagen</Text>
             </View>
           )}
         </View>
@@ -188,17 +195,14 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
         <View className="md:flex-1">
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-xl">{productName}</Text>
-            {price && (
+            {/* Una receta no cobra: el precio solo confunde al medico. */}
+            {price && !paraReceta && (
               <View className="flex-row">
                 {/* TODO: show discounted price */}
                 {/* <Text className="text-[#888] line-through mt-1.5">€50</Text> */}
                 <View className="items-end">
                   <Text className="text-xl">
-                    {price.amount.toLocaleString(undefined, {
-                      style: 'currency',
-                      currency: price.currency_code,
-                      currencyDisplay: 'narrowSymbol',
-                    })}
+                    {formatearDinero(price.amount, price.currency_code)}
                   </Text>
                   {/* TODO: show taxes if needed */}
                   {/* <Text className="text-xs text-gray-400 font-light">
@@ -277,9 +281,23 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
             <Button
               className="flex-1"
               disabled={!selectedVariant}
-              isPending={addToDraftOrder.isPending}
+              isPending={!paraReceta && addToDraftOrder.isPending}
               onPress={() => {
                 if (!selectedVariant) {
+                  return;
+                }
+
+                if (paraReceta) {
+                  receta.agregar(
+                    {
+                      variant_id: selectedVariant.id,
+                      product_id: productId,
+                      product_title: productQuery.data?.product?.title ?? productName,
+                    },
+                    quantity,
+                  );
+                  animateOut(() => router.back());
+                  Toast.show({ type: 'success', text1: 'Añadido a la receta', text2: productQuery.data?.product?.title });
                   return;
                 }
 
@@ -321,7 +339,7 @@ const ProductDetails: React.FC<{ animateOut: (callback?: () => void) => void }> 
                 );
               }}
             >
-              Añadir al carrito
+              {paraReceta ? 'Añadir a la receta' : 'Añadir al carrito'}
             </Button>
           </View>
         </View>

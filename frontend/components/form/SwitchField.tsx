@@ -3,6 +3,7 @@ import { clx } from '@/utils/clx';
 import React from 'react';
 import { useController, useFormContext } from 'react-hook-form';
 import { Switch, TouchableOpacity, View } from 'react-native';
+import { color } from '@/theme/tokens';
 
 interface SwitchFieldProps {
   name: string;
@@ -40,8 +41,8 @@ export function SwitchField({ name, label, description, className = '', disabled
           value={value}
           onValueChange={onChange}
           disabled={disabled}
-          trackColor={{ false: '#E5E5E5', true: '#282828' }}
-          thumbColor={value ? '#FFFFFF' : '#FFFFFF'}
+          trackColor={{ false: color.borde, true: color.tinta }}
+          thumbColor={color.tarjeta}
         />
       </TouchableOpacity>
       {error && <Text className="mt-1 text-sm text-error-500">{error.message}</Text>}

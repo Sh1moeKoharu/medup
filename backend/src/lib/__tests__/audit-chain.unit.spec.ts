@@ -134,3 +134,29 @@ describe("encadenamiento de la bitácora", () => {
     })
   })
 })
+
+describe("el número de empleado en la huella", () => {
+  it("un asiento sin número da la MISMA huella que antes de existir el campo", () => {
+    // Los asientos escritos antes de la fase 0 no lo tienen. Si esto cambiara,
+    // toda la cadena anterior daría por rota sin que nadie la hubiera tocado.
+    const c = asiento()
+    expect(calcularHuella({ ...c, user_employee_number: null }, GENESIS)).toBe(calcularHuella(c, GENESIS))
+    expect(calcularHuella({ ...c, user_employee_number: undefined }, GENESIS)).toBe(calcularHuella(c, GENESIS))
+  })
+
+  it("con número, la huella cambia: no se puede quitar ni cambiar sin que se note", () => {
+    const c = asiento()
+    const sin = calcularHuella(c, GENESIS)
+    const con = calcularHuella({ ...c, user_employee_number: "0003" }, GENESIS)
+    const otro = calcularHuella({ ...c, user_employee_number: "0004" }, GENESIS)
+    expect(con).not.toBe(sin)
+    expect(con).not.toBe(otro)
+  })
+
+  it("el formato de la huella no cambia entre versiones", () => {
+    // Valor de referencia calculado con el formato vigente (separador NUL). Si
+    // esta prueba falla, las bitácoras ya escritas dejarán de verificar: no
+    // se cambia el valor esperado, se revisa el cambio.
+    expect(calcularHuella(asiento(), GENESIS)).toBe("3a333a929a41689a196b63c8008aede4920cad941c4008163992ad1fa28aef5b")
+  })
+})

@@ -81,7 +81,7 @@ const PosRedirectPage = () => {
 
     return (
         <Container className="p-8 flex flex-col items-center justify-center min-h-[400px] gap-4">
-            <Heading level="h2">Punto de Venta</Heading>
+            <Heading level="h2">Punto de venta</Heading>
 
             {redirigiendo ? (
                 <Text className="text-ui-fg-subtle">Abriendo el punto de venta…</Text>
@@ -101,7 +101,7 @@ const PosRedirectPage = () => {
 };
 
 export const config = defineRouteConfig({
-    label: "Punto de Venta",
+    label: "Punto de venta",
     icon: ShoppingCart,
 });
 

@@ -52,50 +52,63 @@ export function assertNotProduction(scriptName: string): void {
 
 export type TestUserSpec = {
   role: Role
-  email: string
+  /** Lo que la persona teclea para entrar. Sin arroba. */
+  username: string
+  /** Número de empleado. Sale en la bitácora junto al usuario. */
+  employee_number: string
   first_name: string
   /** Qué se espera poder probar con esta cuenta. */
   purpose: string
 }
 
 /**
- * El dominio `.test` está reservado por RFC 2606 para pruebas: no resuelve en
- * DNS, así que ningún correo puede escaparse a un buzón real por accidente.
+ * Se entra con NOMBRE DE USUARIO, no con correo.
+ *
+ * Lo que queda guardado es `usuario@sigh.local`. El sufijo lo pone
+ * `aIdentificador`, en `lib/usuarios.ts`, y ahí está explicado por qué existe
+ * y por qué no se puede quitar mientras el panel de Medusa valide el formato
+ * de correo en su propio formulario. Aquí va sólo la parte que se teclea.
  */
 export const TEST_USERS: TestUserSpec[] = [
   {
     role: ROLES.ADMIN,
-    email: "admin@sigh.test",
+    username: "admin",
+    employee_number: "0001",
     first_name: "Admin",
     purpose: "Acceso total: configuración, personal, autorizaciones.",
   },
   {
     role: ROLES.PHARMACY,
-    email: "farmacia@sigh.test",
+    username: "farmacia",
+    employee_number: "0002",
     first_name: "Farmacia",
     purpose: "Alta de lotes, entradas y surtido de órdenes médicas.",
   },
   {
     role: ROLES.CASHIER,
-    email: "caja@sigh.test",
+    username: "caja",
+    employee_number: "0003",
     first_name: "Caja",
     purpose: "Cobro en el POS y corte de caja por turno.",
   },
   {
     role: ROLES.DOCTOR,
-    email: "medico@sigh.test",
+    username: "medico",
+    employee_number: "0004",
     first_name: "Médico",
     purpose: "Emitir órdenes médicas. No debe ver precios de compra.",
   },
   {
     role: ROLES.NURSE,
-    email: "enfermeria@sigh.test",
+    username: "enfermeria",
+    employee_number: "0005",
     first_name: "Enfermería",
     purpose: "Emitir órdenes médicas. No debe ver precios de compra.",
   },
   {
     role: ROLES.AUDITOR,
-    email: "auditoria@sigh.test",
+    username: "auditoria",
+    employee_number: "0006",
     first_name: "Auditoría",
     purpose: "Solo lectura: reportes y bitácora. Toda escritura debe dar 403.",
   },

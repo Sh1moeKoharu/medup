@@ -2,6 +2,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ROLES, normalizeRole } from "../../../lib/roles";
 import { Container, Heading, Text, Badge, Button, Input, Label, Select, Table, Textarea } from "@medusajs/ui";
 import { useState, useEffect } from "react";
+import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
 
 type Agreement = {
     id: string; company_name: string; rfc: string | null; contact_name: string | null;
@@ -20,6 +21,7 @@ const emptyForm = {
 const B2BAgreementsPage = () => {
     const [agreements, setAgreements] = useState<Agreement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [denegado, setDenegado] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("__all__");
     const [showModal, setShowModal] = useState(false);
@@ -42,6 +44,7 @@ const B2BAgreementsPage = () => {
         setIsLoading(true);
         try {
             const res = await fetch("/admin/b2b-agreements");
+            if (esDenegado(res)) { setDenegado(true); return; }
             if (res.ok) {
                 const data = await res.json();
                 setAgreements(data.b2b_agreements || []);
@@ -124,6 +127,8 @@ const B2BAgreementsPage = () => {
     const fmtMoney = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
     const setField = (key: string, val: any) => setForm(prev => ({ ...prev, [key]: val }));
 
+    if (denegado) return <SinAcceso recurso="los convenios empresariales" />;
+
     return (
         <Container className="p-8">
             <div className="flex flex-col gap-6">
@@ -139,7 +144,7 @@ const B2BAgreementsPage = () => {
                     </div>
                     {!isAuditor && (
                         <Button variant="primary" size="base" onClick={handleOpenCreate}>
-                            + Nuevo Convenio
+                            + Nuevo convenio
                         </Button>
                     )}
                 </div>
@@ -183,6 +188,10 @@ const B2BAgreementsPage = () => {
                     </Container>
                 ) : (
                     <Container className="p-0 rounded-lg border border-ui-border-base overflow-hidden">
+                        <div style={{ overflowX: "auto", width: "100%" }}>
+                            {/* Scroll horizontal: la tabla es mas ancha que una tableta en vertical y,
+                                sin este contenedor, las columnas de la derecha se recortan sin manera
+                                de llegar a ellas. */}
                         <Table>
                             <Table.Header>
                                 <Table.Row>
@@ -233,6 +242,7 @@ const B2BAgreementsPage = () => {
                                 ))}
                             </Table.Body>
                         </Table>
+                        </div>
                     </Container>
                 )}
 
@@ -240,7 +250,7 @@ const B2BAgreementsPage = () => {
                 {deleteConfirm && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
                         <div className="bg-ui-bg-base p-6 rounded-lg shadow-lg max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-                            <Heading level="h2" className="text-ui-fg-base text-lg font-bold mb-2">Confirmar Eliminación</Heading>
+                            <Heading level="h2" className="text-ui-fg-base text-lg font-bold mb-2">Confirmar eliminación</Heading>
                             <Text className="text-ui-fg-subtle text-sm mb-4">¿Estás seguro de que deseas eliminar este convenio? Esta acción no se puede deshacer.</Text>
                             <div className="flex justify-end gap-2">
                                 <Button variant="secondary" size="small" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
@@ -255,7 +265,7 @@ const B2BAgreementsPage = () => {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
                         <div className="bg-ui-bg-base p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                             <Heading level="h2" className="text-ui-fg-base text-lg font-bold mb-4">
-                                {editingId ? "Editar Convenio" : "Nuevo Convenio"}
+                                {editingId ? "Editar convenio" : "Nuevo convenio"}
                             </Heading>
                             <div className="flex flex-col gap-4">
                                 {/* Company Name */}
@@ -281,7 +291,7 @@ const B2BAgreementsPage = () => {
                                 </div>
                                 {/* Contact info */}
                                 <div className="border-t border-ui-border-base pt-3">
-                                    <Text className="text-sm font-semibold text-ui-fg-base mb-2">Datos de Contacto</Text>
+                                    <Text className="text-sm font-semibold text-ui-fg-base mb-2">Datos de contacto</Text>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div>
                                             <Label htmlFor="m-cname" className="text-xs">Nombre</Label>
@@ -299,18 +309,18 @@ const B2BAgreementsPage = () => {
                                 </div>
                                 {/* Financial */}
                                 <div className="border-t border-ui-border-base pt-3">
-                                    <Text className="text-sm font-semibold text-ui-fg-base mb-2">Condiciones Comerciales</Text>
+                                    <Text className="text-sm font-semibold text-ui-fg-base mb-2">Condiciones comerciales</Text>
                                     <div className="grid grid-cols-3 gap-3">
                                         <div>
                                             <Label htmlFor="m-disc" className="text-xs">Descuento (%)</Label>
                                             <Input id="m-disc" type="number" min="0" max="100" step="0.5" value={String(form.discount_percent)} onChange={(e) => setField("discount_percent", parseFloat(e.target.value) || 0)} />
                                         </div>
                                         <div>
-                                            <Label htmlFor="m-credit" className="text-xs">Límite de Crédito ($)</Label>
+                                            <Label htmlFor="m-credit" className="text-xs">Límite de crédito ($)</Label>
                                             <Input id="m-credit" type="number" min="0" step="100" value={String(form.credit_limit)} onChange={(e) => setField("credit_limit", parseFloat(e.target.value) || 0)} />
                                         </div>
                                         <div>
-                                            <Label htmlFor="m-terms" className="text-xs">Plazo de Pago (días)</Label>
+                                            <Label htmlFor="m-terms" className="text-xs">Plazo de pago (días)</Label>
                                             <Input id="m-terms" type="number" min="0" value={String(form.payment_terms_days)} onChange={(e) => setField("payment_terms_days", parseInt(e.target.value) || 0)} />
                                         </div>
                                     </div>
@@ -338,7 +348,7 @@ const B2BAgreementsPage = () => {
                                 <div className="flex justify-end gap-2 pt-2 border-t border-ui-border-base">
                                     <Button variant="secondary" size="base" onClick={() => setShowModal(false)}>Cancelar</Button>
                                     <Button variant="primary" size="base" onClick={handleSave} isLoading={isSaving} disabled={isSaving}>
-                                        {editingId ? "Guardar Cambios" : "Crear Convenio"}
+                                        {editingId ? "Guardar cambios" : "Crear convenio"}
                                     </Button>
                                 </div>
                             </div>

@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withDecay, withSpring, with
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { scheduleOnRN } from 'react-native-worklets';
+import { color } from '@/theme/tokens';
 
 export interface BottomSheetProps extends Pick<ModalProps, 'visible' | 'onRequestClose'> {
   title?: string;
@@ -220,7 +221,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               flex: 1,
               alignItems: 'center',
               justifyContent: 'flex-end',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backgroundColor: color.velo,
               paddingLeft: safeAreaInsets.left,
               paddingRight: safeAreaInsets.right,
             },

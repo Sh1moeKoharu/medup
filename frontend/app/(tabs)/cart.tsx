@@ -39,6 +39,8 @@ import { Image, Pressable, TouchableOpacity, View } from 'react-native';
 import Animated, { SequencedTransition, SlideOutLeft } from 'react-native-reanimated';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import * as z from 'zod/v4';
+import { color } from '@/theme/tokens';
+import { formatearDinero } from '@/utils/dinero';
 
 interface TPromotionItem extends AdminPromotion {
   __type__: 'promotion';
@@ -77,9 +79,9 @@ const RemoveLineItemButton: React.FC<{ onPress: () => void }> = ({ onPress }) =>
   <Pressable
     onPress={onPress}
     accessibilityLabel="Quitar del carrito"
-    className="mt-2 rounded-lg border border-gray-200 p-2"
+    className="mt-2 rounded-xl border border-gray-200 p-2"
   >
-    <Trash2 size={18} color="#EF4444" />
+    <Trash2 size={18} color={color.iconoError} />
   </Pressable>
 );
 
@@ -115,9 +117,10 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
         </View>
         <View className="flex-1 flex-col gap-2">
           <Text>{item.product_title}</Text>
-          {item.variant && item.variant.options && item.variant.options.length > 0 && (
+          {/* En un catálogo de una sola presentación, la opción se llama «Default»: no dice nada. */}
+          {item.variant?.options?.some((o) => o.value && o.value !== 'Default') && (
             <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
-              {item.variant.options.map((option) => (
+              {item.variant.options.filter((o) => o.value !== 'Default').map((option) => (
                 <View className="flex-row gap-1" key={option.id}>
                   <Text className="text-sm text-gray-400">{option.option?.title || option.option_id}:</Text>
                   <Text className="text-sm">{option.value}</Text>
@@ -141,11 +144,7 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
         </View>
         <View className="ml-auto items-end justify-between">
           <Text>
-            {item.unit_price.toLocaleString('en-US', {
-              style: 'currency',
-              currency: draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code,
-              currencyDisplay: 'narrowSymbol',
-            })}
+            {formatearDinero(item.unit_price, draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code)}
           </Text>
           <RemoveLineItemButton onPress={() => onRemove?.(item)} />
         </View>
@@ -192,14 +191,14 @@ const PromotionItem: React.FC<{
       }
     >
       <View className="flex-row gap-4 bg-white py-6">
-        <View className="flex h-[5.25rem] w-[5.25rem] items-center justify-center overflow-hidden rounded-xl bg-green-100">
+        <View className="flex h-[5.25rem] w-[5.25rem] items-center justify-center overflow-hidden rounded-xl bg-success-200">
           <View className="flex items-center justify-center">
-            <Tag size={32} color="#10B981" />
+            <Tag size={32} color={color.iconoExito} />
           </View>
         </View>
         <View className="flex-1 flex-col gap-2">
           <View className="flex-row items-center gap-2">
-            <Text className="font-medium">{item.code || 'Promotion'}</Text>
+            <Text className="font-medium">{item.code || 'Promoción'}</Text>
           </View>
           <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
             <View className="flex-row gap-1">
@@ -219,11 +218,7 @@ const PromotionItem: React.FC<{
           </View>
         </View>
         <Text className="ml-auto">
-          {(item.discount_amount * -1).toLocaleString('en-US', {
-            style: 'currency',
-            currency: currencyCode,
-            currencyDisplay: 'narrowSymbol',
-          })}
+          {formatearDinero(item.discount_amount * -1, currencyCode)}
         </Text>
       </View>
     </SwipeableListItem>
@@ -243,7 +238,7 @@ const CustomerBadge: React.FC<{ customer: AdminDraftOrder['customer'] }> = ({ cu
         icon={<UserRoundPlus size={20} />}
         className="mb-6 justify-between"
       >
-        Añadir Cliente
+        Añadir paciente
       </Button>
     );
   }
@@ -269,7 +264,7 @@ const CustomerBadge: React.FC<{ customer: AdminDraftOrder['customer'] }> = ({ cu
         </View>
       ) : (
         <View>
-          <Text className="text-sm text-gray-300">Cliente</Text>
+          <Text className="text-sm text-gray-300">Paciente</Text>
           <Text className="text-lg">{customer.email}</Text>
         </View>
       )}
@@ -305,7 +300,7 @@ const PromotionBadge: React.FC<PromotionBadgeProps> = ({ onAddPromotion, isAddin
         icon={<Tag size={16} />}
         className="mb-4 justify-between"
       >
-        Añadir Promoción
+        Añadir promoción
       </Button>
 
       <Dialog visible={isDialogOpen} onClose={() => setIsDialogOpen(false)} title="Añadir código de promoción">
@@ -365,11 +360,7 @@ const CartSummaryHeader: React.FC<
             <View className="h-[17px] w-1/4 rounded-md bg-gray-200" />
           ) : (
             <Text className="text-sm text-gray-400">
-              {taxTotal.toLocaleString('en-US', {
-                style: 'currency',
-                currency: currencyCode,
-                currencyDisplay: 'narrowSymbol',
-              })}
+              {formatearDinero(taxTotal, currencyCode)}
             </Text>
           )}
         </View>
@@ -379,11 +370,7 @@ const CartSummaryHeader: React.FC<
             <View className="h-[17px] w-1/4 rounded-md bg-gray-200" />
           ) : (
             <Text className="text-sm text-gray-400">
-              {subtotal.toLocaleString('en-US', {
-                style: 'currency',
-                currency: currencyCode,
-                currencyDisplay: 'narrowSymbol',
-              })}
+              {formatearDinero(subtotal, currencyCode)}
             </Text>
           )}
         </View>
@@ -394,11 +381,7 @@ const CartSummaryHeader: React.FC<
               <View className="h-[17px] w-1/4 rounded-md bg-gray-200" />
             ) : (
               <Text className="text-sm text-gray-400">
-                {(discountTotal * -1)?.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: currencyCode,
-                  currencyDisplay: 'narrowSymbol',
-                })}
+                {formatearDinero(discountTotal * -1, currencyCode)}
               </Text>
             )}
           </View>
@@ -592,11 +575,7 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
               <View className="h-7 w-1/4 rounded-md bg-gray-200" />
             ) : (
               <Text className="text-lg">
-                {draftOrder.data.draft_order.total?.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: draftOrder.data.draft_order.region?.currency_code || settings.data?.region?.currency_code,
-                  currencyDisplay: 'narrowSymbol',
-                })}
+                {formatearDinero(draftOrder.data.draft_order.total, draftOrder.data.draft_order.region?.currency_code || settings.data?.region?.currency_code)}
               </Text>
             )}
           </View>

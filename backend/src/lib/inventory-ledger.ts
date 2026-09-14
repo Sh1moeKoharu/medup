@@ -34,6 +34,8 @@ export type MovementType =
 
 export type RecordMovementInput = {
   variant_id: string
+  /** En qué almacén ocurrió. Obligatorio: un asiento sin almacén no cuadra con nadie. */
+  stock_location_id: string
   /** Con signo: positivo entrada, negativo salida. Un 0 se rechaza. */
   quantity_delta: number
   /** Saldo del lote DESPUÉS del movimiento. */
@@ -68,6 +70,10 @@ const ENTRY_TYPES: MovementType[] = [
 function validate(input: RecordMovementInput): string | null {
   if (!input.variant_id) {
     return "variant_id es obligatorio"
+  }
+
+  if (!input.stock_location_id) {
+    return "stock_location_id es obligatorio: el asiento debe decir en qué almacén ocurrió"
   }
 
   if (!Number.isFinite(input.quantity_delta) || input.quantity_delta === 0) {
@@ -117,6 +123,7 @@ export async function recordInventoryMovement(
 
     await service.createInventoryMovements({
       variant_id: input.variant_id,
+      stock_location_id: input.stock_location_id,
       variant_title: input.variant_title ?? null,
       batch_id: input.batch_id ?? null,
       batch_number: input.batch_number ?? null,

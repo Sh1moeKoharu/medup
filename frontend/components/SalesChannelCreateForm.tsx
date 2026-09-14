@@ -21,7 +21,7 @@ type SalesChannelFormData = z.infer<typeof salesChannelSchema>;
 const SalesChannelCreateForm: React.FC<SalesChannelCreateFormProps> = ({
   onSalesChannelCreated,
   defaultValues = {
-    description: 'Created via Agilo POS',
+    description: 'Creado desde el punto de venta Altus',
   },
 }) => {
   const createSalesChannel = useCreateSalesChannel({
@@ -50,7 +50,7 @@ const SalesChannelCreateForm: React.FC<SalesChannelCreateFormProps> = ({
       <TextField
         name="description"
         floatingPlaceholder
-        placeholder="Description (optional)"
+        placeholder="Descripción (opcional)"
         multiline
         numberOfLines={3}
       />

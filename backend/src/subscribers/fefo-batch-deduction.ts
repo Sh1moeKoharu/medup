@@ -1,97 +1,114 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { recordInventoryMovement } from "../lib/inventory-ledger";
+import { planificarFefo, aplicarFefo } from "../lib/fefo";
+import { almacenDeFarmacia } from "../lib/almacenes";
+import { CLAVE_CONSUMO_EN_CONSULTA } from "../lib/cuentas-de-paciente";
 
+/**
+ * Descuento de lotes por FEFO cuando se cobra una venta.
+ *
+ * La selección de lotes vive en `lib/fefo.ts`, compartida con la dispensación
+ * de órdenes médicas. Antes estaba escrita aquí y otra vez allá, con criterios
+ * distintos para decidir qué lote era elegible.
+ *
+ * ── POR QUÉ AQUÍ NO SE ABORTA POR FALTA DE STOCK ────────────────────────────
+ * A diferencia de la dispensación, esto corre DESPUÉS de que la venta ya se
+ * cobró. Negarse no desharía nada: sólo dejaría el kardex sin el movimiento.
+ * Se descuenta lo que haya, se asienta, y el faltante se registra como aviso
+ * para que alguien lo cuadre con un ajuste de inventario.
+ */
 export default async function fefoBatchDeductionSubscriber({
     event: { data },
     container,
 }: SubscriberArgs<{ id: string }>) {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
-    const medicalInventoryService = container.resolve("medical_inventory");
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
 
     const orderId = data.id;
 
-    logger.info(`📝 FEFO Deduction: Processing order ${orderId}`);
+    logger.info(`FEFO: procesando la orden ${orderId}`);
 
     try {
-        // Fetch the order with its items to get variant IDs and quantities
         const { data: orders } = await query.graph({
             entity: "order",
-            fields: ["id", "items.*"],
-            filters: { id: orderId }
+            fields: ["id", "items.*", "items.metadata"],
+            filters: { id: orderId },
         });
 
         if (!orders || orders.length === 0) return;
-        const order = orders[0];
 
-        const items = order.items || [];
+        const items = orders[0].items || [];
+
+        // Una venta del mostrador sale de Farmacia. Sin almacén de Farmacia no
+        // se descuenta nada, y se dice: la venta ya está cobrada.
+        const farmacia = await almacenDeFarmacia(container);
+        if (!farmacia) {
+            logger.error(
+                `FEFO: no hay almacén de Farmacia configurado; la orden ${orderId} ` +
+                    `NO se descontó del inventario. Ejecuta preparar-almacenes.ts y cuadra a mano.`
+            );
+            return;
+        }
+
         for (const item of items) {
-            let remainingQuantityToDeduct = item?.quantity || 0;
             const variantId = item?.variant_id;
+            const cantidad = item?.quantity || 0;
 
-            if (!variantId) continue;
+            if (!variantId || cantidad <= 0) continue;
 
-            // Fetch available batches for this variant
-            const { data: batches } = await query.graph({
-                entity: "medical_batch",
-                fields: ["id", "quantity", "expiration_date", "batch_number"],
-                filters: {
-                    variant_id: variantId,
-                    quantity: { $gt: 0 }, // Sólo lotes con existencia
-                    status: "active"      // y NO caducados/en cuarentena/destruidos
-                }
-            });
-
-            if (!batches || batches.length === 0) {
-                logger.warn(`⚠️ FEFO: No stock batches found for variant ${variantId} (Item: ${item?.title || "Unknown"})`);
+            // Lo que Enfermería aplicó en consulta ya salió de SU almacén al
+            // aplicarlo (ver lib/cuentas-de-paciente.ts). Descontarlo otra vez
+            // de Farmacia al cobrar la cuenta duplicaba la salida.
+            if ((item as any)?.metadata?.[CLAVE_CONSUMO_EN_CONSULTA]) {
+                logger.info(`FEFO: ${item?.title ?? variantId} ya se aplicó en consulta; no se descuenta de Farmacia.`);
                 continue;
             }
 
-            // Sort batches: FEFO (First Expire First Out)
-            const sortedBatches = batches.sort((a: any, b: any) => 
-                new Date(a.expiration_date).getTime() - new Date(b.expiration_date).getTime()
-            );
+            const plan = await planificarFefo(container, variantId, cantidad, farmacia.id);
 
-            // Deduct from batches
-            for (const batch of sortedBatches) {
-                if (remainingQuantityToDeduct <= 0) break;
+            if (!plan.asignaciones.length) {
+                logger.warn(
+                    `FEFO: no hay lotes con existencia para la variante ${variantId} ` +
+                        `(${item?.title ?? "sin título"}). No se descontó nada.`
+                );
+                continue;
+            }
 
-                const deduction = Math.min(batch.quantity, remainingQuantityToDeduct);
-                remainingQuantityToDeduct -= deduction;
-                const newQuantity = batch.quantity - deduction;
+            const aplicadas = await aplicarFefo(container, plan);
 
-                // Update the batch
-                await medicalInventoryService.updateMedicalBatches({
-                    id: batch.id,
-                    quantity: newQuantity
-                });
-
-                // Asiento en el libro mayor: sin esto la salida no deja rastro
-                // y el kardex no cuadra.
+            for (const a of aplicadas) {
                 await recordInventoryMovement(container, {
                     variant_id: variantId,
+                    stock_location_id: farmacia.id,
                     variant_title: item?.title ?? null,
-                    batch_id: batch.id,
-                    batch_number: batch.batch_number ?? null,
-                    expiration_date: batch.expiration_date ?? null,
-                    quantity_delta: -deduction,
-                    quantity_after: newQuantity,
+                    batch_id: a.lote.id,
+                    batch_number: a.lote.batch_number ?? null,
+                    expiration_date: a.lote.expiration_date ?? null,
+                    quantity_delta: -a.cantidad,
+                    quantity_after: a.saldoResultante,
                     type: "exit_sale",
                     reason: "Salida por venta (FEFO)",
                     reference_type: "order",
                     reference_id: orderId,
                 });
 
-                logger.info(`✅ FEFO: Deducted ${deduction} from batch ${batch.id} (New qty: ${newQuantity})`);
+                logger.info(
+                    `FEFO: -${a.cantidad} del lote ${a.lote.batch_number ?? a.lote.id} ` +
+                        `(saldo ${a.saldoResultante})`
+                );
             }
 
-            if (remainingQuantityToDeduct > 0) {
-                logger.warn(`⚠️ FEFO: Not enough batch stock for variant ${variantId}. Missing ${remainingQuantityToDeduct} units.`);
+            if (!plan.alcanza) {
+                logger.warn(
+                    `FEFO: existencia insuficiente para la variante ${variantId}. ` +
+                        `Faltaron ${plan.faltante} unidad(es); la venta ya estaba cobrada. ` +
+                        `Cuadra la diferencia con un ajuste de inventario.`
+                );
             }
         }
     } catch (err) {
-        logger.error(`❌ FEFO Deduction Error: ${err}`);
+        logger.error(`FEFO: fallo al descontar lotes de la orden ${orderId}: ${err}`);
     }
 }
 

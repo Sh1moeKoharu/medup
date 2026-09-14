@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { normalizarReferencia, revisarReferenciaDeTerminal } from "../../../../../lib/caja";
 
 /**
  * GET /admin/cash-sessions/:id/movements
@@ -93,6 +94,15 @@ export async function POST(
             });
         }
 
+        // Con tarjeta, la referencia de la terminal (4 a 6 dígitos) es
+        // obligatoria: es lo que cruza la venta con el estado de cuenta.
+        if (type === "sale" && payment_method === "card") {
+            const problema = revisarReferenciaDeTerminal(reference);
+            if (problema) {
+                return res.status(400).json({ message: problema });
+            }
+        }
+
         const created_by = (req as any).auth_context?.actor_id || "unknown";
 
         const movement = await cashSessionService.createCashMovements({
@@ -101,7 +111,7 @@ export async function POST(
             type,
             payment_method,
             amount: Math.abs(Number(amount)),
-            reference: reference || null,
+            reference: normalizarReferencia(reference) || null,
             description: description || null,
             created_by,
         });

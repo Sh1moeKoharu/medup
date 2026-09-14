@@ -12,6 +12,12 @@ export const AuditLog = model.define("audit_log", {
      * Es parte de la trazabilidad que exige la NOM-024-SSA3-2012 §6.6.1.
      */
     user_role: model.text().nullable(),
+    /**
+     * Número de empleado del actor al momento de la acción. Desnormalizado
+     * por la misma razón que el rol: es lo que la administración reconoce en
+     * un reporte, y el asiento debe decir quién era entonces.
+     */
+    user_employee_number: model.text().nullable(),
     method: model.text(), // POST, PUT, DELETE
     endpoint: model.text(), // e.g. /admin/products/123
     ip_address: model.text().nullable(),

@@ -1,6 +1,7 @@
 import { ChevronDown } from '@/components/icons/chevron-down';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Text } from '@/components/ui/Text';
+import { contieneTexto } from '@/utils/buscar';
 import { clx } from '@/utils/clx';
 import React, { useEffect } from 'react';
 import { FieldError, useController, useFormContext } from 'react-hook-form';
@@ -91,7 +92,7 @@ export function BaseSelectField({
 
   const selectedOptions = getSelectedOptions(options, value);
   const filteredOptions = searchable
-    ? options.filter((option) => option.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? options.filter((option) => contieneTexto(option.label, searchQuery))
     : options;
 
   const showFloating = shouldShowFloating(isVisible, selectedOptions, floatingPlaceholder, variant);

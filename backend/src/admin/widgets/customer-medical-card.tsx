@@ -4,7 +4,7 @@ import { Container, Heading, Text, Button, Input, Select, Badge, Label } from "@
 import { useState, useEffect } from "react";
 
 const CUSTOMER_TYPES = [
-    { value: "b2c", label: "B2C — Cliente Individual" },
+    { value: "b2c", label: "B2C — Paciente individual" },
     { value: "b2b", label: "B2B — Empresa / Corporativo" },
 ];
 
@@ -134,7 +134,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
     const handleSave = async () => {
         // If protected fields changed and not authenticated, block save
         if (protectedFieldsChanged() && !isAuthenticated) {
-            setPasswordError("Debes autenticarte para modificar Número de Empleado o Póliza.");
+            setPasswordError("Debes autenticarte para modificar Número de empleado o Póliza.");
             return;
         }
 
@@ -189,7 +189,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
             }
         } catch (err) {
             console.error("Error saving medical customer:", err);
-            alert("Error de conexión al guardar datos del cliente.");
+            alert("Error de conexión al guardar datos del paciente.");
         } finally {
             setIsSaving(false);
         }
@@ -221,13 +221,11 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
             <Container className="p-6 mb-4 mt-4">
                 <div className="flex items-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ui-fg-base"></div>
-                    <Text className="text-ui-fg-subtle text-sm">Cargando datos del cliente...</Text>
+                    <Text className="text-ui-fg-subtle text-sm">Cargando datos del paciente...</Text>
                 </div>
             </Container>
         );
     }
-
-    const isB2B = customerType === "b2b";
 
     // Whether the employee number or insurance_policy fields should be locked
     const protectedFieldsLocked = !isAuthenticated;
@@ -240,10 +238,10 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                     <div className="flex items-center gap-3">
                         <div>
                             <Heading level="h2" className="text-ui-fg-base text-lg font-bold">
-                                Datos Corporativos del Cliente
+                                Datos corporativos del paciente
                             </Heading>
                             <Text className="text-ui-fg-subtle text-sm mt-0.5">
-                                Número de empleado, empresa y tipo de cliente
+                                Número de empleado, empresa y tipo de paciente
                             </Text>
                         </div>
                     </div>
@@ -258,7 +256,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                         )}
                         {!isEditing && !isAuditor ? (
                             <Button variant="secondary" size="small" onClick={handleStartEditing}>
-                                {medicalData ? "Editar" : "Agregar Datos"}
+                                {medicalData ? "Editar" : "Agregar datos"}
                             </Button>
                         ) : isEditing ? (
                             <Button variant="secondary" size="small" onClick={handleCancelEditing}>
@@ -281,7 +279,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                     <div className="grid grid-cols-2 gap-4 border-t border-ui-border-base pt-4">
                         <div>
                             <Text className="text-ui-fg-muted text-xs uppercase tracking-wider font-semibold mb-1">
-                                Número de Empleado
+                                Número de empleado
                             </Text>
                             <Text className="text-ui-fg-base text-sm font-medium">
                                 {medicalData.employee_number || "—"}
@@ -297,7 +295,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                         </div>
                         <div>
                             <Text className="text-ui-fg-muted text-xs uppercase tracking-wider font-semibold mb-1">
-                                Tipo de Cliente
+                                Tipo de paciente
                             </Text>
                             <Text className="text-ui-fg-base text-sm font-medium">
                                 {customerType === "b2b" ? "B2B — Empresa" : "B2C — Individual"}
@@ -318,7 +316,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                 {!isEditing && !medicalData && (
                     <div className="border-t border-ui-border-base pt-4">
                         <Text className="text-ui-fg-muted text-sm italic">
-                            Este cliente no tiene datos corporativos registrados. Haz clic en "Agregar Datos" para configurarlos.
+                            Este paciente no tiene datos corporativos registrados. Haz clic en "Agregar datos" para configurarlos.
                         </Text>
                     </div>
                 )}
@@ -329,11 +327,11 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                         {/* Customer type selector */}
                         <div>
                             <Label className="text-sm font-medium text-ui-fg-base mb-1.5" htmlFor="customer-type">
-                                Tipo de Cliente
+                                Tipo de paciente
                             </Label>
                             <Select value={customerType} onValueChange={setCustomerType}>
                                 <Select.Trigger id="customer-type">
-                                    <Select.Value placeholder="Selecciona tipo de cliente" />
+                                    <Select.Value placeholder="Selecciona tipo de paciente" />
                                 </Select.Trigger>
                                 <Select.Content>
                                     {CUSTOMER_TYPES.map((ct) => (
@@ -364,7 +362,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                                 ))}
                             </datalist>
                             <Text className="text-ui-fg-muted text-xs mt-1">
-                                Sincronizado con el campo Compañía del cliente. Se actualiza en ambos lugares al guardar.
+                                Sincronizado con el campo Compañía del paciente. Se actualiza en ambos lugares al guardar.
                             </Text>
                         </div>
 
@@ -372,14 +370,14 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                         <div className="flex flex-col gap-3 p-4 rounded-lg border border-ui-border-strong bg-ui-bg-base">
                             <div className="flex items-center gap-2 mb-1">
                                 <Text className="text-sm font-semibold text-ui-fg-base">
-                                    Campos Protegidos
+                                    Campos protegidos
                                 </Text>
                                 {isAuthenticated && (
                                     <Badge color="green" size="small">Desbloqueado</Badge>
                                 )}
                             </div>
                             <Text className="text-ui-fg-muted text-xs">
-                                Los campos de Número de Empleado y Póliza requieren autenticación con contraseña para ser modificados.
+                                Los campos de Número de empleado y Póliza requieren autenticación con contraseña para ser modificados.
                             </Text>
 
                             {/* Password authentication for protected fields */}
@@ -421,7 +419,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                                 {/* Employee Number — protected */}
                                 <div>
                                     <Label className="text-sm font-medium text-ui-fg-base mb-1.5" htmlFor="employee-number">
-                                        Número de Empleado
+                                        Número de empleado
                                     </Label>
                                     <Input
                                         id="employee-number"
@@ -463,7 +461,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                                 isLoading={isSaving}
                                 disabled={isSaving}
                             >
-                                {medicalData ? "Guardar Cambios" : "Registrar Datos"}
+                                {medicalData ? "Guardar cambios" : "Registrar datos"}
                             </Button>
                         </div>
                     </div>

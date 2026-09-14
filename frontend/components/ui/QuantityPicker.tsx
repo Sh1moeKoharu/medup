@@ -4,6 +4,7 @@ import { TextInput, TouchableOpacity, View } from 'react-native';
 import { Loader } from '../icons/loader';
 import { Minus } from '../icons/minus';
 import { Plus } from '../icons/plus';
+import { color } from '@/theme/tokens';
 
 interface QuantityPickerProps {
   quantity: number;
@@ -135,7 +136,7 @@ export function QuantityPicker({
           />
         </TouchableOpacity>
       </View>
-      {isPending && <Loader size={16} color="#B5B5B5" className="animate-spin" />}
+      {isPending && <Loader size={16} color={color.textoTerciario} className="animate-spin" />}
     </View>
   );
 }

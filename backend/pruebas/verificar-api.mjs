@@ -1,0 +1,1126 @@
+/**
+ * Verificación de extremo a extremo contra un servidor EN MARCHA.
+ *
+ *   node pruebas/verificar-api.mjs                    (contra localhost:9000)
+ *   BASE=http://192.168.1.114 node pruebas/verificar-api.mjs
+ *
+ * ── QUÉ COMPRUEBA ───────────────────────────────────────────────────────────
+ *   1. Permisos      matriz de 6 roles × 7 recursos contra lib/api-policy.ts
+ *   2. Omisión segura  una ruta no declarada queda cerrada
+ *   3. Expediente    el contenido clínico sólo lo ve quien atiende
+ *   4. Dispensación  surtir descuenta, no alcanza -> 409, cancelación
+ *   5. Personal      alta sin la ruta pública, y baja que retira la credencial
+ *   6–13. Una sección por fase del plan (ver cada función)
+ *
+ * ── POR QUÉ UN SCRIPT Y NO UNA PRUEBA DE JEST ───────────────────────────────
+ * La suite de integración (`npm run test:integration:http`) levanta su PROPIA
+ * instancia con una base de datos temporal, y para eso el usuario de PostgreSQL
+ * necesita permiso de CREATEDB, que hoy no tiene — el runner falla con
+ * "client password must be a string" porque `.env.test` está vacío.
+ *
+ * Migrar esto a Jest es lo correcto a medio plazo y no cuesta mucho: rellenar
+ * `.env.test` con un DATABASE_URL propio y conceder CREATEDB al usuario. Hasta
+ * entonces, esto vive aquí en lugar de perderse en un directorio temporal: son
+ * las comprobaciones que descubrieron los fallos de la auditoría, y valen sobre
+ * todo como red contra regresiones.
+ *
+ * ⚠️ ESCRIBE EN LA BASE. Crea y borra un usuario de prueba, emite y cancela
+ * órdenes médicas, y descuenta existencias al surtir. Contra datos reales, no.
+ * Requiere las cuentas de `npm run seed` y el catálogo de
+ * `seed-catalogo-demo.ts`.
+ */
+
+const BASE = process.env.BASE || "http://localhost:9000"
+const PASS = process.env.SIGH_TEST_PASSWORD || "Sigh#Test2026"
+
+const ROLES = ["admin", "farmacia", "caja", "medico", "enfermeria", "auditoria"]
+const T = {}
+
+let fallos = 0
+let total = 0
+
+function check(desc, ok, detalle) {
+  total++
+  if (!ok) fallos++
+  console.log(`   ${ok ? "ok  " : "FALLA"} ${desc}${detalle ? `  → ${detalle}` : ""}`)
+}
+
+function seccion(titulo) {
+  console.log(`\n── ${titulo} ${"─".repeat(Math.max(0, 60 - titulo.length))}`)
+}
+
+async function login(correo, clave = PASS) {
+  const r = await fetch(`${BASE}/auth/user/emailpass`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      // Se entra con nombre de usuario. El sufijo es el mismo dominio
+      // interno que usa la aplicacion; ver src/lib/usuarios.ts.
+      email: correo.includes("@") ? correo : `${correo}@sigh.local`,
+      password: clave,
+    }),
+  })
+  const j = await r.json().catch(() => ({}))
+  return { token: j.token, code: r.status }
+}
+
+async function call(rol, metodo, ruta, cuerpo) {
+  const opts = {
+    method: metodo,
+    headers: { Authorization: `Bearer ${T[rol]}`, "Content-Type": "application/json" },
+  }
+  if (cuerpo) opts.body = JSON.stringify(cuerpo)
+  const r = await fetch(BASE + ruta, opts)
+  let j = null
+  try {
+    j = await r.json()
+  } catch {}
+  return { code: r.status, j }
+}
+
+// ── 1. Matriz de permisos ───────────────────────────────────────────────────
+// Cada fila declara qué roles DEBEN poder. Es la transcripción de
+// lib/api-policy.ts: si las dos discrepan, una de las dos está mal.
+const MATRIZ = [
+  ["GET", "/admin/staff", null, "Ver personal", ["admin", "auditoria"]],
+  ["GET", "/admin/audit-logs", null, "Ver bitácora", ["admin", "auditoria"]],
+  ["GET", "/admin/products?limit=1", null, "Ver catálogo", ROLES],
+  ["POST", "/admin/product-tags", { value: "verif-" }, "Crear etiqueta", ["admin", "farmacia"]],
+  ["POST", "/admin/regions", { name: "Verif ", currency_code: "mxn", countries: [] }, "Crear región", ["admin"]],
+  ["GET", "/admin/inventory-reports/valuation", null, "Inventario valorizado", ["admin", "farmacia", "auditoria"]],
+  ["GET", "/admin/medical-customers", null, "Ver expediente clínico", ["admin", "farmacia", "medico", "enfermeria", "auditoria"]],
+]
+
+async function matrizDePermisos() {
+  seccion("1 · PERMISOS POR ROL")
+
+  const creados = { tags: [], regions: [] }
+
+  for (const [metodo, ruta, cuerpo, desc, permitidos] of MATRIZ) {
+    const celdas = []
+
+    for (const rol of ROLES) {
+      let cuerpoRol = null
+      if (cuerpo) {
+        cuerpoRol = { ...cuerpo }
+        // Valores únicos por rol: si no, el segundo choca con el primero y el
+        // 400 resultante se confundiría con una denegación.
+        if (cuerpoRol.value) cuerpoRol.value += `${Date.now()}-${rol}`
+        if (cuerpoRol.name) cuerpoRol.name += `${Date.now()}-${rol}`
+      }
+
+      const { code, j } = await call(rol, metodo, ruta, cuerpoRol)
+      const permitido = code < 400
+      const esperado = permitidos.includes(rol)
+
+      if (permitido && j?.product_tag?.id) creados.tags.push(j.product_tag.id)
+      if (permitido && j?.region?.id) creados.regions.push(j.region.id)
+
+      celdas.push({ rol, permitido, esperado, code })
+    }
+
+    const discrepan = celdas.filter((c) => c.permitido !== c.esperado)
+    check(
+      desc.padEnd(24),
+      discrepan.length === 0,
+      discrepan.length
+        ? discrepan.map((c) => `${c.rol}=${c.code}`).join(" ")
+        : celdas.filter((c) => c.permitido).map((c) => c.rol).join(", ") || "nadie"
+    )
+  }
+
+  // Limpieza de lo que creó la matriz.
+  for (const id of creados.tags) await call("admin", "DELETE", `/admin/product-tags/${id}`)
+  for (const id of creados.regions) await call("admin", "DELETE", `/admin/regions/${id}`)
+}
+
+// ── 2. Omisión segura ───────────────────────────────────────────────────────
+async function omisionSegura() {
+  seccion("2 · OMISIÓN SEGURA")
+
+  const inventada = await call("caja", "POST", "/admin/ruta-que-nadie-declaro", { x: 1 })
+  check("una ruta no declarada se cierra a quien no es admin", inventada.code === 403, `HTTP ${inventada.code}`)
+
+  const lectura = await call("caja", "GET", "/admin/orders?limit=1")
+  check("la operación normal no se ve afectada", lectura.code === 200, `HTTP ${lectura.code}`)
+}
+
+// ── 3. Expediente clínico ───────────────────────────────────────────────────
+async function expediente() {
+  seccion("3 · EXPEDIENTE CLÍNICO")
+
+  const caja = await call("caja", "GET", "/admin/medical-customers")
+  check("caja no lee el expediente", caja.code === 403, `HTTP ${caja.code}`)
+
+  const medico = await call("medico", "GET", "/admin/medical-customers")
+  check("el área médica sí lo lee", medico.code === 200, `HTTP ${medico.code}`)
+  check("la lista viene paginada", medico.j?.limit !== undefined, `limit=${medico.j?.limit} count=${medico.j?.count}`)
+  check(
+    "el catálogo de empresas sigue completo",
+    Array.isArray(medico.j?.companies) && medico.j.companies.length > 0,
+    `${medico.j?.companies?.length} empresas`
+  )
+
+  // El contenido clínico no debe aparecer en la ruta general de pacientes.
+  const generales = await call("caja", "GET", "/admin/customers?limit=5")
+  check(
+    "la ruta de pacientes no filtra contenido clínico",
+    !JSON.stringify(generales.j ?? {}).includes("medical_history")
+  )
+}
+
+// ── 4. Dispensación ─────────────────────────────────────────────────────────
+async function dispensacion() {
+  seccion("4 · DISPENSACIÓN DE ÓRDENES MÉDICAS")
+
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  const locs4 = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const farmacia4 = locs4.find((l) => l.metadata?.altus_area === "pharmacy")
+  const lotes = (await call("admin", "GET", `/admin/medical-batches?stock_location_id=${farmacia4?.id}`)).j?.batches ?? []
+  const activos = lotes.filter((b) => b.status === "active" && b.quantity > 5)
+
+  if (!paciente || !farmacia4 || !activos.length) {
+    check("hay datos para probar la dispensación", false, "faltan pacientes o lotes con existencia en Farmacia")
+    return
+  }
+
+  // Farmacia surte por FEFO: de los lotes activos de esa presentación en su
+  // almacén, el que caduca antes. Se mide ESE, no el primero que devuelva la
+  // API. Antes se medía el primero, y en una base recién sembrada —donde el
+  // primero es el de caducidad lejana— la prueba fallaba con el sistema bien.
+  const variante4 = activos[0].variant_id
+  const lotesDeLaVariante = async () =>
+    ((await call("admin", "GET", `/admin/medical-batches?variant_id=${variante4}&stock_location_id=${farmacia4.id}`)).j?.batches ?? [])
+      .filter((b) => b.status === "active")
+  const lote = (await lotesDeLaVariante())
+    .filter((b) => b.quantity > 0)
+    .sort((x, y) => String(x.expiration_date).localeCompare(String(y.expiration_date)))[0]
+  const antes = lote.quantity
+  const totalDeLaVariante = (await lotesDeLaVariante()).reduce((t, b) => t + b.quantity, 0)
+
+  // 4a. Más de lo que hay -> 409 y nada cambia.
+  const grande = await call("medico", "POST", "/admin/medical-orders", { recipient_area: "pharmacy",
+    customer_id: paciente.id,
+    customer_name: "Verificación sin stock",
+    items: [{ variant_id: lote.variant_id, product_title: "Verificación", quantity: totalDeLaVariante + 500 }],
+  })
+  const idGrande = grande.j?.medical_order?.id
+
+  const rechazo = await call("farmacia", "POST", `/admin/medical-orders/${idGrande}/dispense`)
+  check("sin existencia devuelve 409", rechazo.code === 409, `HTTP ${rechazo.code}`)
+
+  const sinTocar = (await lotesDeLaVariante()).find((b) => b.id === lote.id)
+  check("y no toca el inventario", sinTocar.quantity === antes, `${antes} → ${sinTocar.quantity}`)
+
+  const sigue = (await call("medico", "GET", `/admin/medical-orders/${idGrande}`)).j?.medical_order
+  check("la orden sigue pendiente", sigue?.status === "pending", sigue?.status)
+
+  // 4b. Cancelación.
+  const cancelada = await call("medico", "POST", `/admin/medical-orders/${idGrande}/cancel`, {
+    motivo: "Verificación automática",
+  })
+  check("se puede cancelar una receta pendiente", cancelada.j?.medical_order?.status === "cancelled")
+  check("Farmacia no cancela recetas", (await call("farmacia", "POST", `/admin/medical-orders/${idGrande}/cancel`)).code === 403)
+
+  // 4c. Dispensación correcta -> descuenta y asienta.
+  const buena = await call("medico", "POST", "/admin/medical-orders", { recipient_area: "pharmacy",
+    customer_id: paciente.id,
+    customer_name: "Verificación con stock",
+    items: [{ variant_id: lote.variant_id, product_title: "Verificación", quantity: 2 }],
+  })
+  const idBuena = buena.j?.medical_order?.id
+
+  const surtido = await call("farmacia", "POST", `/admin/medical-orders/${idBuena}/dispense`)
+  check("Farmacia surte", surtido.j?.medical_order?.status === "dispensed", surtido.j?.medical_order?.status)
+
+  const despues = (await lotesDeLaVariante()).find((b) => b.id === lote.id)
+  check("surtir DESCUENTA el stock, del lote que caduca antes", despues.quantity === antes - 2, `${lote.batch_number}: ${antes} → ${despues.quantity}`)
+  check("y no toca reserved_quantity", despues.reserved_quantity === lote.reserved_quantity)
+
+  const movs = await call("admin", "GET", "/admin/inventory-movements")
+  const clave = Object.keys(movs.j ?? {}).find((k) => Array.isArray(movs.j[k]))
+  const asiento = (movs.j?.[clave] ?? []).find((m) => m.reference_id === idBuena)
+  check("queda asentado en el kardex", !!asiento, asiento ? `${asiento.type} ${asiento.quantity_delta}` : "sin asiento")
+  check("con referencia a la orden médica", asiento?.reference_type === "medical_order", asiento?.reference_type)
+  check("y con quien lo surtió", !!asiento?.user_email, asiento?.user_email)
+
+  check(
+    "una orden ya surtida no se cancela",
+    (await call("medico", "POST", `/admin/medical-orders/${idBuena}/cancel`)).code === 400
+  )
+}
+
+// ── 5. Alta y baja de personal ──────────────────────────────────────────────
+async function personal() {
+  seccion("5 · ALTA Y BAJA DE PERSONAL")
+
+  const publico = await fetch(`${BASE}/auth/user/emailpass/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: `intruso.${Date.now()}@test.test`, password: "LoQueSea123" }),
+  })
+  check("el registro público está cerrado", publico.status === 403, `HTTP ${publico.status}`)
+
+  const usuario = `verificacion.${Date.now()}`
+  const clave = "Verificacion#2026"
+
+  const alta = await call("admin", "POST", "/admin/staff", {
+    username: usuario,
+    password: clave,
+    first_name: "Verificación",
+    last_name: "Automática",
+    role: "cashier",
+  })
+  check("el alta funciona sin la ruta pública", alta.code === 200, `HTTP ${alta.code}`)
+  check("con el rol elegido", alta.j?.user?.metadata?.role === "cashier", alta.j?.user?.metadata?.role)
+
+  check("la cuenta nueva entra", !!(await login(usuario, clave)).token)
+
+  const baja = await call("admin", "DELETE", `/admin/staff/${alta.j?.user?.id}`)
+  check("la baja retira la credencial", baja.j?.credencial_retirada === true)
+  check("y la cuenta ya no entra", !(await login(usuario, clave)).token)
+}
+
+// ── 6. Cimientos: guardia del panel y número de empleado ────────────────────
+async function cimientos() {
+  seccion("6 · GUARDIA DEL PANEL Y NÚMERO DE EMPLEADO")
+
+  // La cookie del panel se emite en POST /auth/session. Administración la
+  // obtiene siempre; los demás sólo mientras PANEL_SOLO_ADMINISTRACION esté
+  // apagada en el servidor. El servidor no dice cómo está la bandera, así que
+  // se deduce de la respuesta a caja. Con PANEL_CERRADO=1 en el entorno de
+  // esta prueba se EXIGE que esté encendida.
+  const sesion = async (rol) => {
+    const r = await fetch(`${BASE}/auth/session`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${T[rol]}` },
+    })
+    return r.status
+  }
+
+  const admin = await sesion("admin")
+  check("Administración obtiene sesión del panel", admin === 200, `HTTP ${admin}`)
+
+  const caja = await sesion("caja")
+  const cerrado = caja === 403
+  check(
+    `la guardia del panel está ${cerrado ? "ENCENDIDA (caja: 403)" : "apagada (caja: 200)"}`,
+    caja === 200 || caja === 403,
+    `HTTP ${caja}`
+  )
+  if (process.env.PANEL_CERRADO === "1") {
+    check("y se exigía encendida", cerrado)
+  }
+  if (cerrado) {
+    for (const rol of ["farmacia", "medico", "enfermeria", "auditoria"]) {
+      const s = await sesion(rol)
+      check(`${rol} tampoco obtiene sesión del panel`, s === 403, `HTTP ${s}`)
+    }
+  }
+
+  // ── Número de empleado ──
+  const usuario = `numerado.${Date.now()}`
+  const clave = "Verificacion#2026"
+  const numero = `V${String(Date.now()).slice(-6)}`
+
+  const alta = await call("admin", "POST", "/admin/staff", {
+    username: usuario,
+    password: clave,
+    first_name: "Con",
+    last_name: "Número",
+    role: "cashier",
+    employee_number: numero.toLowerCase(),
+  })
+  check(
+    "el alta guarda el número de empleado, en mayúsculas",
+    alta.j?.user?.metadata?.employee_number === numero,
+    JSON.stringify(alta.j?.user?.metadata ?? alta.j)
+  )
+
+  const repetido = await call("admin", "POST", "/admin/staff", {
+    username: `${usuario}.b`, password: clave, role: "cashier", employee_number: numero,
+  })
+  check("un número repetido se rechaza", repetido.code === 400, `HTTP ${repetido.code} ${repetido.j?.message ?? ""}`)
+
+  const invalido = await call("admin", "POST", "/admin/staff", {
+    username: `${usuario}.c`, password: clave, role: "cashier", employee_number: "A B/C",
+  })
+  check("un número con forma inválida se rechaza", invalido.code === 400, `HTTP ${invalido.code}`)
+
+  const correoMalo = await call("admin", "POST", "/admin/staff", {
+    username: `${usuario}.d`, password: clave, role: "cashier", notification_email: "caja@sigh.local",
+  })
+  check("un correo de aviso @sigh.local se rechaza: no es un buzón", correoMalo.code === 400, `HTTP ${correoMalo.code}`)
+
+  const id = alta.j?.user?.id
+  const cambio = await call("admin", "POST", `/admin/staff/${id}`, {
+    employee_number: `${numero}X`,
+    notification_email: "Persona@Ejemplo.mx",
+  })
+  const meta = cambio.j?.user?.metadata ?? {}
+  check(
+    "la edición cambia el número y guarda el correo de aviso en minúsculas",
+    meta.employee_number === `${numero}X` && meta.notification_email === "persona@ejemplo.mx",
+    JSON.stringify(meta)
+  )
+  check("y conserva el rol", meta.role === "cashier", meta.role)
+
+  // La bitácora se escribe al terminar la respuesta, un instante después.
+  await new Promise((r) => setTimeout(r, 400))
+  const bitacora = await call("admin", "GET", "/admin/audit-logs")
+  const asiento = (bitacora.j?.audit_logs ?? []).find(
+    (a) => a.endpoint === "/admin/staff" && a.method === "POST"
+  )
+  check(
+    "el asiento de bitácora lleva el número de empleado de quien actuó",
+    asiento?.user_employee_number === "0001",
+    asiento ? `Nº ${asiento.user_employee_number ?? "—"} (¿corriste npm run seed después del cambio?)` : "sin asiento"
+  )
+
+  const baja = await call("admin", "DELETE", `/admin/staff/${id}`)
+  check("la cuenta de prueba se dio de baja", baja.code === 200, `HTTP ${baja.code}`)
+
+  const reciclado = await call("admin", "POST", "/admin/staff", {
+    username: `${usuario}.e`, password: clave, role: "cashier", employee_number: `${numero}X`,
+  })
+  check("el número de una cuenta dada de baja no se recicla", reciclado.code === 400, `HTTP ${reciclado.code}`)
+  if (reciclado.code === 200) {
+    await call("admin", "DELETE", `/admin/staff/${reciclado.j?.user?.id}`)
+  }
+}
+
+// ── 7. Inventario por almacén ───────────────────────────────────────────────
+const en = (dias) => new Date(Date.now() + dias * 86400000).toISOString()
+
+async function inventarioPorAlmacen() {
+  seccion("7 · INVENTARIO POR ALMACÉN")
+
+  const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
+  const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
+  check(
+    "existen los almacenes de Farmacia y Enfermería",
+    !!farmacia && !!enfermeria,
+    `${locs.map((l) => l.name).join(", ") || "ninguno"} (¿corriste preparar-almacenes.ts confirm?)`
+  )
+  if (!farmacia || !enfermeria) return
+
+  const lotes = (await call("admin", "GET", "/admin/medical-batches")).j?.batches ?? []
+  const sinAlmacen = lotes.filter((b) => !b.stock_location_id).length
+  check("ningún lote quedó sin almacén tras migrar", sinAlmacen === 0, `${sinAlmacen} sin almacén`)
+
+  const sello = Date.now()
+  const clave = "Verificacion#2026"
+
+  // ── Una presentación nueva, para no tocar el catálogo ──
+  const prod = await call("admin", "POST", "/admin/products", {
+    title: `Verificación almacén ${sello}`,
+    options: [{ title: "Presentación", values: ["Default"] }],
+    variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: 10, currency_code: "mxn" }] }],
+    metadata: { margen_automatico: 30, origen: "verificar-api" },
+  })
+  const productoId = prod.j?.product?.id
+  const variante = prod.j?.product?.variants?.[0]?.id
+  check("se creó una presentación de prueba", !!variante, JSON.stringify(prod.j).slice(0, 120))
+  if (!variante) return
+
+  // ── Alta en Enfermería, en unidades de compra ──
+  const alta = await call("farmacia", "POST", "/admin/medical-batches", {
+    batch_number: `ENF-${sello}`, expiration_date: en(400), variant_id: variante,
+    stock_location_id: enfermeria.id, purchase_quantity: 3, units_per_purchase: 20,
+    purchase_unit: "caja", sale_unit: "tableta", apply_margin: false, shelf_location: " B-2 ",
+  })
+  const idLote = alta.j?.batch?.id
+  check(
+    "alta en Enfermería: 3 cajas × 20 = 60 unidades de venta",
+    alta.j?.batch?.quantity === 60 && alta.j?.batch?.stock_location_id === enfermeria.id,
+    JSON.stringify(alta.j?.batch ?? alta.j).slice(0, 140)
+  )
+  check("sin costo, el precio no se toca", alta.j?.precio === null)
+  check("el estante del alta se guarda, limpio", alta.j?.batch?.shelf_location === "B-2", JSON.stringify(alta.j?.batch?.shelf_location))
+
+  const enFarmacia = (await call("admin", "GET", `/admin/medical-batches?stock_location_id=${farmacia.id}`)).j?.batches ?? []
+  check("no aparece al filtrar por Farmacia", !enFarmacia.some((b) => b.id === idLote))
+  const enEnf = (await call("admin", "GET", `/admin/medical-batches?stock_location_id=${enfermeria.id}`)).j?.batches ?? []
+  check("y sí por Enfermería, con el nombre del almacén", enEnf.some((b) => b.id === idLote && b.stock_location_name === enfermeria.name))
+
+  const kEnf = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${enfermeria.id}&batch_id=${idLote}`)).j?.movements ?? []
+  check("el kardex de Enfermería tiene la entrada de 60", kEnf.some((m) => m.quantity_delta === 60 && m.stock_location_id === enfermeria.id))
+  const kFar = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${farmacia.id}&batch_id=${idLote}`)).j?.movements ?? []
+  check("y el de Farmacia no", kFar.length === 0, `${kFar.length} asientos`)
+
+  // ── FEFO por almacén: Farmacia no surte con existencia sólo en Enfermería ──
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  const orden = await call("medico", "POST", "/admin/medical-orders", { recipient_area: "pharmacy",
+    customer_id: paciente?.id, customer_name: "Verificación almacén",
+    items: [{ variant_id: variante, product_title: "Verificación", quantity: 2 }],
+  })
+  const ordenId = orden.j?.medical_order?.id
+  const surtido = await call("farmacia", "POST", `/admin/medical-orders/${ordenId}/dispense`)
+  check("surtir desde Farmacia con existencia sólo en Enfermería devuelve 409", surtido.code === 409, `HTTP ${surtido.code}`)
+  const intacto = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches?.find((b) => b.id === idLote)
+  check("y no toca el lote de Enfermería", intacto?.quantity === 60, `${intacto?.quantity}`)
+  await call("medico", "POST", `/admin/medical-orders/${ordenId}/cancel`, { motivo: "Verificación" })
+
+  // ── Margen automático: costo 10 + 30 % → 13 ──
+  const conCosto = await call("farmacia", "POST", "/admin/medical-batches", {
+    batch_number: `MARGEN-${sello}`, expiration_date: en(300), variant_id: variante,
+    stock_location_id: farmacia.id, quantity: 5, unit_cost: 10,
+  })
+  check(
+    "el margen automático fija el precio de venta: costo 10 + 30 % = 13",
+    conCosto.j?.precio?.nuevo === 13 && conCosto.j?.precio?.anterior === 10,
+    JSON.stringify(conCosto.j?.precio ?? conCosto.j).slice(0, 140)
+  )
+  const v = (await call("admin", "GET", `/admin/products/${productoId}?fields=*variants.prices`)).j?.product?.variants?.[0]
+  check("y quedó escrito en la variante", (v?.prices ?? []).some((p) => Number(p.amount) === 13), JSON.stringify(v?.prices))
+
+  // Ahora sí hay existencia en Farmacia: surtir sale de ahí y no de Enfermería.
+  const orden2 = await call("medico", "POST", "/admin/medical-orders", { recipient_area: "pharmacy",
+    customer_id: paciente?.id, customer_name: "Verificación almacén",
+    items: [{ variant_id: variante, product_title: "Verificación", quantity: 2 }],
+  })
+  const surtido2 = await call("farmacia", "POST", `/admin/medical-orders/${orden2.j?.medical_order?.id}/dispense`)
+  const tras = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches ?? []
+  check(
+    "con existencia en Farmacia surte de Farmacia y deja Enfermería intacta",
+    surtido2.code === 200 && tras.find((b) => b.id === idLote)?.quantity === 60 && tras.find((b) => b.id === conCosto.j?.batch?.id)?.quantity === 3,
+    tras.map((b) => `${b.stock_location_name}:${b.quantity}`).join(" ")
+  )
+
+  // ── Mínimos y máximos ──
+  const pol = await call("farmacia", "POST", "/admin/stock-policies", {
+    variant_id: variante, stock_location_id: farmacia.id, min_quantity: 50, max_quantity: 200,
+  })
+  check(
+    "se guarda un mínimo por presentación y almacén, con la existencia actual",
+    pol.j?.stock_policy?.min_quantity === 50 && pol.j?.stock_policy?.current_quantity === 3,
+    JSON.stringify(pol.j?.stock_policy ?? pol.j).slice(0, 160)
+  )
+  const bajo = (await call("admin", "GET", "/admin/stock-policies?only_below=1")).j?.stock_policies ?? []
+  check("y aparece como bajo mínimo con lo que falta (47)", bajo.some((p) => p.variant_id === variante && p.shortage === 47))
+  check("un máximo menor que el mínimo se rechaza", (await call("farmacia", "POST", "/admin/stock-policies", { variant_id: variante, stock_location_id: farmacia.id, min_quantity: 50, max_quantity: 10 })).code === 400)
+  check("Caja no fija mínimos", (await call("caja", "POST", "/admin/stock-policies", { variant_id: variante, min_quantity: 1 })).code === 403)
+  check("un almacén inexistente se rechaza", (await call("farmacia", "POST", "/admin/medical-batches", { batch_number: "X", expiration_date: en(10), variant_id: variante, quantity: 1, stock_location_id: "sloc_no_existe" })).code === 400)
+
+  // ── Limpieza: los lotes se dan de baja por conteo y el producto se borra ──
+  await call("admin", "DELETE", `/admin/stock-policies/${pol.j?.stock_policy?.id}`)
+  const ids = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches ?? []
+  await call("admin", "POST", "/admin/inventory-counts", {
+    counts: ids.map((b) => ({ batch_id: b.id, counted_quantity: 0 })), apply: true, notes: "Limpieza de verificación",
+  })
+  await call("admin", "DELETE", `/admin/products/${productoId}`)
+  void clave
+}
+
+// ── 8. Requisiciones y bajas ────────────────────────────────────────────────
+async function requisicionesYBajas() {
+  seccion("8 · REQUISICIONES Y BAJAS")
+
+  const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
+  const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
+  if (!farmacia || !enfermeria) {
+    check("hay dos almacenes para probar requisiciones", false, "corre preparar-almacenes.ts confirm")
+    return
+  }
+
+  const sello = Date.now()
+  const prod = await call("admin", "POST", "/admin/products", {
+    title: `Verificación requisición ${sello}`,
+    options: [{ title: "Presentación", values: ["Default"] }],
+    variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: 10, currency_code: "mxn" }] }],
+    metadata: { origen: "verificar-api" },
+  })
+  const productoId = prod.j?.product?.id
+  const variante = prod.j?.product?.variants?.[0]?.id
+  if (!variante) {
+    check("se creó una presentación de prueba", false, JSON.stringify(prod.j).slice(0, 120))
+    return
+  }
+  const alta = await call("farmacia", "POST", "/admin/medical-batches", {
+    batch_number: `REQ-${sello}`, expiration_date: en(300), variant_id: variante,
+    stock_location_id: farmacia.id, quantity: 30, apply_margin: false,
+  })
+  const loteFarmacia = alta.j?.batch?.id
+
+  // ── Quién pide, quién surte ──
+  const pedida = await call("enfermeria", "POST", "/admin/requisitions", {
+    items: [{ variant_id: variante, quantity: 10 }], notes: "Verificación automática",
+  })
+  const req = pedida.j?.requisition
+  check(
+    "Enfermería crea la requisición, de Farmacia a Enfermería",
+    pedida.code === 200 && req?.status === "pending" && req?.source_location_id === farmacia.id && req?.destination_location_id === enfermeria.id,
+    JSON.stringify(pedida.j).slice(0, 140)
+  )
+  const rid = req?.id
+  const itemId = req?.items?.[0]?.id
+  check("Caja no pide requisiciones", (await call("caja", "POST", "/admin/requisitions", { items: [{ variant_id: variante, quantity: 1 }] })).code === 403)
+  check("Enfermería no surte", (await call("enfermeria", "POST", `/admin/requisitions/${rid}/dispatch`)).code === 403)
+  check("Enfermería no da de alta lotes en Farmacia", (await call("enfermeria", "POST", "/admin/medical-batches", { batch_number: "X", expiration_date: en(10), variant_id: variante, quantity: 1, stock_location_id: farmacia.id })).code === 403)
+
+  // ── Más de lo que hay: nada se mueve ──
+  const grande = await call("enfermeria", "POST", "/admin/requisitions", { items: [{ variant_id: variante, quantity: 100 }] })
+  const gid = grande.j?.requisition?.id
+  const sinStock = await call("farmacia", "POST", `/admin/requisitions/${gid}/dispatch`)
+  const intacto = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches?.find((b) => b.id === loteFarmacia)
+  check("sin existencia suficiente responde 409 y no mueve nada", sinStock.code === 409 && intacto?.quantity === 30, `HTTP ${sinStock.code}, lote ${intacto?.quantity}`)
+  const cancelada = await call("enfermeria", "POST", `/admin/requisitions/${gid}/cancel`, { motivo: "Verificación" })
+  check("se cancela lo que no movió nada", cancelada.j?.requisition?.status === "cancelled")
+
+  // ── Surtido parcial y total ──
+  const parcial = await call("farmacia", "POST", `/admin/requisitions/${rid}/dispatch`, { items: [{ item_id: itemId, cantidad: 4 }] })
+  check(
+    "surtido parcial: 4 de 10, sigue pendiente",
+    parcial.j?.requisition?.status === "pending" && parcial.j?.requisition?.items?.[0]?.quantity_dispatched === 4,
+    JSON.stringify(parcial.j).slice(0, 140)
+  )
+  check("no se cancela lo que ya movió algo", (await call("enfermeria", "POST", `/admin/requisitions/${rid}/cancel`)).code === 400)
+  check("no se surte más de lo pendiente", (await call("farmacia", "POST", `/admin/requisitions/${rid}/dispatch`, { items: [{ item_id: itemId, cantidad: 7 }] })).code === 400)
+  const resto = await call("farmacia", "POST", `/admin/requisitions/${rid}/dispatch`)
+  check(
+    "el resto deja la requisición surtida",
+    resto.j?.requisition?.status === "dispatched" && resto.j?.requisition?.items?.[0]?.quantity_dispatched === 10,
+    JSON.stringify(resto.j?.requisition ?? resto.j).slice(0, 120)
+  )
+
+  const lotes = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches ?? []
+  const farm = lotes.find((b) => b.stock_location_id === farmacia.id)
+  const enf = lotes.find((b) => b.stock_location_id === enfermeria.id)
+  check(
+    "Farmacia quedó con 20 y Enfermería con 10, con el mismo número de lote",
+    farm?.quantity === 20 && enf?.quantity === 10 && enf?.batch_number === farm?.batch_number,
+    lotes.map((b) => `${b.stock_location_name}:${b.batch_number}:${b.quantity}`).join(" ")
+  )
+  const kf = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${farmacia.id}&variant_id=${variante}&type=exit_transfer`)).j?.movements ?? []
+  const ke = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${enfermeria.id}&variant_id=${variante}&type=entry_transfer`)).j?.movements ?? []
+  const salida = kf.reduce((s, m) => s + m.quantity_delta, 0)
+  const entrada = ke.reduce((s, m) => s + m.quantity_delta, 0)
+  check("el kardex de los dos almacenes cuadra: −10 en Farmacia, +10 en Enfermería", salida === -10 && entrada === 10 && kf.every((m) => m.reference_id === rid), `${salida} / ${entrada}`)
+
+  check("una requisición surtida no se vuelve a surtir", (await call("farmacia", "POST", `/admin/requisitions/${rid}/dispatch`)).code === 400)
+  check("Farmacia no la marca recibida", (await call("farmacia", "POST", `/admin/requisitions/${rid}/receive`)).code === 403)
+  const recibida = await call("enfermeria", "POST", `/admin/requisitions/${rid}/receive`)
+  check("Enfermería confirma la recepción", recibida.j?.requisition?.status === "received" && !!recibida.j?.requisition?.received_by_id)
+
+  // ── Bajas con motivo ──
+  check("una baja sin motivo se rechaza", (await call("enfermeria", "POST", `/admin/medical-batches/${enf?.id}/write-off`, { quantity: 2 })).code === 400)
+  check("Enfermería no da de baja en Farmacia", (await call("enfermeria", "POST", `/admin/medical-batches/${farm?.id}/write-off`, { quantity: 1, reason: "Frasco roto en consultorio" })).code === 403)
+  check("más de lo que hay se rechaza", (await call("enfermeria", "POST", `/admin/medical-batches/${enf?.id}/write-off`, { quantity: 999, reason: "Frasco roto en consultorio" })).code === 400)
+  const baja = await call("enfermeria", "POST", `/admin/medical-batches/${enf?.id}/write-off`, { quantity: 2, reason: "Frasco roto en consultorio" })
+  check("la baja con motivo descuenta y asienta", baja.code === 200 && baja.j?.quantity_after === 8 && baja.j?.ledger_recorded === true, JSON.stringify(baja.j).slice(0, 140))
+  const kb = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${enfermeria.id}&variant_id=${variante}&type=exit_damage`)).j?.movements ?? []
+  check("el asiento lleva el motivo y a quien dio de baja", kb.some((m) => m.quantity_delta === -2 && m.reason === "Frasco roto en consultorio" && m.user_email === "enfermeria@sigh.local"))
+  check("y el aviso a Administración se intentó", Array.isArray(baja.j?.notified), baja.j?.notified?.length ? `a ${baja.j.notified.join(", ")}` : "sin correo de aviso configurado: se registró en el servidor")
+
+  // ── Destrucción sanitaria con motivo obligatorio ──
+  const cuarentena = (await call("admin", "GET", "/admin/medical-batches?status=quarantined")).j?.batches?.[0]
+  check("la destrucción sanitaria exige motivo", cuarentena ? (await call("farmacia", "POST", `/admin/medical-batches/${cuarentena.id}/destroy`, {})).code === 400 : true, cuarentena ? "" : "sin lotes en cuarentena para probar")
+  check("Enfermería no destruye", cuarentena ? (await call("enfermeria", "POST", `/admin/medical-batches/${cuarentena.id}/destroy`, { reason: "Verificación automática" })).code === 403 : true)
+
+  // ── Limpieza ──
+  await call("admin", "POST", "/admin/inventory-counts", {
+    counts: lotes.map((b) => ({ batch_id: b.id, counted_quantity: 0 })), apply: true, notes: "Limpieza de verificación",
+  })
+  await call("admin", "DELETE", `/admin/products/${productoId}`)
+}
+
+// ── 9. Circuito clínico ─────────────────────────────────────────────────────
+async function circuitoClinico() {
+  seccion("9 · CIRCUITO CLÍNICO")
+
+  const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
+  const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  if (!enfermeria || !farmacia || !paciente) {
+    check("hay almacenes y un paciente para probar el circuito", false)
+    return
+  }
+
+  const sello = Date.now()
+  // Publicado y en el canal de venta: la cuenta del paciente es un pedido de
+  // verdad, y Medusa no admite en un pedido lo que no está a la venta.
+  const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]?.id
+  const prod = await call("admin", "POST", "/admin/products", {
+    title: `Verificación consulta ${sello}`,
+    status: "published",
+    sales_channels: canal ? [{ id: canal }] : undefined,
+    options: [{ title: "Presentación", values: ["Default"] }],
+    variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: 25, currency_code: "mxn" }] }],
+    metadata: { origen: "verificar-api" },
+  })
+  const productoId = prod.j?.product?.id
+  const variante = prod.j?.product?.variants?.[0]?.id
+  if (!variante) {
+    check("se creó una presentación de prueba", false, JSON.stringify(prod.j).slice(0, 120))
+    return
+  }
+
+  // ── El médico emite a Enfermería (por omisión) ──
+  const orden = await call("medico", "POST", "/admin/medical-orders", {
+    customer_id: paciente.id, customer_name: "Verificación consulta",
+    items: [{ variant_id: variante, product_title: "Verificación consulta", quantity: 2, instructions: "Aplicar en consultorio" }],
+    notes: "Verificación automática",
+  })
+  const oid = orden.j?.medical_order?.id
+  check("la orden nace dirigida a Enfermería", orden.j?.medical_order?.recipient_area === "nursing", orden.j?.medical_order?.recipient_area)
+  const bandejaEnf = (await call("enfermeria", "GET", "/admin/medical-orders?status=pending&recipient_area=nursing")).j?.medical_orders ?? []
+  const bandejaFar = (await call("farmacia", "GET", "/admin/medical-orders?status=pending&recipient_area=pharmacy")).j?.medical_orders ?? []
+  check("la ve Enfermería en su bandeja y Farmacia no", bandejaEnf.some((o) => o.id === oid) && !bandejaFar.some((o) => o.id === oid))
+  check("Farmacia no surte una orden de consulta", (await call("farmacia", "POST", `/admin/medical-orders/${oid}/dispense`)).code === 400)
+  check("un destinatario inválido se rechaza", (await call("medico", "POST", "/admin/medical-orders", { customer_id: paciente.id, items: [{ variant_id: variante, quantity: 1 }], recipient_area: "cocina" })).code === 400)
+
+  // ── Enfermería ajusta la orden ──
+  const ajuste = await call("enfermeria", "POST", `/admin/medical-orders/${oid}/items`, { items: [{ variant_id: variante, quantity: 3 }] })
+  check("Enfermería ajusta la cantidad de un renglón", ajuste.j?.medical_order?.items?.[0]?.quantity === 3, JSON.stringify(ajuste.j?.cambios))
+  check("Caja no ajusta órdenes", (await call("caja", "POST", `/admin/medical-orders/${oid}/items`, { items: [{ variant_id: variante, quantity: 1 }] })).code === 403)
+
+  // ── Sin existencia en Enfermería: 409 y nada cambia ──
+  const sinStock = await call("enfermeria", "POST", `/admin/medical-orders/${oid}/consume`)
+  check("aplicar sin existencia en Enfermería devuelve 409", sinStock.code === 409, `HTTP ${sinStock.code}`)
+  check("y la orden sigue pendiente", (await call("medico", "GET", `/admin/medical-orders/${oid}`)).j?.medical_order?.status === "pending")
+
+  // ── Con existencia (alta directa en Enfermería): aplica, descuenta, carga a la cuenta ──
+  const lote = await call("enfermeria", "POST", "/admin/medical-batches", {
+    batch_number: `CONS-${sello}`, expiration_date: en(200), variant_id: variante, stock_location_id: enfermeria.id, quantity: 10, apply_margin: false,
+  })
+  check("Enfermería da de alta un lote en su almacén", lote.code === 200, `HTTP ${lote.code} ${lote.j?.message ?? ""}`)
+  const aplicada = await call("enfermeria", "POST", `/admin/medical-orders/${oid}/consume`)
+  check("Enfermería aplica la orden", aplicada.code === 200 && aplicada.j?.medical_order?.status === "dispensed", JSON.stringify(aplicada.j).slice(0, 160))
+  const loteTras = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches?.find((b) => b.id === lote.j?.batch?.id)
+  check("y el almacén de Enfermería descontó 3", loteTras?.quantity === 7, `${loteTras?.quantity}`)
+  const ke = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${enfermeria.id}&variant_id=${variante}&type=exit_sale`)).j?.movements ?? []
+  check("con asiento en el kardex de Enfermería referido a la orden", ke.some((m) => m.reference_id === oid && m.quantity_delta === -3))
+  const cuenta = aplicada.j?.cuenta
+  check(
+    "el consumo quedó en la cuenta del paciente, con precio",
+    !!cuenta?.id && cuenta.items.some((i) => i.variant_id === variante && i.quantity === 3 && i.unit_price === 25),
+    JSON.stringify(cuenta).slice(0, 160)
+  )
+  check("y la orden guarda el enlace con la cuenta", aplicada.j?.medical_order?.draft_order_id === cuenta?.id)
+
+  // Segunda orden: se SUMA a la misma cuenta abierta.
+  const orden2 = await call("medico", "POST", "/admin/medical-orders", { customer_id: paciente.id, customer_name: "Verificación consulta", items: [{ variant_id: variante, quantity: 1 }] })
+  const aplicada2 = await call("enfermeria", "POST", `/admin/medical-orders/${orden2.j?.medical_order?.id}/consume`)
+  // Medusa puede sumar al renglón o abrir otro con la misma presentación; lo que
+  // importa es que sea la MISMA cuenta y que en total haya 3 + 1.
+  const enCuenta = (aplicada2.j?.cuenta?.items ?? []).filter((i) => i.variant_id === variante).reduce((s, i) => s + i.quantity, 0)
+  check("una segunda consulta se suma a la misma cuenta abierta", aplicada2.j?.cuenta?.id === cuenta?.id && enCuenta === 4, JSON.stringify(aplicada2.j?.cuenta?.items ?? aplicada2.j?.advertencia ?? aplicada2.j).slice(0, 160))
+  // Los renglones cargados por los DOS caminos (cuenta nueva y cuenta ya
+  // abierta) llevan la marca que impide descontarlos otra vez de Farmacia al
+  // cobrar (ver lib/cuentas-de-paciente.ts y el suscriptor de ventas).
+  const cuentaCruda = (await call("admin", "GET", `/admin/draft-orders/${cuenta?.id}?fields=id,items.variant_id,items.metadata`)).j?.draft_order
+  const renglonesDeConsulta = (cuentaCruda?.items ?? []).filter((i) => i.variant_id === variante)
+  check("todos los renglones de consulta llevan la marca de «ya aplicado»", renglonesDeConsulta.length > 0 && renglonesDeConsulta.every((i) => i.metadata?.altus_consumido_en_consulta === true), JSON.stringify(renglonesDeConsulta.map((i) => i.metadata)))
+
+  // ── Caja ve la cuenta pendiente ──
+  const cuentas = (await call("caja", "GET", `/admin/patient-bills?customer_id=${paciente.id}`)).j?.bills ?? []
+  check("Caja ve la cuenta pendiente del paciente con sus órdenes", cuentas.some((c) => c.id === cuenta?.id && c.medical_orders.length >= 2), `${cuentas.length} cuentas`)
+
+  // ── Nota de atención ──
+  const nota = await call("enfermeria", "POST", "/admin/clinical-notes", { customer_id: paciente.id, content: "Se aplicó en consultorio sin reacción adversa.", medical_order_id: oid })
+  const nid = nota.j?.clinical_note?.id
+  check("Enfermería escribe la nota de atención", nota.code === 200 && nota.j?.clinical_note?.author_role === "nurse", JSON.stringify(nota.j).slice(0, 120))
+  check("una nota vacía se rechaza", (await call("medico", "POST", "/admin/clinical-notes", { customer_id: paciente.id, content: " " })).code === 400)
+  check("Caja no lee notas de atención", (await call("caja", "GET", `/admin/clinical-notes?customer_id=${paciente.id}`)).code === 403)
+  check("Caja tampoco las escribe", (await call("caja", "POST", "/admin/clinical-notes", { customer_id: paciente.id, content: "Intento de caja" })).code === 403)
+  check("el médico sí las lee", ((await call("medico", "GET", `/admin/clinical-notes?medical_order_id=${oid}`)).j?.clinical_notes ?? []).some((n) => n.id === nid))
+  const bit = (await call("admin", "GET", "/admin/audit-logs")).j?.audit_logs ?? []
+  const asientoNota = bit.find((a) => a.endpoint === "/admin/clinical-notes" && a.method === "POST")
+  check("el contenido de la nota queda redactado en la bitácora", !!asientoNota && JSON.stringify(asientoNota.payload ?? {}).includes("[REDACTADO]") && !JSON.stringify(asientoNota.payload ?? {}).includes("reacción adversa"))
+
+  // ── Documentos ──
+  const receta = await call("medico", "GET", `/admin/documents/receta/${oid}`)
+  check("la receta se imprime con folio, paciente y renglones", receta.code === 200 && receta.j?.html?.includes(oid) && receta.j?.html?.includes("Verificación consulta") && receta.j?.html?.includes("Aplicar en consultorio"))
+  check("Farmacia también imprime recetas", (await call("farmacia", "GET", `/admin/documents/receta/${oid}`)).code === 200)
+  const notaDoc = await call("enfermeria", "GET", `/admin/documents/nota/${nid}`)
+  check("la nota se imprime con paciente, autor y contenido", notaDoc.code === 200 && notaDoc.j?.html?.includes("sin reacción adversa") && notaDoc.j?.html?.includes("Enfermería"))
+  check("Caja no obtiene la nota impresa", (await call("caja", "GET", `/admin/documents/nota/${nid}`)).code === 403)
+  const sesion = (await call("caja", "GET", "/admin/cash-sessions?limit=1")).j
+  const sid = (sesion?.cash_sessions ?? sesion?.sessions ?? [])[0]?.id
+  if (sid) {
+    const corte = await call("caja", "GET", `/admin/documents/corte/${sid}`)
+    check("el corte de caja se imprime con cajero y ventas por método", corte.code === 200 && corte.j?.html?.includes("Efectivo") && corte.j?.html?.includes("Esperado en caja"))
+    check("el médico no obtiene cortes", (await call("medico", "GET", `/admin/documents/corte/${sid}`)).code === 403)
+  } else {
+    check("hay un turno de caja para imprimir el corte", true, "sin turnos: se prueba en la fase 4")
+  }
+
+  // ── Limpieza ──
+  const lotes = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches ?? []
+  await call("admin", "POST", "/admin/inventory-counts", { counts: lotes.map((b) => ({ batch_id: b.id, counted_quantity: 0 })), apply: true, notes: "Limpieza de verificación" })
+  if (cuenta?.id) await call("admin", "DELETE", `/admin/draft-orders/${cuenta.id}`)
+  await call("admin", "DELETE", `/admin/products/${productoId}`)
+}
+
+// ── 10. Caja ────────────────────────────────────────────────────────────────
+async function caja() {
+  seccion("10 · CAJA")
+
+  const cerrarTurnoDe = async (rol) => {
+    const actual = (await call(rol, "GET", "/admin/cash-sessions/current")).j?.session
+    if (actual) await call(rol, "POST", `/admin/cash-sessions/${actual.id}/close`, { actual_closing_amount: 0, notes: "Cierre de verificación" })
+  }
+  await cerrarTurnoDe("caja")
+  await cerrarTurnoDe("admin")
+
+  // Un carrito de mostrador, como lo arma el punto de venta.
+  const region = (await call("admin", "GET", "/admin/regions?limit=1")).j?.regions?.[0]
+  const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  const producto = (await call("admin", "GET", "/admin/products?limit=1&status[]=published&fields=id,*variants")).j?.products?.[0]
+  const variante = producto?.variants?.[0]?.id
+  if (!region || !canal || !paciente || !variante) {
+    check("hay región, canal, paciente y producto publicado para cobrar", false)
+    return
+  }
+  const carrito = async () =>
+    (await call("caja", "POST", "/admin/draft-orders", {
+      region_id: region.id, sales_channel_id: canal.id, customer_id: paciente.id,
+      items: [{ variant_id: variante, quantity: 1 }],
+    })).j?.draft_order
+  const c1 = await carrito()
+  check("Caja arma un carrito", !!c1?.id, JSON.stringify(c1).slice(0, 100))
+
+  // ── Sin turno no se cobra ──
+  const sinTurno = await call("caja", "POST", `/admin/draft-orders/${c1?.id}/convert-to-order`)
+  check("cobrar sin turno abierto devuelve 409", sinTurno.code === 409 && sinTurno.j?.type === "turno_cerrado", `HTTP ${sinTurno.code}`)
+
+  // ── Turno por cajero ──
+  const turnoCaja = await call("caja", "POST", "/admin/cash-sessions", { opening_amount: 100 })
+  check("Caja abre su turno con fondo inicial", turnoCaja.code === 201 && Number(turnoCaja.j?.session?.opening_amount) === 100, `HTTP ${turnoCaja.code}`)
+  const turnoAdmin = await call("admin", "POST", "/admin/cash-sessions", { opening_amount: 50 })
+  check("otro cajero abre el suyo a la vez: el turno es por persona", turnoAdmin.code === 201, `HTTP ${turnoAdmin.code} ${turnoAdmin.j?.message ?? ""}`)
+  check("la misma persona no abre dos", (await call("caja", "POST", "/admin/cash-sessions", { opening_amount: 1 })).code === 400)
+  const actualCaja = (await call("caja", "GET", "/admin/cash-sessions/current")).j?.session
+  check("«mi turno» es el mío, no el de otra caja", actualCaja?.id === turnoCaja.j?.session?.id && actualCaja?.cashier_name?.startsWith("Caja"))
+  const sid = turnoCaja.j?.session?.id
+
+  // ── Tarjeta exige referencia ──
+  const sinRef = await call("caja", "POST", `/admin/cash-sessions/${sid}/movements`, { type: "sale", payment_method: "card", amount: 45, order_id: c1?.id })
+  check("una venta con tarjeta sin referencia se rechaza", sinRef.code === 400, `HTTP ${sinRef.code}`)
+  check("y con una referencia de 3 dígitos también", (await call("caja", "POST", `/admin/cash-sessions/${sid}/movements`, { type: "sale", payment_method: "card", amount: 45, order_id: c1?.id, reference: "123" })).code === 400)
+  const conRef = await call("caja", "POST", `/admin/cash-sessions/${sid}/movements`, { type: "sale", payment_method: "card", amount: Number(c1?.total) || 45, order_id: c1?.id, reference: " 12345 " })
+  check("con referencia de 5 dígitos se registra, limpia", conRef.code === 201 && conRef.j?.movement?.reference === "12345", `HTTP ${conRef.code}`)
+
+  // ── Con turno, cobrar ──
+  const cobrada = await call("caja", "POST", `/admin/draft-orders/${c1?.id}/convert-to-order`)
+  check("con turno abierto se cobra", cobrada.code === 200, `HTTP ${cobrada.code} ${JSON.stringify(cobrada.j).slice(0, 80)}`)
+  const recibo = (await call("caja", "GET", `/admin/receipts/${c1?.id}`)).j?.recibo
+  check("el ticket lleva el método de pago y la referencia de la terminal", recibo?.metodo_pago === "card" && recibo?.referencia === "12345", JSON.stringify({ m: recibo?.metodo_pago, r: recibo?.referencia }))
+
+  // ── Corte y reimpresión ──
+  const corteAbierto = await call("caja", "GET", `/admin/documents/corte/${sid}`)
+  check("el corte del turno abierto se imprime con la venta con tarjeta", corteAbierto.code === 200 && corteAbierto.j?.html?.includes("Tarjeta") && corteAbierto.j?.resumen?.sales_card === conRef.j?.movement?.amount, JSON.stringify(corteAbierto.j?.resumen ?? corteAbierto.j).slice(0, 120))
+  const cierre = await call("caja", "POST", `/admin/cash-sessions/${sid}/close`, { actual_closing_amount: 100, notes: "Verificación" })
+  check("el turno cierra cuadrado: sólo hubo tarjeta", cierre.code === 200 && Number(cierre.j?.session?.difference) === 0, JSON.stringify(cierre.j?.summary))
+  const corteCerrado = await call("caja", "GET", `/admin/documents/corte/${sid}`)
+  check("el corte cerrado se reimprime con el conteo", corteCerrado.code === 200 && corteCerrado.j?.html?.includes("Contado"))
+  check("el auditor también lo consulta", (await call("auditoria", "GET", `/admin/documents/corte/${sid}`)).code === 200)
+  check("el médico no", (await call("medico", "GET", `/admin/documents/corte/${sid}`)).code === 403)
+
+  // ── Estadísticas ──
+  const hoy = new Date().toISOString().slice(0, 10)
+  const stats = (await call("admin", "GET", `/admin/cash-sessions/stats?group=day&from=${hoy}T00:00:00Z`)).j
+  const periodoHoy = (stats?.periods ?? []).find((p) => p.periodo === hoy)
+  check("las estadísticas por día suman lo que suman los turnos cerrados de hoy", !!periodoHoy && periodoHoy.sales_card >= conRef.j?.movement?.amount && periodoHoy.sesiones >= 1, JSON.stringify(periodoHoy).slice(0, 120))
+  const semana = (await call("admin", "GET", "/admin/cash-sessions/stats?group=week")).j
+  check("y por semana también", (semana?.periods ?? []).some((p) => /^\d{4}-W\d{2}$/.test(p.periodo)))
+  check("una agrupación inválida se rechaza", (await call("admin", "GET", "/admin/cash-sessions/stats?group=hora")).code === 400)
+  const listaHoy = (await call("admin", "GET", `/admin/cash-sessions?from=${hoy}T00:00:00Z`)).j?.sessions ?? []
+  check("la lista de turnos filtra por fecha", listaHoy.some((s) => s.id === sid) && listaHoy.every((s) => s.opened_at >= `${hoy}T00:00:00`))
+
+  await cerrarTurnoDe("admin")
+}
+
+// ── 11. Auditoría ───────────────────────────────────────────────────────────
+async function auditoria() {
+  seccion("11 · AUDITORÍA")
+
+  const bit = async (q) => (await call("auditoria", "GET", `/admin/audit-logs${q ? `?${q}` : ""}`)).j
+
+  // Los filtros los aplica el servidor.
+  const deCaja = await bit("user_role=cashier&limit=200")
+  check("filtrar por perfil devuelve sólo asientos de ese perfil", (deCaja?.audit_logs ?? []).length > 0 && deCaja.audit_logs.every((a) => a.user_role === "cashier"), `${deCaja?.audit_logs?.length} asientos, count ${deCaja?.count}`)
+  const deUsuario = await bit("user_email=farmacia&limit=200")
+  check("filtrar por usuario acepta el nombre a secas", (deUsuario?.audit_logs ?? []).length > 0 && deUsuario.audit_logs.every((a) => a.user_email === "farmacia@sigh.local"))
+  const porNumero = await bit("employee_number=0004&limit=200")
+  check("filtrar por número de empleado", (porNumero?.audit_logs ?? []).length > 0 && porNumero.audit_logs.every((a) => a.user_employee_number === "0004"))
+  const bajas = await bit("method=delete&limit=200")
+  check("filtrar por acción", (bajas?.audit_logs ?? []).length > 0 && bajas.audit_logs.every((a) => a.method === "DELETE"))
+  const hoy = new Date().toISOString().slice(0, 10)
+  const deHoy = await bit(`from=${hoy}&to=${hoy}&limit=200`)
+  check("un rango de hoy devuelve sólo asientos de hoy", (deHoy?.audit_logs ?? []).length > 0 && deHoy.audit_logs.every((a) => a.created_at.slice(0, 10) === hoy))
+  // Y uno que acaba ayer no trae nada de hoy. Antes se comparaba el total de hoy
+  // con el de siempre, lo que exige asientos de otros días: en una base recién
+  // sembrada todo es de hoy, y la prueba fallaba con el filtro funcionando bien.
+  const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const hastaAyer = await bit(`to=${ayer}&limit=200`)
+  check("y uno que acaba ayer no trae nada de hoy", Array.isArray(hastaAyer?.audit_logs) && hastaAyer.audit_logs.every((a) => a.created_at.slice(0, 10) <= ayer), `${hastaAyer?.audit_logs?.length} asientos hasta ${ayer}`)
+  check("un rol desconocido se rechaza", (await call("auditoria", "GET", "/admin/audit-logs?user_role=gerente")).code === 400)
+
+  // Paginación: 25 y 25 no se repiten ni se saltan.
+  const p1 = await bit("limit=25&offset=0")
+  const p2 = await bit("limit=25&offset=25")
+  const ids = new Set([...(p1?.audit_logs ?? []), ...(p2?.audit_logs ?? [])].map((a) => a.id))
+  check("paginar 25 y 25 no repite ni salta ninguno", p1?.audit_logs?.length === 25 && p2?.audit_logs?.length === 25 && ids.size === 50 && p1.count >= 50 && p1.limit === 25 && p2.offset === 25, `${ids.size} únicos, count ${p1?.count}`)
+  check("el tope por página se respeta", (await bit("limit=9999")).limit === 200)
+
+  // Lecturas sensibles: quién miró un expediente queda anotado.
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  await call("medico", "GET", `/admin/medical-customers/${paciente.id}`)
+  await call("caja", "GET", `/admin/customers/${paciente.id}`)
+  await call("caja", "GET", "/admin/products?limit=1")
+  await new Promise((r) => setTimeout(r, 500))
+  const lecturas = (await bit("method=GET&limit=50"))?.audit_logs ?? []
+  check("leer un expediente como médico deja asiento de lectura", lecturas.some((a) => a.user_email === "medico@sigh.local" && a.endpoint.includes(`/admin/medical-customers/${paciente.id}`)))
+  check("y abrir la ficha de un paciente también", lecturas.some((a) => a.user_email === "caja@sigh.local" && a.endpoint.includes(`/admin/customers/${paciente.id}`)))
+  check("pero consultar el catálogo no", !lecturas.some((a) => a.endpoint.startsWith("/admin/products")))
+  check("Caja no lee la bitácora", (await call("caja", "GET", "/admin/audit-logs")).code === 403)
+
+  // Exportación de caducidades por almacén.
+  const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
+  const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
+  const producto = (await call("admin", "GET", "/admin/products?limit=1&status[]=published&fields=id,*variants")).j?.products?.[0]
+  const variante = producto?.variants?.[0]?.id
+  const sello = Date.now()
+  const lote = await call("enfermeria", "POST", "/admin/medical-batches", { batch_number: `CAD-${sello}`, expiration_date: en(20), variant_id: variante, stock_location_id: enfermeria?.id, quantity: 3, apply_margin: false })
+  const csvEnf = await fetch(`${BASE}/admin/expiring-inventory/export?stock_location_id=${enfermeria?.id}`, { headers: { Authorization: `Bearer ${T.auditoria}` } })
+  const textoEnf = await csvEnf.text()
+  check("el CSV de Enfermería trae el lote que caduca en 20 días, en su tramo", csvEnf.status === 200 && csvEnf.headers.get("content-type")?.includes("text/csv") && textoEnf.includes(`CAD-${sello}`) && textoEnf.includes("30 días o menos"), `HTTP ${csvEnf.status}`)
+  const textoFar = await (await fetch(`${BASE}/admin/expiring-inventory/export?stock_location_id=${farmacia?.id}`, { headers: { Authorization: `Bearer ${T.auditoria}` } })).text()
+  check("y el de Farmacia no lo trae", !textoFar.includes(`CAD-${sello}`))
+  check("la pantalla de caducidades filtra igual", ((await call("admin", "GET", `/admin/expiring-inventory?stock_location_id=${farmacia?.id}`)).j?.items ?? []).every((i) => i.stock_location_id === farmacia?.id))
+
+  // Limpieza.
+  if (lote.j?.batch?.id) await call("admin", "POST", "/admin/inventory-counts", { counts: [{ batch_id: lote.j.batch.id, counted_quantity: 0 }], apply: true, notes: "Limpieza de verificación" })
+}
+
+// ── 12. Cuentas y honorarios ────────────────────────────────────────────────
+async function cuentasYHonorarios() {
+  seccion("12 · CUENTAS Y HONORARIOS")
+
+  const sello = Date.now()
+  const personal = (await call("admin", "GET", "/admin/staff")).j?.users ?? []
+  const adminId = personal.find((u) => u.email === "admin@sigh.local")?.id
+  const medicoId = personal.find((u) => u.email === "medico@sigh.local")?.id
+
+  // ── Bloqueo reversible ──
+  const usuario = `bloqueo.${sello}`
+  const clave = "Bloqueo#2026"
+  const alta = await call("admin", "POST", "/admin/staff", { username: usuario, password: clave, first_name: "Prueba", last_name: "Bloqueo", role: "cashier" })
+  const uid = alta.j?.user?.id
+  const tokenViejo = (await login(usuario, clave)).token
+  check("la cuenta nueva entra y tiene token", !!tokenViejo)
+  check("Caja no bloquea cuentas", (await call("caja", "POST", `/admin/staff/${uid}/block`, {})).code === 403)
+  check("nadie bloquea su propia cuenta", (await call("admin", "POST", `/admin/staff/${adminId}/block`, {})).code === 400)
+  const bloqueo = await call("admin", "POST", `/admin/staff/${uid}/block`, { reason: "Verificación" })
+  check("Administración bloquea", bloqueo.code === 200 && bloqueo.j?.blocked === true, `HTTP ${bloqueo.code}`)
+  const intento = await login(usuario, clave)
+  check("la cuenta bloqueada no entra", intento.code === 401 && !intento.token, `HTTP ${intento.code}`)
+  const conTokenViejo = await fetch(`${BASE}/admin/products?limit=1`, { headers: { Authorization: `Bearer ${tokenViejo}` } })
+  check("y su token anterior ya no sirve, ni para leer", conTokenViejo.status === 403, `HTTP ${conTokenViejo.status}`)
+  check("bloquearla dos veces se rechaza", (await call("admin", "POST", `/admin/staff/${uid}/block`, {})).code === 400)
+  const reactivada = await call("admin", "POST", `/admin/staff/${uid}/unblock`)
+  check("Administración reactiva", reactivada.code === 200 && reactivada.j?.blocked === false)
+  check("y vuelve a entrar con la MISMA contraseña", !!(await login(usuario, clave)).token)
+
+  // ── Cambio de contraseña ──
+  check("una contraseña corta se rechaza", (await call("admin", "POST", `/admin/staff/${uid}/password`, { password: "corta" })).code === 400)
+  const cambio = await call("admin", "POST", `/admin/staff/${uid}/password`, { password: "Nueva#Clave2026" })
+  check("Administración cambia la contraseña", cambio.code === 200 && cambio.j?.password_changed === true, `HTTP ${cambio.code} ${cambio.j?.message ?? ""}`)
+  check("la anterior deja de servir", !(await login(usuario, clave)).token)
+  check("y la nueva entra", !!(await login(usuario, "Nueva#Clave2026")).token)
+  await call("admin", "DELETE", `/admin/staff/${uid}`)
+
+  // ── Turno médico ──
+  const previo = (await call("medico", "GET", "/admin/doctor-shifts/current")).j?.doctor_shift
+  if (previo) await call("medico", "POST", `/admin/doctor-shifts/${previo.id}/close`, {})
+  const turno = await call("medico", "POST", "/admin/doctor-shifts", {})
+  check("el médico abre su turno", turno.code === 201 && !!turno.j?.doctor_shift?.opened_at, `HTTP ${turno.code}`)
+  check("no abre dos a la vez", (await call("medico", "POST", "/admin/doctor-shifts", {})).code === 400)
+  check("«mi turno» es el suyo", (await call("medico", "GET", "/admin/doctor-shifts/current")).j?.doctor_shift?.id === turno.j?.doctor_shift?.id)
+  check("Caja no abre turnos médicos", (await call("caja", "POST", "/admin/doctor-shifts", {})).code === 403)
+
+  // ── Comisión ──
+  check("un porcentaje fuera de rango se rechaza", (await call("admin", "POST", "/admin/doctor-commissions", { doctor_id: medicoId, percent: 150 })).code === 400)
+  const comision = await call("admin", "POST", "/admin/doctor-commissions", { doctor_id: medicoId, percent: 20 })
+  check("Administración fija 20 % al médico", comision.code === 200 && Number(comision.j?.doctor_commission?.percent) === 20, `HTTP ${comision.code} ${JSON.stringify(comision.j).slice(0, 80)}`)
+  check("el médico no lee las comisiones", (await call("medico", "GET", "/admin/doctor-commissions")).code === 403)
+  check("Auditoría sí", (await call("auditoria", "GET", "/admin/doctor-commissions")).code === 200)
+
+  // ── Una consulta cobrada dentro del turno ──
+  const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
+  const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
+  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]?.id
+  const prod = await call("admin", "POST", "/admin/products", {
+    title: `Verificación honorarios ${sello}`, status: "published", sales_channels: canal ? [{ id: canal }] : undefined,
+    options: [{ title: "Presentación", values: ["Default"] }],
+    variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: 100, currency_code: "mxn" }] }],
+  })
+  const variante = prod.j?.product?.variants?.[0]?.id
+  await call("enfermeria", "POST", "/admin/medical-batches", { batch_number: `HON-${sello}`, expiration_date: en(200), variant_id: variante, stock_location_id: enfermeria?.id, quantity: 10, apply_margin: false })
+  // También hay existencia en Farmacia: si el cobro descontara de ahí lo que
+  // ya salió de Enfermería, se vería (fase 8: se vio en el día simulado).
+  await call("farmacia", "POST", "/admin/medical-batches", { batch_number: `HON-F-${sello}`, expiration_date: en(200), variant_id: variante, stock_location_id: farmacia?.id, quantity: 10, apply_margin: false })
+  const orden = await call("medico", "POST", "/admin/medical-orders", { customer_id: paciente?.id, customer_name: "Verificación honorarios", items: [{ variant_id: variante, quantity: 2 }] })
+  const aplicada = await call("enfermeria", "POST", `/admin/medical-orders/${orden.j?.medical_order?.id}/consume`)
+  const cuentaId = aplicada.j?.cuenta?.id
+  const sinCobrar = (await call("admin", "GET", `/admin/reports/doctor-payments?doctor_id=${medicoId}`)).j
+  const antesDeCobrar = (sinCobrar?.orders ?? []).some((o) => o.medical_order_id === orden.j?.medical_order?.id)
+  check("una cuenta sin cobrar todavía no paga comisión", !antesDeCobrar)
+  // Caja cobra la cuenta.
+  if (!(await call("caja", "GET", "/admin/cash-sessions/current")).j?.session) await call("caja", "POST", "/admin/cash-sessions", { opening_amount: 0 })
+  const turnoCaja = (await call("caja", "GET", "/admin/cash-sessions/current")).j?.session
+  await call("caja", "POST", `/admin/cash-sessions/${turnoCaja?.id}/movements`, { type: "sale", payment_method: "cash", amount: 200, order_id: cuentaId })
+  const cobro = await call("caja", "POST", `/admin/draft-orders/${cuentaId}/convert-to-order`)
+  check("Caja cobra la cuenta de la consulta", cobro.code === 200, `HTTP ${cobro.code}`)
+  // El suscriptor de ventas corre después de la respuesta.
+  await new Promise((r) => setTimeout(r, 1500))
+  const kFarm = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${farmacia?.id}&variant_id=${variante}&type=exit_sale`)).j?.movements ?? []
+  check("cobrar la cuenta NO vuelve a descontar de Farmacia lo aplicado en consulta", !kFarm.some((m) => m.reference_id === cuentaId), JSON.stringify(kFarm.map((m) => [m.reference_id, m.quantity_delta])))
+  const loteFarm = ((await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}&stock_location_id=${farmacia?.id}`)).j?.batches ?? [])[0]
+  check("y el lote de Farmacia sigue entero", loteFarm?.quantity === 10, `${loteFarm?.quantity}`)
+  const reporte = (await call("admin", "GET", `/admin/reports/doctor-payments?doctor_id=${medicoId}`)).j
+  const fila = (reporte?.orders ?? []).find((o) => o.medical_order_id === orden.j?.medical_order?.id)
+  check("cobrada, la orden vale 2 × $100 y cae en el turno abierto", fila?.cobrado === 200 && fila?.turno_id === turno.j?.doctor_shift?.id, JSON.stringify(fila))
+  const medico = (reporte?.doctors ?? []).find((d) => d.doctor_id === medicoId)
+  check("y el reporte del médico suma su 20 %", !!medico && medico.percent === 20 && medico.comision >= 40 && medico.turnos.some((t) => t.turno_id === turno.j?.doctor_shift?.id && t.abierto === true), JSON.stringify(medico).slice(0, 160))
+  check("Caja no lee reportes de pagos", (await call("caja", "GET", "/admin/reports/doctor-payments")).code === 403)
+  const porMedico = (await call("auditoria", "GET", "/admin/reports/revenue?group=doctor")).j
+  check("ingresos por médico", (porMedico?.rows ?? []).some((r) => r.clave === medicoId && r.cobrado >= 200))
+  const porMes = (await call("admin", "GET", "/admin/reports/revenue?group=month")).j
+  check("ingresos por mes", (porMes?.rows ?? []).length > 0 && porMes.rows.every((r) => /^\d{4}-\d{2}$/.test(r.clave)))
+  check("una agrupación inválida se rechaza", (await call("admin", "GET", "/admin/reports/revenue?group=hora")).code === 400)
+  const cierre = await call("medico", "POST", `/admin/doctor-shifts/${turno.j?.doctor_shift?.id}/close`, {})
+  check("el médico cierra su turno", cierre.code === 200 && !!cierre.j?.doctor_shift?.closed_at)
+
+  // Limpieza.
+  const lotes = (await call("admin", "GET", `/admin/medical-batches?variant_id=${variante}`)).j?.batches ?? []
+  await call("admin", "POST", "/admin/inventory-counts", { counts: lotes.map((b) => ({ batch_id: b.id, counted_quantity: 0 })), apply: true, notes: "Limpieza de verificación" })
+  await call("admin", "DELETE", `/admin/products/${prod.j?.product?.id}`)
+  const actual = (await call("caja", "GET", "/admin/cash-sessions/current")).j?.session
+  if (actual) await call("caja", "POST", `/admin/cash-sessions/${actual.id}/close`, { actual_closing_amount: 200, notes: "Cierre de verificación" })
+}
+
+// ── 13. Perfiles y cierre del panel ─────────────────────────────────────────
+// Desde la fase 7 los seis perfiles tienen interfaz en el punto de venta y el
+// panel es SÓLO de Administración: aquí la guardia se exige encendida (la
+// sección 6 sólo la tolera). Lo que Farmacia y Auditoría hacían en el panel
+// tiene que poder hacerse con el token del punto de venta.
+async function perfilesYCierreDelPanel() {
+  seccion("13 · PERFILES Y CIERRE DEL PANEL")
+
+  const sesion = async (rol) => {
+    const r = await fetch(`${BASE}/auth/session`, { method: "POST", headers: { Authorization: `Bearer ${T[rol]}` } })
+    return { code: r.status, j: await r.json().catch(() => ({})) }
+  }
+  const admin = await sesion("admin")
+  check("sólo Administración obtiene la cookie del panel", admin.code === 200, `HTTP ${admin.code}`)
+  for (const rol of ["farmacia", "caja", "medico", "enfermeria", "auditoria"]) {
+    const s = await sesion(rol)
+    check(
+      `${rol} recibe 403 con un mensaje que lo explica`,
+      s.code === 403 && /Administraci/.test(s.j?.message ?? ""),
+      `HTTP ${s.code} ${s.j?.message ?? ""}`
+    )
+  }
+
+  // ── Farmacia, desde el punto de venta ──
+  const almacenes = (await call("farmacia", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
+  const farmacia = almacenes.find((l) => l.metadata?.altus_area === "pharmacy")
+  const enfermeria = almacenes.find((l) => l.metadata?.altus_area === "nursing")
+  check("Farmacia lee los almacenes con su área", !!farmacia && !!enfermeria, almacenes.map((l) => `${l.name}=${l.metadata?.altus_area ?? "—"}`).join(", "))
+  if (!farmacia) return
+
+  const existencias = await call("farmacia", "GET", `/admin/inventory-reports/valuation?stock_location_id=${farmacia.id}&include_quarantined=true`)
+  check("Farmacia lee las existencias de su almacén", existencias.code === 200 && Array.isArray(existencias.j?.items), `HTTP ${existencias.code}`)
+  const kardex = await call("farmacia", "GET", `/admin/inventory-movements?stock_location_id=${farmacia.id}&limit=5`)
+  check("y su kardex con totales", kardex.code === 200 && Array.isArray(kardex.j?.movements) && !!kardex.j?.summary, `HTTP ${kardex.code}`)
+  const caducidades = await call("farmacia", "GET", `/admin/expiring-inventory?stock_location_id=${farmacia.id}`)
+  check("y sus caducidades por tramo", caducidades.code === 200 && caducidades.j?.summary?.["30"] !== undefined, `HTTP ${caducidades.code}`)
+  const csv = await fetch(`${BASE}/admin/expiring-inventory/export?stock_location_id=${farmacia.id}`, { headers: { Authorization: `Bearer ${T.farmacia}` } })
+  const texto = await csv.text()
+  check("y descarga el CSV con el token", csv.status === 200 && /text\/csv/.test(csv.headers.get("content-type") || "") && texto.includes("Almac"), `HTTP ${csv.status} ${csv.headers.get("content-type")}`)
+  const politicas = await call("farmacia", "GET", `/admin/stock-policies?stock_location_id=${farmacia.id}`)
+  check("y los mínimos y máximos", politicas.code === 200 && Array.isArray(politicas.j?.stock_policies), `HTTP ${politicas.code}`)
+  const bandeja = await call("farmacia", "GET", "/admin/medical-orders?status=pending&recipient_area=pharmacy")
+  check(
+    "y su bandeja de recetas de mostrador, sin las de Enfermería",
+    bandeja.code === 200 && (bandeja.j?.medical_orders ?? []).every((o) => o.recipient_area === "pharmacy" && o.status === "pending"),
+    `HTTP ${bandeja.code}`
+  )
+  const requisiciones = await call("farmacia", "GET", "/admin/requisitions?status=pending")
+  check("y las requisiciones pendientes de surtir", requisiciones.code === 200 && Array.isArray(requisiciones.j?.requisitions), `HTTP ${requisiciones.code}`)
+  const turno = await call("farmacia", "POST", "/admin/cash-sessions", { opening_amount: 100 })
+  check("Farmacia ya no alcanza la caja: no abre turno", turno.code === 403, `HTTP ${turno.code}`)
+
+  // ── Auditoría, desde el punto de venta ──
+  const bitacora = await call("auditoria", "GET", "/admin/audit-logs?limit=5&user_role=cashier")
+  check("Auditoría lee la bitácora con filtros", bitacora.code === 200 && typeof bitacora.j?.count === "number", `HTTP ${bitacora.code}`)
+  const kardex2 = await call("auditoria", "GET", "/admin/inventory-movements?limit=5")
+  check("y el kardex de los dos almacenes", kardex2.code === 200 && Array.isArray(kardex2.j?.movements), `HTTP ${kardex2.code}`)
+  const csv2 = await fetch(`${BASE}/admin/expiring-inventory/export`, { headers: { Authorization: `Bearer ${T.auditoria}` } })
+  check("y descarga las caducidades", csv2.status === 200, `HTTP ${csv2.status}`)
+  const cortes = await call("auditoria", "GET", "/admin/cash-sessions?status=closed&limit=5")
+  check("y los cortes de caja", cortes.code === 200 && Array.isArray(cortes.j?.sessions), `HTTP ${cortes.code}`)
+  const corte = cortes.j?.sessions?.[0]
+  if (corte) {
+    const documento = await call("auditoria", "GET", `/admin/documents/corte/${corte.id}`)
+    check("e imprime un corte", documento.code === 200 && typeof documento.j?.html === "string", `HTTP ${documento.code}`)
+    const resumen = await call("auditoria", "GET", `/admin/cash-sessions/${corte.id}/summary`)
+    check("y ve su resumen", resumen.code === 200 && !!resumen.j?.summary, `HTTP ${resumen.code}`)
+  }
+  const estadisticas = await call("auditoria", "GET", "/admin/cash-sessions/stats?group=week")
+  check("y las estadísticas por semana", estadisticas.code === 200 && Array.isArray(estadisticas.j?.periods), `HTTP ${estadisticas.code}`)
+  check("Auditoría no surte requisiciones", (await call("auditoria", "POST", "/admin/requisitions/x/dispatch", {})).code === 403)
+  check("ni fija mínimos", (await call("auditoria", "POST", "/admin/stock-policies", { variant_id: "x", min_quantity: 1 })).code === 403)
+  check("ni da de baja lotes", (await call("auditoria", "POST", "/admin/medical-batches/x/write-off", { quantity: 1, reason: "prueba de lectura" })).code === 403)
+  check("ni abre turno de caja", (await call("auditoria", "POST", "/admin/cash-sessions", { opening_amount: 1 })).code === 403)
+}
+
+// ── Ejecución ───────────────────────────────────────────────────────────────
+;(async () => {
+  console.log(`\nVerificación de la API — ${BASE}\n`)
+
+  for (const rol of ROLES) {
+    const { token } = await login(rol)
+    if (!token) {
+      console.error(
+        `No se pudo iniciar sesión como "${rol}".\n` +
+          `¿Corriste "npm run seed"? ¿El servidor está en ${BASE}?\n`
+      )
+      process.exit(1)
+    }
+    T[rol] = token
+  }
+
+  await matrizDePermisos()
+  await omisionSegura()
+  await expediente()
+  await dispensacion()
+  await personal()
+  await cimientos()
+  await inventarioPorAlmacen()
+  await requisicionesYBajas()
+  await circuitoClinico()
+  await caja()
+  await auditoria()
+  await cuentasYHonorarios()
+  await perfilesYCierreDelPanel()
+
+  console.log(`\n${"═".repeat(64)}`)
+  console.log(
+    fallos === 0
+      ? `  TODO CORRECTO — ${total} comprobaciones`
+      : `  ${fallos} de ${total} comprobaciones FALLARON`
+  )
+  console.log(`${"═".repeat(64)}\n`)
+
+  process.exit(fallos === 0 ? 0 : 1)
+})()

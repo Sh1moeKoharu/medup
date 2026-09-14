@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import * as fs from "fs"
 import * as path from "path"
 import { ROLE_LABELS, Role } from "../lib/roles"
+import { aIdentificador, aUsuario } from "../lib/usuarios"
 import {
   TEST_PASSWORD,
   TEST_USERS,
@@ -45,12 +46,12 @@ export default async function resetUsers({ container, args }: ExecArgs) {
   console.log("")
   console.log(`── Se ELIMINARÁN ${existing.length} usuario(s):`)
   existing.forEach((u) =>
-    console.log(`   · ${u.email} (${(u.metadata as any)?.role ?? "sin rol"})`)
+    console.log(`   · ${aUsuario(u.email)} (${(u.metadata as any)?.role ?? "sin rol"})`)
   )
   console.log("")
   console.log(`── Se CREARÁN ${TEST_USERS.length} usuario(s):`)
   TEST_USERS.forEach((u) =>
-    console.log(`   · ${u.email.padEnd(24)} -> ${u.role}`)
+    console.log(`   · ${u.username.padEnd(16)} -> ${u.role}`)
   )
   console.log("")
 
@@ -103,30 +104,30 @@ export default async function resetUsers({ container, args }: ExecArgs) {
   console.log("")
 
   // ── Alta ──────────────────────────────────────────────────────────────────
-  const created: { email: string; role: Role; label: string }[] = []
+  const created: { username: string; role: Role; label: string }[] = []
 
   for (const spec of TEST_USERS) {
     // `register` delega el hashing al proveedor emailpass; nunca se escriben
     // hashes a mano.
     const { success, error } = await authModuleService.register("emailpass", {
-      body: { email: spec.email, password: TEST_PASSWORD },
+      body: { email: aIdentificador(spec.username), password: TEST_PASSWORD },
     } as any)
 
     if (!success) {
-      throw new Error(`No se pudo registrar ${spec.email}: ${error}`)
+      throw new Error(`No se pudo registrar ${spec.username}: ${error}`)
     }
 
     const [authIdentity] = await authModuleService.listAuthIdentities({
-      provider_identities: { entity_id: spec.email },
+      provider_identities: { entity_id: aIdentificador(spec.username) },
     })
 
     if (!authIdentity) {
-      throw new Error(`Identidad de auth no encontrada para ${spec.email}`)
+      throw new Error(`Identidad de auth no encontrada para ${spec.username}`)
     }
 
     const [user] = await userModuleService.createUsers([
       {
-        email: spec.email,
+        email: aIdentificador(spec.username),
         first_name: spec.first_name,
         last_name: "Pruebas",
         metadata: { role: spec.role },
@@ -137,8 +138,8 @@ export default async function resetUsers({ container, args }: ExecArgs) {
       { id: authIdentity.id, app_metadata: { user_id: user.id } },
     ])
 
-    created.push({ email: spec.email, role: spec.role, label: ROLE_LABELS[spec.role] })
-    console.log(`   ✓ ${spec.email.padEnd(24)} ${spec.role}`)
+    created.push({ username: spec.username, role: spec.role, label: ROLE_LABELS[spec.role] })
+    console.log(`   ✓ ${spec.username.padEnd(16)} ${spec.role}`)
   }
 
   console.log("")
@@ -146,7 +147,7 @@ export default async function resetUsers({ container, args }: ExecArgs) {
   console.log(`Contraseña (todas las cuentas): ${TEST_PASSWORD}`)
   console.log("")
   created.forEach((u) =>
-    console.log(`   ${u.email.padEnd(24)} ${u.label}`)
+    console.log(`   ${u.username.padEnd(16)} ${u.label}`)
   )
   console.log("")
   console.log("Cuentas de prueba locales. No usar este script ni estas")

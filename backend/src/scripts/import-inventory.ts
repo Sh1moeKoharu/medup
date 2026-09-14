@@ -1,3 +1,4 @@
+import { almacenDeFarmacia } from "../lib/almacenes"
 import { ExecArgs } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/core-flows"
@@ -393,6 +394,10 @@ export default async function importInventory({ container, args }: ExecArgs) {
   // ── Escritura ─────────────────────────────────────────────────────────────
   const productModuleService = container.resolve(Modules.PRODUCT)
   const medicalInventoryService: any = container.resolve("medical_inventory")
+  const farmacia = await almacenDeFarmacia(container as any)
+  if (!farmacia) {
+    throw new Error("No hay almacén de Farmacia. Corre `npx medusa exec ./src/scripts/preparar-almacenes.ts confirm` primero.")
+  }
 
   /**
    * Canal de venta al que se asocian los productos nuevos.
@@ -506,6 +511,7 @@ export default async function importInventory({ container, args }: ExecArgs) {
         expiration_date: row.expiration!,
         quantity: row.quantity,
         variant_id: variantId,
+        stock_location_id: farmacia.id,
       })
       createdBatches++
 
@@ -514,6 +520,7 @@ export default async function importInventory({ container, args }: ExecArgs) {
       if (row.quantity > 0) {
         await recordInventoryMovement(container as any, {
           variant_id: variantId,
+          stock_location_id: farmacia.id,
           variant_title: row.title,
           batch_id: batch.id,
           batch_number: row.lot,

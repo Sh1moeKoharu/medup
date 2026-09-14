@@ -2,12 +2,14 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useProducts } from '@/api/hooks/products';
 import { CircleAlert } from '@/components/icons/circle-alert';
+import { ScanBarcode } from '@/components/icons/scan-barcode';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
+import { formatearDinero } from '@/utils/dinero';
 import { Plus } from '@/components/icons/plus';
 import { useSettings } from '@/contexts/settings';
-import { useAddToDraftOrder } from '@/api/hooks/draft-orders';
+import { useAddToDraftOrder, useCurrentDraftOrder, useUpdateDraftOrderItem } from '@/api/hooks/draft-orders';
 import { useBreakpointValue } from '@/hooks/useBreakpointValue';
 import { clx } from '@/utils/clx';
 import { showErrorToast } from '@/utils/errors';
@@ -46,6 +48,8 @@ const ProductPlaceholder: React.FC<{ index: number; numColumns: number }> = ({ i
 const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; currencyCode: string | undefined; numColumns: number; index: number; isSessionOpen: boolean }> = ({ item, onPress, currencyCode, numColumns, index, isSessionOpen }) => {
   const [quantity, setQuantity] = React.useState(1);
   const addToDraftOrder = useAddToDraftOrder();
+  const draftOrder = useCurrentDraftOrder();
+  const updateDraftOrderItem = useUpdateDraftOrderItem();
 
   const thumbnail = item.thumbnail || item.images?.[0]?.url;
   const variantPrices = (item.variants ?? [])
@@ -59,10 +63,63 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; currencyC
 
   const defaultVariant = item.variants?.[0];
 
+  // Se calcula UNA vez y lo usan el nombre y el boton redondo. Tenerlo
+  // repetido era la forma segura de que un dia uno de los dos dejara anadir
+  // algo que el otro bloqueaba: sin turno de caja, sin existencia o sin
+  // variante.
+  const noSePuedeAgregar =
+    !defaultVariant || addToDraftOrder.isPending || updateDraftOrderItem.isPending || !isSessionOpen || item.status === 'draft';
+
+  const agregarAlCarrito = () => {
+    if (!defaultVariant) return;
+    // Mientras una adición está en camino no se lanza otra: Medusa sólo admite
+    // una edición abierta por carrito, y dos toques seguidos chocaban con
+    // «already has an existing active order change».
+    if (addToDraftOrder.isPending || updateDraftOrderItem.isPending) return;
+    // Si ya está en el carrito, se SUMA a su renglón. Medusa añade un renglón
+    // nuevo por cada llamada aunque sea la misma presentación, y el carrito
+    // enseñaba «Paracetamol ×1» dos veces en vez de «×2»: se vio en el manual.
+    const existente = (draftOrder.data?.draft_order?.items ?? []).find((i) => i.variant_id === defaultVariant.id);
+    if (existente) {
+      updateDraftOrderItem.mutate({ id: existente.id, update: { quantity: (existente.quantity ?? 0) + 1 } });
+      return;
+    }
+    addToDraftOrder.mutate({
+      items: [
+        {
+          quantity: 1,
+          variant_id: defaultVariant.id,
+          unit_price: minPrice !== undefined ? minPrice : 0,
+        },
+      ],
+    });
+  };
+
   return (
     <View className="w-full px-2">
       <View className="flex w-full bg-white rounded-2xl p-4 shadow-sm border border-black">
-        <TouchableOpacity className="flex w-full gap-2" onPress={onPress} activeOpacity={0.7}>
+        {/*
+          La FOTO tambien anade. Tocar cualquier parte de la tarjeta mete el
+          producto al carrito, que es como se cobra en un mostrador.
+
+          La ficha del producto pasa a la pulsacion LARGA, y no se quita: es el
+          unico sitio donde se elige presentacion cuando un producto tiene mas
+          de una. Al tocar corto siempre entra la primera, asi que sin esta
+          salida no habria forma de pedir la otra.
+
+          Aqui no se desactiva nada aunque no se pueda anadir: `agregarAlCarrito`
+          ya se protege solo, y desactivandolo se perderia tambien el acceso a
+          la ficha justo cuando mas falta hace saber por que no se puede vender.
+        */}
+        <TouchableOpacity
+          className="flex w-full gap-2"
+          onPress={agregarAlCarrito}
+          onLongPress={onPress}
+          delayLongPress={400}
+          accessibilityRole="button"
+          accessibilityLabel={`Añadir ${item.title} al carrito. Mantén pulsado para ver la ficha.`}
+          activeOpacity={0.7}
+        >
           <View
             className="aspect-square overflow-hidden rounded-xl bg-gray-50 mb-2 relative"
             testID={`product-handle_${item.handle}_image`}
@@ -70,16 +127,13 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; currencyC
             {thumbnail && <Image source={{ uri: thumbnail }} className="h-full w-full object-contain" />}
             {item.status === 'draft' && (
               <View className="absolute inset-0 bg-white/60 items-center justify-center">
-                <View className="bg-red-100 px-3 py-1.5 rounded-full border border-red-200 shadow-sm">
-                  <Text className="text-red-700 text-xs font-bold text-center uppercase tracking-wider">Sin Stock</Text>
+                <View className="bg-error-200 px-3 py-1.5 rounded-full border border-error-300 shadow-sm">
+                  <Text className="text-error-500 text-xs font-bold text-center uppercase tracking-wider">Sin existencia</Text>
                 </View>
               </View>
             )}
           </View>
           <View>
-            <View className="mb-1 flex-row items-center gap-2">
-              <Text className="text-sm font-medium shrink">{item.title}</Text>
-            </View>
             {(() => {
               const medicalInventories = (item.variants || []).map((v: any) => v.medical_inventory).filter(Boolean);
               if (medicalInventories.length > 0) {
@@ -87,7 +141,7 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; currencyC
                 const nearest = sorted[0];
                 return (
                   <View className="mb-2">
-                    <Text className="text-[10px] text-red-600 font-medium">Caducidad: {new Date(nearest.expiration_date).toLocaleDateString()}</Text>
+                    <Text className="text-[10px] text-error-500 font-medium">Caducidad: {new Date(nearest.expiration_date).toLocaleDateString()}</Text>
                     {nearest.shelf_location && <Text className="text-[10px] text-gray-400">Estante: {nearest.shelf_location}</Text>}
                   </View>
                 );
@@ -97,45 +151,48 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; currencyC
           </View>
         </TouchableOpacity>
 
+        {/*
+          El NOMBRE añade al carrito.
+
+          Va fuera del bloque de arriba a proposito: ese abre la ficha del
+          producto, y son dos acciones distintas. La foto detalla, el nombre
+          anade. Un mostrador cobra tocando el nombre; quien necesita elegir
+          presentacion o cantidad entra por la imagen.
+
+          Se apaga con LO MISMO que apaga el boton redondo, asi que nunca
+          puede anadir algo que el otro rechaza.
+        */}
+        <TouchableOpacity
+          onPress={agregarAlCarrito}
+          disabled={noSePuedeAgregar}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel={`Añadir ${item.title} al carrito`}
+          className="mb-1 min-h-toque justify-center"
+        >
+          <Text className={clx('text-sm font-medium', noSePuedeAgregar && 'text-gray-300')}>
+            {item.title}
+          </Text>
+        </TouchableOpacity>
+
         <View className="mt-2 flex-row items-center justify-between">
           <Text className="font-bold text-lg leading-none pt-1">
             {amounts.length === 0 || (typeof minPrice !== 'number' && typeof maxPrice !== 'number')
               ? 'Sin precio'
               : minPrice === maxPrice
-                ? minPrice?.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: currencyCode,
-                  currencyDisplay: 'narrowSymbol',
-                })
-                : `${minPrice?.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: currencyCode,
-                  currencyDisplay: 'narrowSymbol',
-                })} — ${maxPrice?.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: currencyCode,
-                  currencyDisplay: 'narrowSymbol',
-                })}`}
+                ? formatearDinero(minPrice, currencyCode)
+                : `${formatearDinero(minPrice, currencyCode)} — ${formatearDinero(maxPrice, currencyCode)}`}
           </Text>
 
           <TouchableOpacity
             className={clx(
               "h-10 w-10 rounded-full items-center justify-center shadow-sm",
               (!defaultVariant || addToDraftOrder.isPending || !isSessionOpen || item.status === 'draft')
-                ? "bg-gray-300"
-                : "bg-[#1B1B1B]"
+                ? "bg-gray-200"
+                : "bg-black"
             )}
-            disabled={!defaultVariant || addToDraftOrder.isPending || !isSessionOpen || item.status === 'draft'}
-            onPress={() => {
-              if (!defaultVariant) return;
-              addToDraftOrder.mutate({
-                items: [{ 
-                  quantity: 1, 
-                  variant_id: defaultVariant.id,
-                  unit_price: minPrice !== undefined ? minPrice : 0
-                }]
-              });
-            }}
+            disabled={noSePuedeAgregar}
+            onPress={agregarAlCarrito}
           >
             <Plus size={20} color="white" />
           </TouchableOpacity>
@@ -209,19 +266,32 @@ export default function ProductsScreen() {
   const content = (
     <Layout className="gap-6 flex-1">
       {!cashSession.isLoading && !cashSession.data && (
-        <View className="mt-4 mx-auto w-full max-w-2xl rounded-xl border border-yellow-200 bg-yellow-50 p-3">
-          <Text className="text-center text-sm text-yellow-700 font-medium">
+        <View className="mt-4 mx-auto w-full max-w-2xl rounded-xl border border-warning-300 bg-warning-200 p-3">
+          <Text className="text-center text-sm text-warning-500 font-medium">
             Abre una sesión en la pestaña 'Caja'para poder añadir productos a la venta.
           </Text>
         </View>
       )}
       
-      <SearchInput
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder="Buscar productos..."
-        className="mt-2 mx-auto w-full max-w-2xl"
-      />
+      {/* Buscar y escanear son la misma tarea —encontrar un producto— y ahora
+          empiezan en la misma fila. El escáner dejó de ser una pestaña para que
+          las etiquetas de la barra quepan en un teléfono (ver _layout.tsx). */}
+      <View className="mt-2 mx-auto w-full max-w-2xl flex-row items-center gap-2">
+        <SearchInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Buscar productos..."
+          className="flex-1"
+        />
+        <TouchableOpacity
+          onPress={() => router.push('/scan')}
+          accessibilityRole="button"
+          accessibilityLabel="Escanear código de barras"
+          className="h-12 w-12 items-center justify-center rounded-full border border-gray-200"
+        >
+          <ScanBarcode size={20} />
+        </TouchableOpacity>
+      </View>
 
       <FlashList
         data={data}
@@ -275,7 +345,7 @@ export default function ProductsScreen() {
 
   if (isLargeScreen) {
     return (
-      <View className="flex-1 flex-row bg-[#F4F4F6]">
+      <View className="flex-1 flex-row bg-canvas">
         <View className="flex-[3]">
           {content}
         </View>
@@ -287,7 +357,7 @@ export default function ProductsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4F4F6]">
+    <View className="flex-1 bg-canvas">
       {content}
     </View>
   );

@@ -8,6 +8,7 @@ import { PackageOpen } from '@/components/icons/package-open';
 import { Truck } from '@/components/icons/truck';
 import { X } from '@/components/icons/x';
 import { Text } from '@/components/ui/Text';
+import { color } from '@/theme/tokens';
 import { clx } from '@/utils/clx';
 import * as MedusaTypes from '@medusajs/types';
 import { LucideProps } from 'lucide-react-native';
@@ -27,32 +28,32 @@ const orderStatuses: Record<
   }
 > = {
   archived: {
-    label: 'Archived',
+    label: 'Archivada',
     color: 'red',
     icon: Archive,
   },
   canceled: {
-    label: 'Canceled',
+    label: 'Cancelada',
     color: 'red',
     icon: X,
   },
   completed: {
-    label: 'Completed',
+    label: 'Completada',
     color: 'green',
     icon: CheckCircle,
   },
   draft: {
-    label: 'Draft',
+    label: 'Borrador',
     color: 'yellow',
     icon: FilePen,
   },
   pending: {
-    label: 'Pending',
+    label: 'Pendiente',
     color: 'yellow',
     icon: AlertCircle,
   },
   requires_action: {
-    label: 'Requires action',
+    label: 'Requiere acción',
     color: 'yellow',
     icon: AlertCircle,
   },
@@ -67,22 +68,22 @@ const paymentStatuses: Record<
   }
 > = {
   authorized: {
-    label: 'Authorized',
+    label: 'Autorizado',
     color: 'yellow',
     icon: AlertCircle,
   },
   awaiting: {
-    label: 'Awaiting',
+    label: 'En espera',
     color: 'yellow',
     icon: AlertCircle,
   },
   canceled: {
-    label: 'Canceled',
+    label: 'Cancelado',
     color: 'red',
     icon: X,
   },
   captured: {
-    label: 'Captured',
+    label: 'Cobrado',
     color: 'green',
     icon: CheckCircle,
   },
@@ -92,27 +93,27 @@ const paymentStatuses: Record<
     icon: X,
   },
   partially_authorized: {
-    label: 'Partially authorized',
+    label: 'Autorizado en parte',
     color: 'yellow',
     icon: AlertCircle,
   },
   partially_captured: {
-    label: 'Partially captured',
+    label: 'Cobrado en parte',
     color: 'yellow',
     icon: AlertCircle,
   },
   partially_refunded: {
-    label: 'Partially refunded',
+    label: 'Reembolsado en parte',
     color: 'yellow',
     icon: AlertCircle,
   },
   refunded: {
-    label: 'Refunded',
+    label: 'Reembolsado',
     color: 'red',
     icon: X,
   },
   requires_action: {
-    label: 'Requires action',
+    label: 'Requiere acción',
     color: 'yellow',
     icon: AlertCircle,
   },
@@ -132,48 +133,57 @@ const fulfillmentStatuses: Record<
     icon: Package,
   },
   partially_fulfilled: {
-    label: 'Partially fulfilled',
+    label: 'Surtida en parte',
     color: 'yellow',
     icon: PackageOpen,
   },
   fulfilled: {
-    label: 'Fulfilled',
+    label: 'Surtida',
     color: 'green',
     icon: CheckCircle,
   },
   partially_shipped: {
-    label: 'Partially shipped',
+    label: 'Enviada en parte',
     color: 'yellow',
     icon: Truck,
   },
   shipped: {
-    label: 'Shipped',
+    label: 'Enviada',
     color: 'green',
     icon: Truck,
   },
   delivered: {
-    label: 'Delivered',
+    label: 'Entregada',
     color: 'green',
     icon: Truck,
   },
   partially_delivered: {
-    label: 'Partially delivered',
+    label: 'Entregada en parte',
     color: 'yellow',
     icon: Truck,
   },
   canceled: {
-    label: 'Canceled',
+    label: 'Cancelada',
     color: 'red',
     icon: X,
   },
 };
 
+/**
+ * El estado de una orden, en español y en una palabra.
+ *
+ * Para los sitios que sólo quieren el texto, sin el distintivo con icono. La
+ * ficha del paciente pintaba `order.status` en crudo y salía «COMPLETED».
+ */
+export const etiquetaDeEstado = (estado?: string | null): string =>
+  (estado && orderStatuses[estado]?.label) || estado || 'Desconocido';
+
 export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }) => {
   if (order.status === 'canceled') {
     return (
       <View className={clx('flex-row gap-2 rounded-full bg-error-200 px-4 py-2', className)}>
-        <X size={16} color="#F14747" />
-        <Text className="text-sm text-error-500">Canceled</Text>
+        <X size={16} color={color.iconoError} />
+        <Text className="text-sm text-error-500">Cancelada</Text>
       </View>
     );
   }
@@ -181,8 +191,8 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
   if (order.status === 'requires_action') {
     return (
       <View className={clx('flex-row gap-2 rounded-full bg-warning-200 px-4 py-2', className)}>
-        <AlertCircle size={16} color="#9B8435" />
-        <Text className="text-sm text-warning-500">Requires action</Text>
+        <AlertCircle size={16} color={color.iconoAviso} />
+        <Text className="text-sm text-warning-500">Requiere acción</Text>
       </View>
     );
   }
@@ -190,8 +200,8 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
   if (order.status === 'draft') {
     return (
       <View className={clx('flex-row gap-2 rounded-full bg-active-200 px-4 py-2', className)}>
-        <FilePen size={16} color="#4E78E5" />
-        <Text className="text-sm text-active-500">Draft</Text>
+        <FilePen size={16} color={color.acento} />
+        <Text className="text-sm text-active-500">Borrador</Text>
       </View>
     );
   }
@@ -199,8 +209,8 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
   if (order.status === 'archived') {
     return (
       <View className={clx('flex-row gap-2 rounded-full bg-gray-100 px-4 py-2', className)}>
-        <Archive size={16} color="#6b7280" />
-        <Text className="text-sm text-gray-500">Archived</Text>
+        <Archive size={16} color={color.iconoNeutro} />
+        <Text className="text-sm text-gray-500">Archivada</Text>
       </View>
     );
   }
@@ -210,8 +220,8 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
   if (!fulfillmentStatus) {
     return (
       <View className={clx('flex-row gap-2 rounded-full bg-gray-100 px-4 py-2', className)}>
-        <HelpCircle size={16} color="#6b7280" />
-        <Text className="text-sm text-gray-500">Unknown</Text>
+        <HelpCircle size={16} color={color.iconoNeutro} />
+        <Text className="text-sm text-gray-500">Desconocido</Text>
       </View>
     );
   }
@@ -222,21 +232,21 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
     case 'yellow':
       return (
         <View className={clx('flex-row gap-2 rounded-full bg-warning-200 px-4 py-2', className)}>
-          <Icon size={16} color="#9B8435" />
+          <Icon size={16} color={color.iconoAviso} />
           <Text className="text-sm text-warning-500">{fulfillmentStatus.label}</Text>
         </View>
       );
     case 'green':
       return (
         <View className={clx('flex-row gap-2 rounded-full bg-success-200 px-4 py-2', className)}>
-          <Icon size={16} color="#469B3B" />
+          <Icon size={16} color={color.iconoExito} />
           <Text className="text-sm text-success-500">{fulfillmentStatus.label}</Text>
         </View>
       );
     case 'red':
       return (
         <View className={clx('flex-row gap-2 rounded-full bg-error-200 px-4 py-2', className)}>
-          <Icon size={16} color="#F14747" />
+          <Icon size={16} color={color.iconoError} />
           <Text className="text-sm text-error-500">{fulfillmentStatus.label}</Text>
         </View>
       );
@@ -249,8 +259,8 @@ export const FulfillmentStatus: React.FC<OrderStatusProps> = ({ order, className
   if (!fulfillmentStatus) {
     return (
       <View className={clx('flex-row items-center gap-1 rounded-full border border-gray-500 px-2 py-1', className)}>
-        <HelpCircle size={14} color="#6b7280" />
-        <Text className="text-xs text-gray-500">Unknown</Text>
+        <HelpCircle size={14} color={color.iconoNeutro} />
+        <Text className="text-xs text-gray-500">Desconocido</Text>
       </View>
     );
   }
@@ -263,7 +273,7 @@ export const FulfillmentStatus: React.FC<OrderStatusProps> = ({ order, className
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-warning-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#9B8435" />
+          <Icon size={14} color={color.iconoAviso} />
           <Text className="text-xs text-warning-500">{fulfillmentStatus.label}</Text>
         </View>
       );
@@ -272,14 +282,14 @@ export const FulfillmentStatus: React.FC<OrderStatusProps> = ({ order, className
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-success-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#469B3B" />
+          <Icon size={14} color={color.iconoExito} />
           <Text className="text-xs text-success-500">{fulfillmentStatus.label}</Text>
         </View>
       );
     case 'red':
       return (
         <View className={clx('flex-row items-center gap-1 rounded-full border border-error-500 px-2 py-1', className)}>
-          <Icon size={14} color="#F14747" />
+          <Icon size={14} color={color.iconoError} />
           <Text className="text-xs text-error-500">{fulfillmentStatus.label}</Text>
         </View>
       );
@@ -292,8 +302,8 @@ export const PaymentStatus: React.FC<OrderStatusProps> = ({ order, className }) 
   if (!paymentStatus) {
     return (
       <View className={clx('flex-row items-center gap-1 rounded-full border border-gray-500 px-2 py-1', className)}>
-        <HelpCircle size={14} color="#6b7280" />
-        <Text className="text-xs text-gray-500">Unknown</Text>
+        <HelpCircle size={14} color={color.iconoNeutro} />
+        <Text className="text-xs text-gray-500">Desconocido</Text>
       </View>
     );
   }
@@ -306,7 +316,7 @@ export const PaymentStatus: React.FC<OrderStatusProps> = ({ order, className }) 
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-warning-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#9B8435" />
+          <Icon size={14} color={color.iconoAviso} />
           <Text className="text-xs text-warning-500">{paymentStatus.label}</Text>
         </View>
       );
@@ -315,14 +325,14 @@ export const PaymentStatus: React.FC<OrderStatusProps> = ({ order, className }) 
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-success-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#469B3B" />
+          <Icon size={14} color={color.iconoExito} />
           <Text className="text-xs text-success-500">{paymentStatus.label}</Text>
         </View>
       );
     case 'red':
       return (
         <View className={clx('flex-row items-center gap-1 rounded-full border border-error-500 px-2 py-1', className)}>
-          <Icon size={14} color="#F14747" />
+          <Icon size={14} color={color.iconoError} />
           <Text className="text-xs text-error-500">{paymentStatus.label}</Text>
         </View>
       );
@@ -335,8 +345,8 @@ export const OrderStatus: React.FC<OrderStatusProps> = ({ order, className }) =>
   if (!orderStatus) {
     return (
       <View className={clx('flex-row items-center gap-1 rounded-full border border-gray-500 px-2 py-1', className)}>
-        <HelpCircle size={14} color="#6b7280" />
-        <Text className="text-xs text-gray-500">Unknown</Text>
+        <HelpCircle size={14} color={color.iconoNeutro} />
+        <Text className="text-xs text-gray-500">Desconocido</Text>
       </View>
     );
   }
@@ -349,7 +359,7 @@ export const OrderStatus: React.FC<OrderStatusProps> = ({ order, className }) =>
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-warning-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#9B8435" />
+          <Icon size={14} color={color.iconoAviso} />
           <Text className="text-xs text-warning-500">{orderStatus.label}</Text>
         </View>
       );
@@ -358,14 +368,14 @@ export const OrderStatus: React.FC<OrderStatusProps> = ({ order, className }) =>
         <View
           className={clx('flex-row items-center gap-1 rounded-full border border-success-500 px-2 py-1', className)}
         >
-          <Icon size={14} color="#469B3B" />
+          <Icon size={14} color={color.iconoExito} />
           <Text className="text-xs text-success-500">{orderStatus.label}</Text>
         </View>
       );
     case 'red':
       return (
         <View className={clx('flex-row items-center gap-1 rounded-full border border-error-500 px-2 py-1', className)}>
-          <Icon size={14} color="#F14747" />
+          <Icon size={14} color={color.iconoError} />
           <Text className="text-xs text-error-500">{orderStatus.label}</Text>
         </View>
       );

@@ -56,7 +56,7 @@ export const DateRangeFilter = ({
     if (!range.startDate && !range.endDate) return '';
 
     const formatDate = (date: Date) => {
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString('es-MX', {
         dateStyle: 'short',
       });
     };

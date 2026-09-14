@@ -206,7 +206,7 @@ export const SetupWizardContent: React.FC<SetupWizardContentProps> = ({
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-canvas">
       <KeyboardAvoidingView className="flex-1">{renderCurrentStep()}</KeyboardAvoidingView>
     </SafeAreaView>
   );

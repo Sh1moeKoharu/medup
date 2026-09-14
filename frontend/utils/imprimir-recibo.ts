@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { imprimirHtml } from '@/utils/imprimir';
 
 /**
  * Impresión del recibo de venta.
@@ -47,6 +47,8 @@ export type Recibo = {
   impuestos: number;
   total: number;
   metodo_pago: string | null;
+  /** Referencia de la terminal (4-6 dígitos) cuando fue con tarjeta. */
+  referencia?: string | null;
   leyendas: string[];
 };
 
@@ -160,6 +162,7 @@ export function construirHtmlRecibo(r: Recibo): string {
     ${r.cajero ? `<div><span>Atendió</span><span>${esc(r.cajero)}</span></div>` : ''}
     ${r.cliente ? `<div><span>Cliente</span><span>${esc(r.cliente)}</span></div>` : ''}
     ${r.metodo_pago ? `<div><span>Pago</span><span>${esc(NOMBRE_METODO[r.metodo_pago] ?? r.metodo_pago)}</span></div>` : ''}
+    ${r.referencia ? `<div><span>Ref. terminal</span><span>${esc(r.referencia)}</span></div>` : ''}
   </div>
 
   <hr>
@@ -186,72 +189,7 @@ export function construirHtmlRecibo(r: Recibo): string {
  * Manda el recibo a la impresora. Devuelve `false` si no se pudo intentar.
  */
 export function imprimirRecibo(recibo: Recibo): boolean {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    return false;
-  }
-
-  const marco = document.createElement('iframe');
-  marco.setAttribute('aria-hidden', 'true');
-  // Fuera de la vista pero PRESENTE en el documento: `display:none` haría que
-  // algunos navegadores no lo compongan y saldría una hoja en blanco.
-  marco.style.position = 'fixed';
-  marco.style.right = '0';
-  marco.style.bottom = '0';
-  marco.style.width = '0';
-  marco.style.height = '0';
-  marco.style.border = '0';
-
-  document.body.appendChild(marco);
-
-  const limpiar = () => {
-    // Se retira con retraso: quitarlo en el mismo turno en que se llamó a
-    // print() cancela el trabajo en algunos navegadores.
-    setTimeout(() => {
-      if (marco.parentNode) marco.parentNode.removeChild(marco);
-    }, 1000);
-  };
-
-  try {
-    const doc = marco.contentWindow?.document;
-    if (!doc) {
-      limpiar();
-      return false;
-    }
-
-    doc.open();
-    doc.write(construirHtmlRecibo(recibo));
-    doc.close();
-
-    // onload y el temporizador de respaldo pueden llegar los dos. Sin este
-    // seguro se llamaria a print() dos veces y saldrian DOS tickets, que en un
-    // mostrador es peor que ninguno: alguien se lleva el duplicado.
-    let yaLanzado = false;
-    const lanzar = () => {
-      if (yaLanzado) return;
-      yaLanzado = true;
-      try {
-        marco.contentWindow?.focus();
-        marco.contentWindow?.print();
-      } catch {
-        // El navegador rechazó la impresión; nada más que hacer aquí.
-      } finally {
-        limpiar();
-      }
-    };
-
-    // Si el documento ya terminó de cargar, se imprime enseguida; si no, se
-    // espera. Sin esto el ticket puede salir a medio maquetar.
-    if (marco.contentWindow?.document.readyState === 'complete') {
-      lanzar();
-    } else {
-      marco.onload = lanzar;
-      // Red de seguridad por si `onload` no llega.
-      setTimeout(lanzar, 700);
-    }
-
-    return true;
-  } catch {
-    limpiar();
-    return false;
-  }
+  // El mecanismo (iframe oculto, un solo print) vive en utils/imprimir.ts y
+  // lo comparten la receta, la nota de atención y el corte de caja.
+  return imprimirHtml(construirHtmlRecibo(recibo));
 }

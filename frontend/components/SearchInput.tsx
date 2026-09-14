@@ -17,6 +17,10 @@ export const SearchInput: React.FC<{
         value={value}
         onChangeText={onChangeText}
         inputMode="search"
+        // Un buscador no es prosa: el corrector subraya en rojo apellidos,
+        // números de lote y nombres de medicamento, y no ayuda a escribirlos.
+        spellCheck={false}
+        autoCorrect={false}
       />
     </View>
   );

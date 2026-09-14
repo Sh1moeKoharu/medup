@@ -1,6 +1,11 @@
+// Efecto: traduce el vocabulario de tienda de Medusa ("Clientes") al de
+// clinica ("Pacientes"). No se usa nada de este modulo; el import ES el efecto.
+// Va en dos paginas a proposito, para que siga aplicandose si una desaparece.
+import "../../lib/vocabulario-clinico";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Container, Heading, Text, Select, Table, Badge, Input } from "@medusajs/ui";
 import { useState, useEffect } from "react";
+import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
 
 const CustomersByCompanyPage = () => {
     const [customers, setCustomers] = useState<any[]>([]);
@@ -8,6 +13,7 @@ const CustomersByCompanyPage = () => {
     const [selectedCompany, setSelectedCompany] = useState<string>("__all__");
     const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(true);
+    const [denegado, setDenegado] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -17,6 +23,7 @@ const CustomersByCompanyPage = () => {
         setIsLoading(true);
         try {
             const res = await fetch(`/admin/medical-customers`);
+            if (esDenegado(res)) { setDenegado(true); return; }
             if (res.ok) {
                 const data = await res.json();
                 setCustomers(data.medical_customers || []);
@@ -53,11 +60,13 @@ const CustomersByCompanyPage = () => {
 
     // Group by company
     const grouped = filtered.reduce((acc: Record<string, any[]>, c: any) => {
-        const company = c.medical_customer?.company_name || "Sin Empresa";
+        const company = c.medical_customer?.company_name || "Sin empresa";
         if (!acc[company]) acc[company] = [];
         acc[company].push(c);
         return acc;
     }, {});
+
+    if (denegado) return <SinAcceso recurso="los pacientes por empresa" />;
 
     return (
         <Container className="p-8">
@@ -65,10 +74,10 @@ const CustomersByCompanyPage = () => {
                 {/* Header */}
                 <div>
                     <Heading level="h1" className="text-ui-fg-base text-2xl font-bold">
-                        Clientes por Empresa
+                        Pacientes por empresa
                     </Heading>
                     <Text className="text-ui-fg-subtle text-sm mt-1">
-                        Visualiza y filtra los clientes registrados por su empresa y número de empleado
+                        Visualiza y filtra los pacientes registrados por su empresa y número de empleado
                     </Text>
                 </div>
 
@@ -83,7 +92,7 @@ const CustomersByCompanyPage = () => {
                         />
                     </div>
                     <div className="flex-1 max-w-[300px]">
-                        <Text className="text-sm font-medium text-ui-fg-base mb-1.5">Filtrar por Empresa</Text>
+                        <Text className="text-sm font-medium text-ui-fg-base mb-1.5">Filtrar por empresa</Text>
                         <Select value={selectedCompany} onValueChange={setSelectedCompany}>
                             <Select.Trigger>
                                 <Select.Value placeholder="Todas las empresas" />
@@ -104,33 +113,37 @@ const CustomersByCompanyPage = () => {
                 {isLoading ? (
                     <div className="flex items-center gap-2 py-8">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-ui-fg-base"></div>
-                        <Text className="text-ui-fg-subtle">Cargando clientes...</Text>
+                        <Text className="text-ui-fg-subtle">Cargando pacientes...</Text>
                     </div>
                 ) : filtered.length === 0 ? (
                     <Container className="p-8 text-center">
-                        <Text className="text-ui-fg-muted text-lg">No se encontraron clientes con los filtros seleccionados</Text>
+                        <Text className="text-ui-fg-muted text-lg">No se encontraron pacientes con los filtros seleccionados</Text>
                     </Container>
                 ) : (
                     Object.entries(grouped).sort(([a], [b]) => {
-                        if (a === "Sin Empresa") return 1;
-                        if (b === "Sin Empresa") return -1;
+                        if (a === "Sin empresa") return 1;
+                        if (b === "Sin empresa") return -1;
                         return a.localeCompare(b);
                     }).map(([company, custs]) => (
                         <Container key={company} className="p-0 rounded-lg border border-ui-border-base overflow-hidden">
                             {/* Company header */}
                             <div className="px-6 py-4 bg-ui-bg-subtle border-b border-ui-border-base flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <span className="text-xl">{company === "Sin Empresa" ? "" : ""}</span>
+                                    <span className="text-xl">{company === "Sin empresa" ? "" : ""}</span>
                                     <Heading level="h2" className="text-ui-fg-base text-base font-semibold">
                                         {company}
                                     </Heading>
                                 </div>
-                                <Badge color={company === "Sin Empresa" ? "grey" : "blue"} size="small">
-                                    {(custs as any[]).length} {(custs as any[]).length === 1 ? "cliente" : "clientes"}
+                                <Badge color={company === "Sin empresa" ? "grey" : "blue"} size="small">
+                                    {(custs as any[]).length} {(custs as any[]).length === 1 ? "paciente" : "pacientes"}
                                 </Badge>
                             </div>
 
                             {/* Customers table */}
+                            <div style={{ overflowX: "auto", width: "100%" }}>
+                                {/* Scroll horizontal: la tabla es mas ancha que una tableta en vertical y,
+                                    sin este contenedor, las columnas de la derecha se recortan sin manera
+                                    de llegar a ellas. */}
                             <Table>
                                 <Table.Header>
                                     <Table.Row>
@@ -182,6 +195,7 @@ const CustomersByCompanyPage = () => {
                                     ))}
                                 </Table.Body>
                             </Table>
+                            </div>
                         </Container>
                     ))
                 )}
@@ -191,7 +205,7 @@ const CustomersByCompanyPage = () => {
 };
 
 export const config = defineRouteConfig({
-    label: "Clientes por Empresa",
+    label: "Pacientes por empresa",
     icon: undefined,
 });
 

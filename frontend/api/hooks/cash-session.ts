@@ -76,7 +76,7 @@ export const useCurrentCashSession = () => {
 /**
  * Lista el historial de sesiones de caja
  */
-export const useCashSessions = (params?: { status?: string; limit?: number }) => {
+export const useCashSessions = (params?: { status?: string; limit?: number; from?: string; to?: string }) => {
   const sdk = useMedusaSdk();
 
   return useQuery({
@@ -85,6 +85,11 @@ export const useCashSessions = (params?: { status?: string; limit?: number }) =>
       const searchParams = new URLSearchParams();
       if (params?.status) searchParams.set('status', params.status);
       if (params?.limit) searchParams.set('limit', String(params.limit));
+      // El rango lo aplica el servidor sobre la apertura del turno; la firma
+      // ya lo admitía pero no lo mandaba, así que «Cortes anteriores» y la
+      // pantalla de Auditoría recibían siempre los últimos.
+      if (params?.from) searchParams.set('from', params.from);
+      if (params?.to) searchParams.set('to', params.to);
 
       const response = await sdk.client.fetch<{ sessions: CashSession[] }>(
         `/admin/cash-sessions?${searchParams.toString()}`
@@ -242,6 +247,26 @@ export const useAddCashMovement = () => {
     },
     onError: (error) => {
       showErrorToast(error);
+    },
+  });
+};
+
+/** Estadísticas por periodo a partir de los turnos cerrados (ver lib/caja.ts). */
+export interface PeriodoDeCaja extends CashSessionSummary {
+  periodo: string;
+  desde: string;
+  hasta: string;
+  sesiones: number;
+  cajeros: string[];
+}
+
+export const useCashStats = (params: { from?: string; to?: string; group: 'day' | 'week' | 'month' }) => {
+  const sdk = useMedusaSdk();
+  return useQuery({
+    queryKey: ['cash-session', 'stats', params],
+    queryFn: async () => {
+      const r = await sdk.client.fetch<{ periods: PeriodoDeCaja[]; sessions_counted: number }>('/admin/cash-sessions/stats', { query: params });
+      return r;
     },
   });
 };

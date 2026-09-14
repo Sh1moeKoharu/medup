@@ -75,26 +75,26 @@ const StockLocationCreateForm: React.FC<StockLocationCreateFormProps> = ({ onSto
 
       <TextField name="company" floatingPlaceholder placeholder="Empresa (opcional)" />
 
-      <TextField name="phone" floatingPlaceholder placeholder="Phone (optional)" />
+      <TextField name="phone" floatingPlaceholder placeholder="Teléfono (opcional)" />
 
-      <TextField name="address_1" floatingPlaceholder placeholder="Address Line 1" />
+      <TextField name="address_1" floatingPlaceholder placeholder="Calle y número" />
 
-      <TextField name="address_2" floatingPlaceholder placeholder="Address Line 2 (optional)" />
+      <TextField name="address_2" floatingPlaceholder placeholder="Interior o referencia (opcional)" />
 
-      <TextField name="postal_code" floatingPlaceholder placeholder="Postal Code (optional)" />
+      <TextField name="postal_code" floatingPlaceholder placeholder="Código postal (opcional)" />
 
-      <TextField name="city" floatingPlaceholder placeholder="City (optional)" />
+      <TextField name="city" floatingPlaceholder placeholder="Ciudad (opcional)" />
 
       <SelectField
         floatingPlaceholder
         name="country_code"
-        placeholder="Country"
+        placeholder="País"
         options={countryOptions}
         searchable={true}
         className="mb-2"
       />
 
-      <ProvinceField name="province" countryFieldName="country_code" placeholder="Province/State (optional)" />
+      <ProvinceField name="province" countryFieldName="country_code" placeholder="Estado (opcional)" />
 
       <FormButton isPending={createStockLocation.isPending}>Crear ubicación de inventario</FormButton>
     </Form>

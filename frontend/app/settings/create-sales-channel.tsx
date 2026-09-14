@@ -10,7 +10,7 @@ export default function CreateSalesChannelScreen() {
 
   return (
     <LayoutWithKeyboardAvoidingScroll>
-      <Text className="mb-6 text-4xl">Setting Up</Text>
+      <Text className="mb-6 text-4xl">Configuración</Text>
       <Text className="mb-2 text-2xl">Crear un canal de venta</Text>
       <Text className="mb-6 text-gray-300">Completa los datos para crear un canal de venta.</Text>
 

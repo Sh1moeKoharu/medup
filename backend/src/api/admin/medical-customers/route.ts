@@ -1,11 +1,36 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
+/**
+ * GET /admin/medical-customers — Pacientes con su expediente.
+ *
+ * ── SE PAGINA EN EL SERVIDOR ────────────────────────────────────────────────
+ * Antes esta ruta traía TODOS los pacientes, con su expediente completo, y
+ * filtraba por empresa en memoria. Con una docena de pacientes de prueba no se
+ * nota; con el padrón real de una clínica se convierte en una consulta que
+ * crece sin techo y en una respuesta que carga historiales que nadie pidió.
+ *
+ * ── LA LISTA DE EMPRESAS ────────────────────────────────────────────────────
+ * El desplegable de empresas necesita el catálogo COMPLETO, no sólo el de la
+ * página actual, o al pasar a la página 2 desaparecerían opciones. Se resuelve
+ * con una consulta aparte que pide únicamente ese campo, en lugar de derivarlo
+ * de traerlo todo.
+ *
+ * Query: ?company_name=…&limit=50&offset=0
+ */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
     try {
         const query = req.scope.resolve("query")
-        const companyFilter = (req.query as any).company_name
 
-        const { data: customers } = await query.graph({
+        const {
+            company_name: companyFilter,
+            limit = "50",
+            offset = "0",
+        } = req.query as Record<string, string>
+
+        const take = Math.min(Math.max(Number(limit) || 50, 1), 200)
+        const skip = Math.max(Number(offset) || 0, 0)
+
+        const { data: customers, metadata } = await query.graph({
             entity: "customer",
             fields: [
                 "id",
@@ -16,15 +41,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 "company_name",
                 "medical_customer.*",
             ],
+            pagination: { take, skip },
         })
 
-        // Map them clearly by Customer ID, using medical_customer.company_name
-        // with fallback to the native customer.company_name for sync
-        let result = customers.map((c: any) => {
-            const medCompany = c.medical_customer?.company_name
-            const nativeCompany = c.company_name
-            // Prefer medical_customer.company_name, fall back to native
-            const effectiveCompany = medCompany || nativeCompany || null
+        const conEmpresaEfectiva = (customers ?? []).map((c: any) => {
+            // Se prefiere la del expediente y se cae a la nativa del cliente:
+            // las dos existen y pueden discrepar según por dónde se dio de alta.
+            const empresa = c.medical_customer?.company_name || c.company_name || null
 
             return {
                 id: c.id,
@@ -32,31 +55,53 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 last_name: c.last_name,
                 email: c.email,
                 phone: c.phone,
-                company_name: nativeCompany,
+                company_name: c.company_name,
                 medical_customer: c.medical_customer
-                    ? { ...c.medical_customer, company_name: effectiveCompany }
-                    : nativeCompany
-                        ? { company_name: effectiveCompany }
+                    ? { ...c.medical_customer, company_name: empresa }
+                    : empresa
+                        ? { company_name: empresa }
                         : null,
             }
         })
 
-        // Filter by company name if provided
-        if (companyFilter) {
-            result = result.filter((c: any) =>
-                c.medical_customer?.company_name?.toLowerCase().includes(companyFilter.toLowerCase())
-            )
-        }
+        /**
+         * El filtro por empresa sigue aplicándose en memoria sobre la página.
+         *
+         * No es lo ideal, y se documenta en vez de disimularlo: la empresa vive
+         * en DOS sitios (el expediente y el campo nativo del cliente) y hay que
+         * mirar los dos, cosa que la consulta no sabe hacer en un solo paso.
+         * Unificar ese dato en una sola columna es lo que permitiría filtrar en
+         * la base, y es trabajo aparte.
+         */
+        const result = companyFilter
+            ? conEmpresaEfectiva.filter((c: any) =>
+                  c.medical_customer?.company_name
+                      ?.toLowerCase()
+                      .includes(String(companyFilter).toLowerCase())
+              )
+            : conEmpresaEfectiva
 
-        // Extract unique company names for the filter dropdown
-        // Consider both medical_customer.company_name and native company_name
-        const companies = [...new Set(
-            customers
-                .map((c: any) => c.medical_customer?.company_name || c.company_name)
-                .filter(Boolean)
-        )]
+        // Catálogo completo de empresas, para el desplegable.
+        const { data: todos } = await query.graph({
+            entity: "customer",
+            fields: ["company_name", "medical_customer.company_name"],
+        })
 
-        res.json({ medical_customers: result, companies })
+        const companies = [
+            ...new Set(
+                (todos ?? [])
+                    .map((c: any) => c.medical_customer?.company_name || c.company_name)
+                    .filter(Boolean)
+            ),
+        ].sort()
+
+        res.json({
+            medical_customers: result,
+            companies,
+            count: metadata?.count ?? result.length,
+            limit: take,
+            offset: skip,
+        })
     } catch (error: any) {
         res.status(500).json({ error: error.message })
     }

@@ -2,13 +2,15 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import * as crypto from "crypto"
 import { ROLES, ROLE_LABELS, normalizeRole } from "../lib/roles"
+import { TEST_USERS } from "../lib/test-users"
+import { aIdentificador, aUsuario, revisarUsuario } from "../lib/usuarios"
 
 /**
  * Crea la cuenta de administrador real del cliente.
  *
- *   npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx
- *   npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx nombre=Ana apellido=Torres
- *   npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx clave='LaQueYoElija'
+ *   npx medusa exec ./src/scripts/crear-admin.ts usuario=director
+ *   npx medusa exec ./src/scripts/crear-admin.ts usuario=director nombre=Ana apellido=Torres
+ *   npx medusa exec ./src/scripts/crear-admin.ts usuario=director clave='LaQueYoElija'
  *
  * ── POR QUÉ ESTE SCRIPT Y NO `npx medusa user` ──────────────────────────────
  * `medusa user` crea la cuenta pero NO le pone rol, y en este sistema el rol
@@ -48,7 +50,11 @@ export default async function crearAdmin({ container, args }: ExecArgs) {
     return encontrado ? encontrado.slice(clave.length + 1) : undefined
   }
 
-  const correo = (valor("correo") ?? valor("email"))?.trim().toLowerCase()
+  // Se sigue admitiendo `correo=` para no romper notas de instalación
+  // antiguas: si lo que llega trae arroba, se guarda tal cual.
+  const tecleado = (valor("usuario") ?? valor("correo") ?? valor("email"))
+    ?.trim()
+    .toLowerCase()
   const nombre = valor("nombre") ?? "Administrador"
   const apellido = valor("apellido") ?? ""
   const claveManual = valor("clave") ?? valor("password")
@@ -57,26 +63,32 @@ export default async function crearAdmin({ container, args }: ExecArgs) {
   console.log("=== ALTA DE ADMINISTRADOR ===")
   console.log("")
 
-  if (!correo) {
-    console.error("Falta el correo. Uso:")
-    console.error("   npx medusa exec ./src/scripts/crear-admin.ts correo=director@clinica.mx")
+  if (!tecleado) {
+    console.error("Falta el usuario. Uso:")
+    console.error("   npx medusa exec ./src/scripts/crear-admin.ts usuario=director")
     console.error("")
     console.error("Opcionales: nombre=Ana apellido=Torres clave='LaQueYoElija'")
     return
   }
 
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) {
-    console.error(`"${correo}" no parece un correo válido.`)
-    return
+  if (!tecleado.includes("@")) {
+    const problema = revisarUsuario(tecleado)
+    if (problema) {
+      console.error(problema)
+      return
+    }
   }
 
-  // Las cuentas .test son las de prueba, con contraseña pública en el
-  // repositorio. Crear un administrador ahí sería repetir el problema que
-  // estamos cerrando.
-  if (correo.endsWith(".test")) {
+  const correo = aIdentificador(tecleado)
+  const usuario = aUsuario(correo)
+
+  // Las cuentas de prueba llevan contraseña pública en el repositorio. Crear el
+  // administrador real reusando uno de esos nombres sería repetir justo el
+  // problema que este script existe para cerrar.
+  if (TEST_USERS.some((u) => u.username === usuario)) {
     console.error("")
-    console.error(`El dominio de "${correo}" es de pruebas.`)
-    console.error("El administrador real necesita un correo real del cliente.")
+    console.error(`"${usuario}" es una de las cuentas de PRUEBA, cuya contraseña está`)
+    console.error("en el repositorio. El administrador real necesita un usuario propio.")
     return
   }
 
@@ -155,9 +167,12 @@ export default async function crearAdmin({ container, args }: ExecArgs) {
   console.log("")
   console.log("  Cuenta creada. Esta contraseña NO se vuelve a mostrar.")
   console.log("")
-  console.log(`     Correo      : ${correo}`)
+  console.log(`     Usuario     : ${usuario}`)
   console.log(`     Contraseña  : ${clave}`)
   console.log(`     Rol         : ${ROLE_LABELS[ROLES.ADMIN]}`)
+  console.log("")
+  console.log(`  Se escribe sólo "${usuario}", tanto en el punto de venta como en el`)
+  console.log(`  panel. Por dentro queda guardado como ${correo}.`)
   console.log("")
   console.log("  Guárdala AHORA en un gestor de contraseñas.")
   console.log("  El sistema sólo almacena su hash: si se pierde, no se recupera.")

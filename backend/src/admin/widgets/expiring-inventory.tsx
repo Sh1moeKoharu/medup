@@ -1,5 +1,6 @@
+import { sinVarianteUnica } from "../lib/titulos";
 import { defineWidgetConfig } from "@medusajs/admin-sdk";
-import { Badge, Container, Heading, Text } from "@medusajs/ui";
+import { Badge, Button, Container, Heading, Text } from "@medusajs/ui";
 import { useEffect, useState } from "react";
 
 /**
@@ -22,6 +23,7 @@ type Item = {
     expiration_date: string;
     quantity: number;
     shelf_location: string | null;
+    stock_location_name: string | null;
     status: string;
     days_left: number;
     tier: Tier;
@@ -39,6 +41,14 @@ const ExpirationWidget = () => {
     const [summary, setSummary] = useState<Record<string, { batches: number; units: number }> | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [almacenes, setAlmacenes] = useState<{ id: string; name: string }[]>([]);
+
+    useEffect(() => {
+        fetch("/admin/stock-locations?fields=id,name&limit=50", { credentials: "include" })
+            .then((r) => r.json())
+            .then((d) => setAlmacenes(d.stock_locations ?? []))
+            .catch(() => undefined);
+    }, []);
 
     useEffect(() => {
         fetch("/admin/expiring-inventory?days=90", { credentials: "include" })
@@ -66,6 +76,19 @@ const ExpirationWidget = () => {
             <Heading level="h2" className="text-ui-fg-base mb-2 flex items-center gap-2">
                 <span></span>Lotes próximos a caducar (90 días)
             </Heading>
+
+            {/* Exportación para el recorrido físico del anaquel: un CSV por
+                almacén, con los tramos de 30/60/90 y lo ya caducado. */}
+            <div className="flex flex-wrap gap-2 mb-3">
+                <Button size="small" variant="secondary" onClick={() => window.open("/admin/expiring-inventory/export", "_blank")}>
+                    Exportar CSV (todos)
+                </Button>
+                {almacenes.map((a) => (
+                    <Button key={a.id} size="small" variant="secondary" onClick={() => window.open(`/admin/expiring-inventory/export?stock_location_id=${encodeURIComponent(a.id)}`, "_blank")}>
+                        CSV · {a.name}
+                    </Button>
+                ))}
+            </div>
 
             {loading && <Text>Cargando inventario...</Text>}
 
@@ -107,9 +130,10 @@ const ExpirationWidget = () => {
                                             ? `hace ${Math.abs(item.days_left)}d`
                                             : `${item.days_left}d`}
                                     </Badge>
-                                    <span className="font-semibold text-ui-fg-base">{item.title}</span>
+                                    <span className="font-semibold text-ui-fg-base">{sinVarianteUnica(item.title)}</span>
                                     <span className="text-ui-fg-muted text-sm">
                                         Lote {item.batch_number} · {item.quantity} u.
+                                        {item.stock_location_name ? ` · ${item.stock_location_name}` : ""}
                                         {item.shelf_location ? ` · ${item.shelf_location}` : ""}
                                     </span>
                                     <span className="text-ui-fg-muted text-sm">

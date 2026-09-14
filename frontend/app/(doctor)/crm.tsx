@@ -1,6 +1,9 @@
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
+import { useNotasDeAtencion } from '@/api/hooks/clinica';
+import { useOrdenesMedicas } from '@/api/hooks/medical-orders';
+import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
@@ -14,28 +17,100 @@ import { ActivityIndicator, Modal, SafeAreaView, ScrollView, TouchableOpacity, V
 
 type CustomerWithMedical = AdminCustomer & { medical_customer?: any };
 
-const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical; onClose: () => void }) => {
+const fechaCorta = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+/**
+ * Lo que quien atiende necesita ver del paciente antes de la consulta: las
+ * notas de atención anteriores y las recetas que se le han emitido. Antes la
+ * ficha sólo enseñaba los datos de contacto y, si lo había, el expediente; se
+ * vio en el manual del médico, con una paciente con quince notas y la ficha
+ * en blanco.
+ */
+const HistorialClinico = ({ customerId }: { customerId: string }) => {
+    const notas = useNotasDeAtencion({ customer_id: customerId });
+    const recetas = useOrdenesMedicas({ customer_id: customerId });
+    const listaNotas = notas.data ?? [];
+    const listaRecetas = [...(recetas.data ?? [])].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const ESTADO: Record<string, string> = { pending: 'Pendiente', dispensed: 'Surtida', cancelled: 'Cancelada' };
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
+        <>
+            <Text className="mb-2 text-2xl">Notas de atención</Text>
+            {notas.isLoading ? (
+                <Text className="mb-6 text-gray-400">Cargando…</Text>
+            ) : listaNotas.length === 0 ? (
+                <Text className="mb-6 text-gray-400">Sin notas de atención todavía.</Text>
+            ) : (
+                <View className="mb-6 gap-2">
+                    {listaNotas.slice(0, 10).map((n) => (
+                        <View key={n.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                            <Text className="text-xs text-gray-400">{fechaCorta(n.created_at)} · {n.author_name ?? 'quien atendió'}</Text>
+                            <Text className="mt-1 text-gray-800">{n.content}</Text>
+                        </View>
+                    ))}
+                    {listaNotas.length > 10 && <Text className="text-sm text-gray-400">Se muestran las 10 más recientes de {listaNotas.length}.</Text>}
+                </View>
+            )}
+
+            <Text className="mb-2 text-2xl">Recetas anteriores</Text>
+            {recetas.isLoading ? (
+                <Text className="mb-6 text-gray-400">Cargando…</Text>
+            ) : listaRecetas.length === 0 ? (
+                <Text className="mb-6 text-gray-400">Sin recetas todavía.</Text>
+            ) : (
+                <View className="mb-6 gap-2">
+                    {listaRecetas.slice(0, 10).map((o) => (
+                        <View key={o.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                            <View className="flex-row items-start justify-between gap-3">
+                                <Text className="text-xs text-gray-400">{fechaCorta(o.created_at)} · {o.creator_name ?? 'médico'} · {o.recipient_area === 'nursing' ? 'consulta' : 'mostrador'}</Text>
+                                <Text className="text-xs text-gray-500">{ESTADO[o.status] ?? o.status}</Text>
+                            </View>
+                            {o.items.map((i) => (
+                                <Text key={i.id} className="mt-1 text-gray-800">
+                                    {i.quantity} × {i.product_title ?? i.variant_id}{i.instructions ? ` · ${i.instructions}` : ''}
+                                </Text>
+                            ))}
+                        </View>
+                    ))}
+                </View>
+            )}
+        </>
+    );
+};
+
+const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWithMedical; onClose: () => void; onEdit: () => void }) => {
+
+    return (
+        <SafeAreaView className="flex-1 bg-canvas">
             <Layout className="flex-1 pb-6 mt-4">
+              <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="mb-6 flex-row items-center justify-between">
-                    <Text className="text-4xl text-black">Perfil del Paciente</Text>
-                    <TouchableOpacity onPress={onClose} className="rounded-full bg-gray-100 px-4 py-2">
-                        <Text className="font-semibold text-gray-700">Cerrar</Text>
-                    </TouchableOpacity>
+                    <Text className="text-4xl text-black">Perfil del paciente</Text>
+                    <View className="flex-row items-center gap-2">
+                        {/* Quien atiende corrige datos del paciente en consulta: un
+                            teléfono, un apellido. Es el mismo formulario que usa Caja. */}
+                        <TouchableOpacity onPress={onEdit} className="rounded-full bg-info-200 px-4 py-2">
+                            <Text className="font-semibold text-info-500">Editar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={onClose} className="rounded-full bg-gray-100 px-4 py-2">
+                            <Text className="font-semibold text-gray-700">Cerrar</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <View className="mb-6 rounded-2xl border border-gray-200 p-6 bg-gray-50">
-                    <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin Nombre'}</Text>
+                    <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin nombre'}</Text>
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
                         if (!medRecord) return null;
                         return (
                             <View className="mb-3 flex-row items-center">
-                                <View className={`rounded-full px-2 py-1 ${medRecord.customer_type === 'b2b' ? 'bg-purple-100' : 'bg-green-100'}`}>
-                                    <Text className={`text-xs font-bold ${medRecord.customer_type === 'b2b' ? 'text-purple-700' : 'text-green-700'}`}>
+                                <View className={`rounded-full px-2 py-1 ${medRecord.customer_type === 'b2b' ? 'bg-info-200' : 'bg-gray-100'}`}>
+                                    <Text className={`text-xs font-bold ${medRecord.customer_type === 'b2b' ? 'text-info-500' : 'text-gray-500'}`}>
                                         {medRecord.customer_type === 'b2b' ? 'B2B / Hospital' : 'B2C / Paciente'}
                                     </Text>
                                 </View>
@@ -51,11 +126,11 @@ const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical;
                         const medRecord = (customer as any).medical_customer;
                         if (!medRecord?.medical_history && !medRecord?.insurance_policy) return null;
                         return (
-                            <View className="mt-4 p-4 bg-white rounded-xl border border-blue-200">
-                                <Text className="font-bold text-blue-900 mb-2">Expediente Médico</Text>
+                            <View className="mt-4 p-4 bg-white rounded-xl border border-info-300">
+                                <Text className="font-bold text-info-500 mb-2">Expediente médico</Text>
                                 {medRecord.insurance_policy && <Text className="text-sm text-gray-700 mb-2 font-medium">No. Póliza: {medRecord.insurance_policy}</Text>}
                                 {medRecord.medical_history && (
-                                    <View className="mt-2 p-3 bg-blue-50 rounded-lg">
+                                    <View className="mt-2 p-3 bg-info-200 rounded-xl">
                                         <Text className="text-sm text-gray-800 tracking-wide leading-relaxed">{typeof medRecord.medical_history === 'string' ? medRecord.medical_history : JSON.stringify(medRecord.medical_history)}</Text>
                                     </View>
                                 )}
@@ -63,6 +138,9 @@ const CustomerDetails = ({ customer, onClose }: { customer: CustomerWithMedical;
                         );
                     })()}
                 </View>
+
+                <HistorialClinico customerId={customer.id} />
+              </ScrollView>
             </Layout>
         </SafeAreaView>
     );
@@ -73,6 +151,7 @@ export default function DoctorCRMScreen() {
   // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
   const busqueda = useDebouncedValue(searchQuery);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithMedical | null>(null);
+    const [editando, setEditando] = useState(false);
     const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
 
     const customersQuery = useCustomers({
@@ -105,22 +184,22 @@ export default function DoctorCRMScreen() {
                         activeOpacity={0.7}
                         onPress={() => setSelectedCustomer(item)}
                     >
-                        <View className="h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-                            <UserRound size={24} className="text-blue-500" />
+                        <View className="h-12 w-12 items-center justify-center rounded-full bg-info-200">
+                            <UserRound size={24} className="text-info-500" />
                         </View>
                         <View className="flex-1">
                             <View className="flex-row items-center gap-2">
-                                <Text className="text-lg font-semibold">{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Paciente Sin Nombre'}</Text>
+                                <Text className="text-lg font-semibold">{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Paciente sin nombre'}</Text>
                                 {item.has_account && (
-                                    <View className="rounded-full bg-blue-100 px-2 py-0.5">
-                                        <Text className="text-xs font-bold text-blue-700">Cuenta</Text>
+                                    <View className="rounded-full bg-info-200 px-2 py-0.5">
+                                        <Text className="text-xs font-bold text-info-500">Cuenta</Text>
                                     </View>
                                 )}
                             </View>
                             {item.phone && <Text className="text-gray-500">{item.phone}</Text>}
                         </View>
                         <View className="items-end">
-                            <Text className="font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full overflow-hidden">Historial &rarr;</Text>
+                            <Text className="font-medium text-info-500 bg-info-200 px-3 py-1 rounded-full overflow-hidden">Historial &rarr;</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -131,7 +210,7 @@ export default function DoctorCRMScreen() {
 
     return (
         <Layout>
-            <Text className="mt-8 mb-6 text-4xl">Pacientes / Directorio</Text>
+            <Text className="mt-8 mb-6 text-4xl">Pacientes</Text>
 
             <SearchInput
                 value={searchQuery}
@@ -158,9 +237,18 @@ export default function DoctorCRMScreen() {
 
             <Modal visible={!!selectedCustomer} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setSelectedCustomer(null)}>
                 {selectedCustomer && (
-                    <CustomerDetails customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
+                    <CustomerDetails customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} onEdit={() => setEditando(true)} />
                 )}
             </Modal>
+
+            {editando && selectedCustomer && (
+                <FormularioPaciente
+                    visible={editando}
+                    customer={selectedCustomer}
+                    onClose={() => setEditando(false)}
+                    onSaved={(actualizado) => setSelectedCustomer((previo) => (previo ? { ...previo, ...actualizado } : previo))}
+                />
+            )}
         </Layout>
     );
 }

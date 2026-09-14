@@ -13,6 +13,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Text } from '@/components/ui/Text';
 import { clx } from '@/utils/clx';
 import { AdminCustomer } from '@medusajs/types';
+import { useReceta } from '@/contexts/receta';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as React from 'react';
 import { FlatList, TouchableOpacity, View } from 'react-native';
@@ -82,7 +83,7 @@ const NuevoPacienteForm: React.FC<{
           en el camino del clic y no en el del foco. */}
       <TextField
         name="email"
-        placeholder="Correo Electrónico"
+        placeholder="Correo electrónico"
         autoComplete="off"
         autoCapitalize="none"
         inputMode="email"
@@ -90,7 +91,7 @@ const NuevoPacienteForm: React.FC<{
       />
       <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
       <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
-      <TextField name="phone" placeholder="Número de Teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
+      <TextField name="phone" placeholder="Número de teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
       <FormButton>Crear y asignar</FormButton>
       <Button variant="outline" className="mt-2" onPress={onCancelar}>
         Volver a la búsqueda
@@ -155,7 +156,7 @@ const CustomersList: React.FC<{
               customerName.length > 0
                 ? {
                   'text-gray-300': true,
-                  'text-gray-400': selectedCustomerId === item.id,
+                  'text-gray-100': selectedCustomerId === item.id,
                 }
                 : {
                   'text-white': selectedCustomerId === item.id,
@@ -183,7 +184,7 @@ const CustomersList: React.FC<{
   }, [customersQuery]);
 
   if (customersQuery.isError) {
-    return <InfoBanner colorScheme="error">Error cargando clientes. Por favor, intenta de nuevo.</InfoBanner>;
+    return <InfoBanner colorScheme="error">Error cargando pacientes. Por favor, intenta de nuevo.</InfoBanner>;
   }
 
   return (
@@ -198,9 +199,9 @@ const CustomersList: React.FC<{
         <View className="items-center justify-center gap-2 px-4 py-10">
           <CircleAlert size={24} />
           {typeof q === 'string' && q.length > 1 ? (
-            <Text className="text-center">Ningún cliente coincide{'\n'}con la búsqueda</Text>
+            <Text className="text-center">Ningún paciente coincide{'\n'}con la búsqueda</Text>
           ) : (
-            <Text className="text-center">No se encontraron clientes</Text>
+            <Text className="text-center">No se encontraron pacientes</Text>
           )}
         </View>
       }
@@ -241,17 +242,30 @@ const CustomersList: React.FC<{
 export default function CustomerLookupScreen() {
   const params = useLocalSearchParams<{
     customerId?: string;
+    /** 'receta': el paciente va a la receta del área médica, no al carrito de caja. */
+    destino?: 'receta';
   }>();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | undefined>(params.customerId);
   const [selectedCustomer, setSelectedCustomer] = React.useState<AdminCustomer>();
   const updateDraftOrderCustomer = useUpdateDraftOrderCustomer();
+  const receta = useReceta();
+
+  // Desde la receta (médico/enfermería) el paciente se guarda en local; el
+  // área médica no puede tocar pedidos en borrador y antes esto daba 403.
+  const asignar = (customer: AdminCustomer) => {
+    if (params.destino === 'receta') {
+      receta.asignarPaciente(customer);
+    } else {
+      updateDraftOrderCustomer.mutate(customer);
+    }
+  };
 
   // Un solo cuadro con dos contenidos, en lugar de dos cuadros anidados.
   const [modo, setModo] = React.useState<'buscar' | 'nuevo'>('buscar');
 
   const asignarYSalir = (customer: AdminCustomer) => {
-    updateDraftOrderCustomer.mutate(customer);
+    asignar(customer);
     router.back();
   };
 
@@ -263,7 +277,7 @@ export default function CustomerLookupScreen() {
       // disputaban el foco sin parar.
       comoRuta
       visible={true}
-      title={modo === 'nuevo' ? 'Nuevo Paciente' : 'Búsqueda de Cliente'}
+      title={modo === 'nuevo' ? 'Nuevo paciente' : 'Búsqueda de paciente'}
       containerClassName="max-w-2xl"
       onClose={() => router.back()}
       dismissOnOverlayPress={true}
@@ -283,11 +297,15 @@ export default function CustomerLookupScreen() {
               <SearchInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Buscar clientes..."
+                placeholder="Buscar pacientes..."
               />
             </View>
             <Button variant="outline" onPress={() => setModo('nuevo')}>
-              Añadir Nuevo Cliente
+              {/* Etiqueta corta a proposito: con "Anadir Nuevo paciente" el boton
+                  se comia la fila y a 375 px el buscador quedaba en 83 px, mostrando
+                  solo "Bus". Es ademas el mismo texto que usa el directorio para
+                  esta misma accion. */}
+              Nuevo paciente
             </Button>
           </View>
 
@@ -309,7 +327,7 @@ export default function CustomerLookupScreen() {
               }
 
               if (selectedCustomer) {
-                updateDraftOrderCustomer.mutate(selectedCustomer);
+                asignar(selectedCustomer);
               }
 
               router.back();
@@ -319,7 +337,7 @@ export default function CustomerLookupScreen() {
               ? 'Elige un paciente de la lista'
               : selectedCustomer
                 ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || selectedCustomer.email}`
-                : 'Asignar cliente'}
+                : 'Asignar paciente'}
           </Button>
         </>
       )}

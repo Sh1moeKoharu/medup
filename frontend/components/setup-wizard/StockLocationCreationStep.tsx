@@ -23,7 +23,7 @@ export const StockLocationCreationStep: React.FC<StockLocationCreationStepProps>
       <Text className="mb-6 text-4xl">Configuración inicial</Text>
       <Text className="mb-2 text-2xl">Crea una ubicación de inventario</Text>
       <Text className="mb-6 text-gray-300">
-        Select where inventory will be sourced from, or add a new location if needed.
+        Elige de qué almacén sale el inventario, o añade uno nuevo si hace falta.
       </Text>
 
       <StockLocationCreateForm onStockLocationCreated={handleStockLocationCreated} />

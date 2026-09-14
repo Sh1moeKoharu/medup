@@ -1,18 +1,33 @@
-import { Link, Stack } from 'expo-router';
+import { Button } from '@/components/ui/Button';
+import { PantallaDeAviso, ParrafoDeAviso } from '@/components/ui/PantallaDeAviso';
+import { Stack, useRouter } from 'expo-router';
 
-import { Text } from '@/components/ui/Text';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+/**
+ * La dirección no existe.
+ *
+ * Antes era un `SafeAreaView` sin fondo, así que se pintaba sobre el blanco del
+ * navegador en vez de sobre el lienzo, y el título del navegador decía «Oops!»,
+ * en inglés y en una aplicación que no habla así.
+ *
+ * La salida es un botón de verdad y no un enlace de texto: en una tableta, un
+ * renglón subrayado es un objetivo de 20 px que se falla de pie.
+ */
 export default function NotFoundScreen() {
+  const router = useRouter();
+
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
-      <SafeAreaView className="flex-1 items-center justify-center p-5">
-        <Text className="text-3xl">Esta pantalla no existe.</Text>
-        <Link href="/" className="mt-4 py-4">
-          <Text className="text-gray-400">Ir al inicio</Text>
-        </Link>
-      </SafeAreaView>
+      <Stack.Screen options={{ title: 'Página no encontrada' }} />
+      <PantallaDeAviso
+        titulo="Esta pantalla no existe"
+        acciones={<Button onPress={() => router.replace('/')}>Ir al inicio</Button>}
+      >
+        <ParrafoDeAviso>
+          La dirección que abriste no corresponde a ninguna pantalla del punto de
+          venta. Puede que el enlace esté mal escrito o que sea de una versión
+          anterior.
+        </ParrafoDeAviso>
+      </PantallaDeAviso>
     </>
   );
 }

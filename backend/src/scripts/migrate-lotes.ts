@@ -1,3 +1,4 @@
+import { almacenDeFarmacia } from "../lib/almacenes"
 import { MedusaContainer } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 
@@ -5,6 +6,10 @@ export default async function migrateLotesJob({ container }: { container: Medusa
     const logger = container.resolve("logger");
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const medicalInventoryService = container.resolve("medical_inventory");
+  const farmacia = await almacenDeFarmacia(container as any)
+  if (!farmacia) {
+    throw new Error("No hay almacén de Farmacia. Corre `npx medusa exec ./src/scripts/preparar-almacenes.ts confirm` primero.")
+  }
 
     logger.info("Migrating old metadata Lotes to MedicalBatches...");
 
@@ -33,7 +38,8 @@ export default async function migrateLotesJob({ container }: { container: Medusa
                     batch_number: String(product.metadata.lote),
                     expiration_date: new Date(String(product.metadata.caducidad)),
                     quantity: Number(product.metadata.cantidad_recibida) || 100, // Default to 100 if they didn't specify
-                    variant_id: variantId
+                    variant_id: variantId,
+                    stock_location_id: farmacia.id,
                 });
 
                 migratedCount++;

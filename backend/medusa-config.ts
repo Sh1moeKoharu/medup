@@ -1,6 +1,8 @@
 import { defineConfig, loadEnv } from '@medusajs/framework/utils'
 import * as nodePath from 'path'
 import { HIDDEN_MENU_ROUTES } from './src/lib/menu-policy'
+import { CSS_TEMA_ADMIN } from "./src/lib/tema-admin"
+import { DOMINIO_INTERNO } from "./src/lib/usuarios"
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -259,17 +261,22 @@ module.exports = defineConfig({
            * botón siempre visible se pulsa sin querer, y aquí perder la sesión
            * a media captura cuesta trabajo rehecho.
            */
+          // El color del texto del botón sale de `--contrast-fg-primary`, que es
+          // el token que Medusa usa para SU botón principal: así este va a juego
+          // en los dos temas. Con `--fg-on-inverted` quedaba texto oscuro sobre
+          // botón oscuro en modo oscuro.
           const salirScript = `<script data-altus-salir>(function(){try{
 var CSS='#altus-salir{position:fixed;right:16px;bottom:16px;z-index:2147483000;'+
 'display:flex;gap:8px;align-items:center;font:500 12px/1.2 system-ui,sans-serif}'+
-'#altus-salir .p{background:#fff;border:1px solid #e5e7eb;'+
-'border-radius:999px;padding:7px 13px;color:#6b7280;white-space:nowrap;'+
+'#altus-salir .p{background:var(--bg-base);border:1px solid var(--border-base);'+
+'border-radius:999px;padding:7px 13px;color:var(--fg-muted);white-space:nowrap;'+
 'box-shadow:0 1px 3px rgba(0,0,0,.08)}'+
-'#altus-salir button{cursor:pointer;border:1px solid #d1d5db;border-radius:999px;'+
-'padding:7px 15px;background:#111827;color:#fff;font:inherit;font-weight:600;'+
-'box-shadow:0 1px 3px rgba(0,0,0,.18)}'+
-'#altus-salir button:hover{background:#000}'+
-'#altus-salir button.rojo{background:#dc2626;border-color:#dc2626;color:#fff}';
+'#altus-salir button{cursor:pointer;border:1px solid var(--border-base);border-radius:999px;'+
+'padding:7px 15px;background:var(--button-inverted);color:var(--contrast-fg-primary);'+
+'font:inherit;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.18)}'+
+'#altus-salir button:hover{background:var(--button-inverted-hover)}'+
+'#altus-salir button.rojo{background:var(--button-danger);'+
+'border-color:var(--button-danger);color:var(--fg-on-color)}';
 function montar(nombre){
   if(document.getElementById('altus-salir'))return;
   var st=document.createElement('style');st.setAttribute('data-altus-salir','');
@@ -293,19 +300,210 @@ function montar(nombre){
   };
   c.appendChild(quien);c.appendChild(b);document.body.appendChild(c);
 }
-fetch('/admin/users/me',{credentials:'include'})
- .then(function(r){return r.ok?r.json():null})
- .then(function(d){
-   if(!d||!d.user)return;
-   var u=d.user;
-   var n=[u.first_name,u.last_name].filter(Boolean).join(' ')||u.email;
-   montar(n);
- }).catch(function(){});
+var intentos=0;
+function probar(){
+  if(document.getElementById('altus-salir'))return;
+  intentos++;
+  fetch('/admin/users/me',{credentials:'include'})
+   .then(function(r){return r.ok?r.json():null})
+   .then(function(d){
+     if(d&&d.user){
+       var u=d.user;
+       montar([u.first_name,u.last_name].filter(Boolean).join(' ')||u.email);
+       return;
+     }
+     // Sin sesión todavía: se entra desde la pantalla de acceso y el panel
+     // navega sin recargar, asi que este script no volveria a correr nunca y
+     // el boton no aparecia hasta la siguiente recarga. Se reintenta un rato.
+     if(intentos<30)setTimeout(probar,2000);
+   }).catch(function(){if(intentos<30)setTimeout(probar,2000)});
+}
+probar();
+}catch(e){}})();</script>`
+
+          /**
+           * En el panel también se entra con nombre de usuario.
+           *
+           * ── POR QUÉ HAY QUE INYECTAR ALGO ─────────────────────────────────
+           * El formulario de acceso del panel valida el formato de correo:
+           *
+           *     var LoginSchema = z.object({ email: z.string().email(), ... })
+           *
+           * y viene compilado dentro de `@medusajs/dashboard`, así que no se
+           * puede editar. Escribir `caja` lo rechaza el propio formulario, en el
+           * navegador, sin llegar a mandar nada.
+           *
+           * Como lo que guardamos ES un correo bien formado —`caja@sigh.local`,
+           * ver src/lib/usuarios.ts— basta con completarlo: la persona escribe
+           * `caja`, y al salir del campo se convierte en `caja@sigh.local`. La
+           * validación de Medusa lo da por bueno y no hay nada que parchear.
+           *
+           * ── SI ESTO SE ROMPE ──────────────────────────────────────────────
+           * No deja a nadie fuera. Quien no vea el completado automático puede
+           * escribir `usuario@${DOMINIO_INTERNO}` entero y entra igual. Por eso
+           * se eligió el sufijo en vez de pelearse con la validación: el modo de
+           * fallo es una molestia, no un bloqueo.
+           *
+           * Se escribe con el asignador nativo del input y se lanza un evento
+           * `input`, porque el campo es un componente controlado de React: dejar
+           * el valor a pelo no se lo comunica a nadie.
+           */
+          const usuarioScript = `<script data-altus-usuario>(function(){try{
+var DOM='@${DOMINIO_INTERNO}';
+function completar(campo){
+  var v=(campo.value||'').trim();
+  if(!v||v.indexOf('@')!==-1)return;
+  var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+  setter.call(campo,v.toLowerCase()+DOM);
+  campo.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function campoDeUsuario(){
+  return document.querySelector('input[name="email"]');
+}
+function renombrar(){
+  var c=campoDeUsuario();
+  if(!c||c.dataset.altusListo)return;
+  c.dataset.altusListo='1';
+  c.setAttribute('autocomplete','username');
+  c.setAttribute('placeholder','Usuario');
+  // La etiqueta se busca POR EL IDENTIFICADOR del campo, no subiendo por el
+  // árbol. Subiendo se encontraba la única etiqueta que hay en esa pantalla,
+  // que es la de la contraseña, y acababa diciendo «Usuario». Hoy el campo de
+  // usuario no tiene etiqueta propia y se apoya en el marcador de posición;
+  // si Medusa le pone una algún día, esto la renombra sola.
+  if(c.id){
+    var et=document.querySelector('label[for="'+c.id+'"]');
+    if(et)et.textContent='Usuario';
+  }
+  c.addEventListener('blur',function(){completar(c)});
+}
+document.addEventListener('submit',function(){
+  var c=campoDeUsuario();
+  if(c)completar(c);
+},true);
+new MutationObserver(renombrar).observe(document.documentElement,{childList:true,subtree:true});
+renombrar();
+}catch(e){}})();</script>`
+
+          /**
+           * La marca en la pantalla de acceso del panel.
+           *
+           * ── QUÉ SE VEÍA ───────────────────────────────────────────────────
+           * «Bienvenido a Medusa», el logotipo de Medusa, y un botón que decía
+           * «Continuar con Email» cuando ahí ya no se escribe un correo. Es la
+           * primera pantalla que ve quien administra la clínica, y hablaba de
+           * un producto que no es el suyo.
+           *
+           * De paso se corrigen dos cosas del propio panel: «Inicia sesión para
+           * acceder a LA ÁREA de cuentas», que está mal en español, y «Show
+           * password», que se quedó sin traducir.
+           *
+           * ── POR QUÉ POR EL DOM Y NO POR i18next ───────────────────────────
+           * Las cadenas viven en el diccionario del panel, y sí se pueden pisar
+           * con `addResourceBundle` —así se hace con Cliente/Paciente en
+           * `src/admin/lib/vocabulario-clinico.ts`—. Pero eso corre cuando se
+           * carga una de NUESTRAS rutas, y al acceso se llega antes de que
+           * exista ninguna. Aquí no hay i18next todavía, así que se cambia el
+           * texto ya pintado.
+           *
+           * Se compara por el texto exacto, no por posición: si Medusa cambia
+           * la estructura, esto deja de aplicar en vez de romper algo. Y el
+           * observador lo vuelve a poner si React repinta.
+           */
+          const marcaScript = `<script data-altus-marca>(function(){try{
+var CAMBIOS=[
+  ['Bienvenido a Medusa','Altus'],
+  ['Inicia sesión para acceder a la área de cuentas','Panel de administración de la clínica'],
+  ['Continuar con Email','Entrar'],
+  ['Show password','Mostrar contraseña'],
+  ['Hide password','Ocultar contraseña'],
+  ['Volver al login','Volver al acceso']
+];
+function pintar(){
+  if(!document.title)document.title='Altus';
+  var nodos=document.querySelectorAll('h1,p,button,span');
+  for(var i=0;i<nodos.length;i++){
+    var n=nodos[i];
+    if(n.children.length)continue;
+    var t=n.textContent.trim();
+    for(var j=0;j<CAMBIOS.length;j++){
+      if(t===CAMBIOS[j][0]){n.textContent=CAMBIOS[j][1];break;}
+    }
+  }
+  // El logotipo de Medusa, sólo en la pantalla de acceso. Se oculta el
+  // RECUADRO entero, no el dibujo: escondiendo sólo el svg quedaba el cuadro
+  // gris de 50x50 flotando sobre el título. En el resto del panel ese recuadro
+  // no existe, así que no se toca nada más.
+  if(location.pathname.indexOf('/login')!==-1||location.pathname.indexOf('/invite')!==-1){
+    var marca=document.querySelector('svg.rounded-\\\\[10px\\\\]');
+    var caja=marca&&marca.closest('div.rounded-xl');
+    if(caja&&!caja.dataset.altusOculto){caja.dataset.altusOculto='1';caja.style.display='none';}
+  }
+}
+new MutationObserver(pintar).observe(document.documentElement,{childList:true,subtree:true});
+pintar();
+}catch(e){}})();</script>`
+
+          /**
+           * Salir del panel cierra el punto de venta, y al revés, en el mismo
+           * navegador.
+           *
+           * Administración entra a los dos, y cada uno guarda la sesión a su
+           * manera: el panel con una cookie del servidor, el punto de venta con
+           * un token en el navegador. Salir de uno no tocaba el otro.
+           *
+           * La señal es la cookie `altus_salida` con la hora de la salida. Es
+           * una cookie y no el almacenamiento del navegador porque éste es por
+           * origen —incluye el puerto—, y en desarrollo el panel (4173) y el
+           * punto de venta (8081) no lo comparten; las cookies son por host y
+           * las ven los dos. El punto de venta hace lo mismo desde
+           * frontend/utils/sesion-compartida.ts: el nombre tiene que coincidir.
+           *
+           * Lo que hace este script:
+           *  · Envuelve `fetch` para ver cuándo el panel cierra su sesión
+           *    (`DELETE /auth/session`). Así se entera tanto del botón flotante
+           *    como de «Cerrar sesión» del menú de Medusa, que no se puede tocar.
+           *    La dirección puede llegar como texto, como `Request` o como `URL`
+           *    —el SDK de Medusa usa esta última—, así que se miran las tres.
+           *    Va el PRIMERO del `<head>` para envolver `fetch` antes de que la
+           *    aplicación lo use.
+           *  · Cada 2 s, y al volver a la pestaña, mira si hubo una salida
+           *    POSTERIOR a la entrada al panel; si la hubo, cierra y va al acceso.
+           *    Mientras se está en la pantalla de acceso la hora de entrada se
+           *    renueva: una salida vieja no puede echar a quien entra después.
+           */
+          // Sin barras invertidas a propósito: dentro de esta plantilla una barra
+          // invertida se come el carácter que la sigue, la expresión regular sale
+          // rota, el script da error de sintaxis y no corre, sin avisar. Pasó.
+          // Por eso se compara con indexOf y no con expresiones regulares.
+          const sesionScript = `<script data-altus-sesion>(function(){try{
+var CLAVE='altus_salida';
+function leer(){var t=document.cookie.split('; ');for(var i=0;i<t.length;i++){if(t[i].indexOf(CLAVE+'=')===0)return Number(t[i].slice(CLAVE.length+1))||0;}return 0;}
+function marcar(){var s=location.protocol==='https:'?'; Secure':'';document.cookie=CLAVE+'='+Date.now()+'; path=/; max-age=2592000; SameSite=Lax'+s;}
+var original=window.fetch.bind(window);
+window.fetch=function(entrada,opciones){
+  var url=typeof entrada==='string'?entrada:entrada&&(entrada.url||entrada.href)?String(entrada.url||entrada.href):String(entrada||'');
+  var metodo=String((opciones&&opciones.method)||(entrada&&entrada.method)||'GET').toUpperCase();
+  var p=original(entrada,opciones);
+  if(metodo==='DELETE'&&url.split('?')[0].slice(-13)==='/auth/session'){p.then(function(r){if(r.status<500)marcar();},function(){});}
+  return p;
+};
+var desde=Date.now();var saliendo=false;
+function enAcceso(){var r=location.pathname;return r.indexOf('/app/login')===0||r.indexOf('/app/reset-password')===0||r.indexOf('/app/invite')===0;}
+function revisar(){
+  if(enAcceso()){desde=Date.now();saliendo=false;return;}
+  if(saliendo||leer()<=desde)return;
+  saliendo=true;
+  original('/auth/session',{method:'DELETE',credentials:'include'}).catch(function(){}).then(function(){location.href='/app/login';});
+}
+setInterval(revisar,2000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)revisar();});
+window.addEventListener('focus',revisar);
 }catch(e){}})();</script>`
 
           return html.replace(
             '</head>',
-            `${langScript}${posScript}${menuScript}${salirScript}</head>`
+            `${sesionScript}${langScript}${posScript}${menuScript}${salirScript}${usuarioScript}${marcaScript}${CSS_TEMA_ADMIN}</head>`
           )
         },
       })
@@ -372,6 +570,18 @@ fetch('/admin/users/me',{credentials:'include'})
     {
       resolve: "./src/modules/inventory-movements",
       key: "inventory_movements",
+    },
+    {
+      resolve: "./src/modules/requisitions",
+      key: "requisitions",
+    },
+    {
+      resolve: "./src/modules/clinical-notes",
+      key: "clinical_notes",
+    },
+    {
+      resolve: "./src/modules/honorarios",
+      key: "honorarios",
     },
   ]
 })

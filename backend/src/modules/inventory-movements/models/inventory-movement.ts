@@ -24,6 +24,13 @@ export const InventoryMovement = model.define("inventory_movement", {
     batch_id: model.text().nullable(),        // nullable: un ajuste puede no ser por lote
     batch_number: model.text().nullable(),    // desnormalizado
     expiration_date: model.dateTime().nullable(),
+    /**
+     * En qué almacén ocurrió. Un traspaso son DOS asientos: la salida en el
+     * almacén de origen y la entrada en el de destino, cada uno con el suyo.
+     * Nulable sólo por los asientos anteriores a la columna, que la migración
+     * rellena con el almacén que había; el libro mayor lo exige al escribir.
+     */
+    stock_location_id: model.text().nullable(),
 
     // ── Cuánto ──────────────────────────────────────────────────────────────
     /** Con signo: positivo = entrada, negativo = salida. Nunca 0. */

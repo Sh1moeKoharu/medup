@@ -1,3 +1,4 @@
+import { almacenDeFarmacia } from "../lib/almacenes"
 import { MedusaContainer } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import { deleteProductsWorkflow } from "@medusajs/core-flows";
@@ -6,6 +7,10 @@ export default async function consolidateBatches({ container }: { container: Med
     const logger = container.resolve("logger");
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const medicalInventoryService = container.resolve("medical_inventory");
+  const farmacia = await almacenDeFarmacia(container as any)
+  if (!farmacia) {
+    throw new Error("No hay almacén de Farmacia. Corre `npx medusa exec ./src/scripts/preparar-almacenes.ts confirm` primero.")
+  }
     const productModuleService = container.resolve(Modules.PRODUCT);
 
     logger.info("Starting EXACT duplicate product consolidation...");
@@ -63,7 +68,8 @@ export default async function consolidateBatches({ container }: { container: Med
                                 batch_number: String(duplicateProduct.metadata.lote),
                                 expiration_date: new Date(String(duplicateProduct.metadata.caducidad)),
                                 quantity: Number(duplicateProduct.metadata.cantidad_recibida) || 0,
-                                variant_id: masterVariantId
+                                variant_id: masterVariantId,
+                                stock_location_id: farmacia.id,
                             });
                         } catch (e) {}
                     }

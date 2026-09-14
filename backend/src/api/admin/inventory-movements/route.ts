@@ -1,10 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { fetchVariantLabels } from "../../../lib/variant-titles";
 
 /**
  * GET /admin/inventory-movements — Kardex.
  *
- * Filtros: ?variant_id= &batch_id= &type= &from= &to= &limit= &offset=
+ * Filtros: ?variant_id= &batch_id= &type= &stock_location_id= &from= &to= &limit= &offset=
  *
  * Es de SOLO LECTURA a propósito: el libro mayor es append-only y sólo se
  * escribe desde `lib/inventory-ledger.ts`, invocado por la operación que
@@ -19,6 +20,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
             variant_id,
             batch_id,
             type,
+            stock_location_id,
             from,
             to,
             limit = "50",
@@ -29,6 +31,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         if (variant_id) filters.variant_id = variant_id;
         if (batch_id) filters.batch_id = batch_id;
         if (type) filters.type = type;
+        if (stock_location_id) filters.stock_location_id = stock_location_id;
 
         if (from || to) {
             filters.created_at = {};
@@ -43,6 +46,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
             fields: [
                 "id",
                 "variant_id",
+                "stock_location_id",
                 "variant_title",
                 "batch_id",
                 "batch_number",
@@ -67,7 +71,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
             },
         });
 
-        const rows = movements || [];
+        // Los asientos anteriores al nombre desnormalizado (y los que vienen de
+        // un alta por API sin título) mostraban el id de la variante en el
+        // kardex. Se completa al leer; el asiento no se toca.
+        const rows: any[] = movements || [];
+        const sinTitulo = rows.filter((m) => !m.variant_title).map((m) => m.variant_id);
+        if (sinTitulo.length) {
+            const etiquetas = await fetchVariantLabels(req.scope, sinTitulo);
+            for (const m of rows) {
+                if (!m.variant_title) m.variant_title = etiquetas.get(m.variant_id)?.label ?? null;
+            }
+        }
 
         // Totales del conjunto devuelto. Sirven para "mermas y ajustes" y para
         // cuadrar contra la existencia física sin recorrer todo el kardex.

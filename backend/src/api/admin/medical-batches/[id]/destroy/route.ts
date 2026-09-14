@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { Modules } from "@medusajs/framework/utils";
 import { recordInventoryMovement } from "../../../../../lib/inventory-ledger";
+import { revisarMotivo } from "../../../../../lib/requisiciones";
 
 /**
  * POST /admin/medical-batches/:id/destroy — Destrucción sanitaria.
@@ -10,12 +11,21 @@ import { recordInventoryMovement } from "../../../../../lib/inventory-ledger";
  * sólo pone el lote en cuarentena; destruir requiere una decisión humana, que
  * es exactamente lo que exige el trámite ante COFEPRIS.
  *
- * Body: { reason?: string, notes?: string }
+ * Body: { reason: string, notes?: string }
+ *
+ * El motivo es OBLIGATORIO: es lo que va al expediente de destrucción, y
+ * "Destrucción sanitaria autorizada" a secas no dice por qué se destruyó ni
+ * quién lo decidió. Antes se admitía vacío.
  */
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
     try {
         const { id } = req.params;
         const { reason, notes } = (req.body ?? {}) as any;
+
+        const problemaMotivo = revisarMotivo(reason);
+        if (problemaMotivo) {
+            return res.status(400).json({ message: problemaMotivo });
+        }
 
         const medicalInventoryService: any = req.scope.resolve("medical_inventory");
 
@@ -71,13 +81,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
         const recorded = await recordInventoryMovement(req.scope as any, {
             variant_id: batch.variant_id,
+            stock_location_id: batch.stock_location_id,
             batch_id: batch.id,
             batch_number: batch.batch_number ?? null,
             expiration_date: batch.expiration_date ?? null,
             quantity_delta: -destroyedQuantity,
             quantity_after: 0,
             type: "exit_expiry",
-            reason: reason ?? "Destrucción sanitaria autorizada",
+            reason: String(reason).trim(),
             reference_type: "sanitary_destruction",
             reference_id: batch.id,
             user_id: userId,

@@ -1,10 +1,10 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk";
 import { isMedicalOrderCreatorRole, normalizeRole } from "../../lib/roles";
-import { Container, Heading, Text, Button, Input, Label, Select } from "@medusajs/ui";
+import { Container, Heading, Text, Button, Input, Label } from "@medusajs/ui";
 import { useState, useEffect } from "react";
 
 const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [, setCurrentUser] = useState<any>(null);
     const [isMedicalStaff, setIsMedicalStaff] = useState(false);
     
     // Order State
@@ -149,7 +149,7 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
                 <div className="flex items-center gap-3">
                     <div>
                         <Heading level="h2" className="text-ui-fg-base text-lg font-bold">
-                            Generar Orden Médica / Receta
+                            Generar orden médica o receta
                         </Heading>
                         <Text className="text-ui-fg-subtle text-sm mt-0.5">
                             Crea una orden interna para este paciente. Se enviará a Farmacia para su surtido.
@@ -164,7 +164,7 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
                 )}
 
                 <div className="border border-ui-border-base p-4 rounded-md bg-ui-bg-base">
-                    <Heading level="h3" className="text-sm font-semibold mb-3">Buscar Medicamento</Heading>
+                    <Heading level="h3" className="text-sm font-semibold mb-3">Buscar medicamento</Heading>
                     
                     <div className="relative">
                         <Input 
@@ -259,7 +259,7 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
                 )}
 
                 <div>
-                    <Label className="text-sm font-medium mb-1 block">Notas Clínicas / Diagnóstico (Opcional)</Label>
+                    <Label className="text-sm font-medium mb-1 block">Notas clínicas o diagnóstico (opcional)</Label>
                     <textarea 
                         className="w-full border border-ui-border-base rounded-md p-2 text-sm bg-ui-bg-base"
                         rows={3}
@@ -277,7 +277,7 @@ const MedicalOrderCreator = ({ data: customer }: { data: any }) => {
                         isLoading={isSubmitting}
                         disabled={items.length === 0}
                     >
-                        Generar y Enviar a Farmacia
+                        Generar y enviar a Farmacia
                     </Button>
                 </div>
             </div>

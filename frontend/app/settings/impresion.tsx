@@ -95,16 +95,34 @@ export default function AjustesImpresionScreen() {
           ni seleccione una. Es una restricción de seguridad.
         </Text>
         <Text className="text-sm text-gray-400">
-          El ticket sale siempre por la impresora PREDETERMINADA de Windows.
+          El ticket sale siempre por la impresora PREDETERMINADA del sistema, y
+          eso se elige en el sistema, no aquí.
         </Text>
       </View>
 
       <Text className="mb-2 text-lg">1. Poner la térmica como predeterminada</Text>
-      <Text className="mb-6 text-sm text-gray-400">
+
+      <Text className="mb-1 text-sm">En Windows</Text>
+      <Text className="mb-4 text-sm text-gray-400">
         Configuración → Bluetooth y dispositivos → Impresoras → elige la térmica
         → Establecer como predeterminada. Desactiva también &quot;Permitir que
         Windows administre mi impresora predeterminada&quot;, o la cambiará sola.
       </Text>
+
+      <Text className="mb-1 text-sm">En Linux</Text>
+      <Text className="mb-2 text-sm text-gray-400">
+        Configuración → Impresoras → elige la térmica → Opciones de impresora →
+        Usar como predeterminada. Si esa pantalla no la lista, entra a CUPS en{' '}
+        <Text className="text-sm text-active-500">http://localhost:631</Text>,
+        pestaña Administración → Añadir impresora.
+      </Text>
+      <Text className="mb-2 text-sm text-gray-400">
+        Desde la terminal, para ver cuáles hay y fijar la predeterminada:
+      </Text>
+      <View className="mb-6 rounded-xl bg-gray-50 p-3">
+        <Text className="text-xs">lpstat -p -d</Text>
+        <Text className="text-xs">lpoptions -d NOMBRE_DE_LA_IMPRESORA</Text>
+      </View>
 
       <Text className="mb-2 text-lg">2. Quitar el diálogo de impresión</Text>
       <Text className="mb-2 text-sm text-gray-400">
@@ -121,10 +139,22 @@ export default function AjustesImpresionScreen() {
           }`}
         </Text>
       </View>
+      <Text className="mb-2 text-sm text-gray-400">
+        En Linux es el mismo modificador, lanzado desde la terminal o desde un
+        lanzador del escritorio:
+      </Text>
+      <View className="mb-2 rounded-xl bg-gray-50 p-3">
+        <Text className="text-xs">
+          {`google-chrome --kiosk-printing --app=${
+            typeof window !== 'undefined' ? window.location.origin : 'http://servidor'
+          }`}
+        </Text>
+      </View>
+
       <Text className="mb-8 text-sm text-gray-400">
-        Cierra TODAS las ventanas de Chrome antes de usarlo la primera vez. Si
-        Chrome ya estaba abierto, la ventana nueva se engancha al proceso
-        anterior y la opción se ignora sin avisar.
+        Cierra TODAS las ventanas de Chrome antes de usarlo la primera vez, en
+        cualquiera de los dos sistemas. Si Chrome ya estaba abierto, la ventana
+        nueva se engancha al proceso anterior y la opción se ignora sin avisar.
       </Text>
     </LayoutWithScroll>
   );

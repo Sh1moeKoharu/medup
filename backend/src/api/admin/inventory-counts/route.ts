@@ -81,6 +81,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
                 batch_id: batch.id,
                 batch_number: batch.batch_number,
                 variant_id: batch.variant_id,
+                stock_location_id: batch.stock_location_id,
                 status: batch.status,
                 system_quantity: systemQuantity,
                 counted_quantity: counted,
@@ -107,6 +108,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             // trae la dirección correcta.
             await recordInventoryMovement(req.scope as any, {
                 variant_id: batch.variant_id,
+                stock_location_id: batch.stock_location_id,
                 batch_id: batch.id,
                 batch_number: batch.batch_number ?? null,
                 expiration_date: batch.expiration_date ?? null,

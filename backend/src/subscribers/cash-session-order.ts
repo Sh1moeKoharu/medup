@@ -63,16 +63,30 @@ export default async function cashSessionOrderHandler({
             return;
         }
 
-        // Registrar el movimiento como tipo "sale" con método "cash" por defecto
-        // El POS puede sobrescribir esto antes de completar la orden
+        /**
+         * ── EL MÉTODO DE PAGO AQUÍ ES DESCONOCIDO, NO "EFECTIVO" ────────────
+         * Este subscriber sólo actúa cuando el POS no alcanzó a registrar el
+         * movimiento, así que llega SIN saber cómo se pagó.
+         *
+         * Antes escribía "cash". Una venta con tarjeta registrada por esta vía
+         * descuadraba el corte por el importe completo, y el cajero no tenía
+         * cómo explicárselo a nadie: el resumen afirmaba que ese dinero estaba
+         * en el cajón. El propio comentario del archivo decía "other" mientras
+         * el código ponía "cash".
+         *
+         * "other" no es exacto, pero es HONESTO: no entra en el renglón de
+         * efectivo, aparece aparte en el corte, y se ve que hay algo que
+         * revisar en lugar de un faltante inexplicable.
+         */
         await cashSessionService.createCashMovements({
             session_id: sessionId,
             order_id: orderId,
             type: "sale",
-            payment_method: "cash", // Default - el POS debe enviar el correcto
+            payment_method: "other",
             amount: Number(order.total) || 0,
             reference: `Orden #${orderId.slice(-6)}`,
-            description: "Venta registrada automáticamente",
+            description:
+                "Registrada automáticamente: el punto de venta no informó el método de pago",
             created_by: "system",
         });
 

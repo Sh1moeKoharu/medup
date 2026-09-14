@@ -14,10 +14,10 @@ export default function StockLocationScreen() {
 
   return (
     <Layout className="pb-6">
-      <Text className="mb-6 text-4xl">Setting Up</Text>
+      <Text className="mb-6 text-4xl">Configuración</Text>
       <Text className="mb-2 text-2xl">Elige una ubicación de inventario</Text>
       <Text className="mb-6 text-gray-300">
-        Select where inventory will be sourced from, or add a new location if needed.
+        Elige de qué almacén sale el inventario, o añade uno nuevo si hace falta.
       </Text>
 
       <StockLocationList

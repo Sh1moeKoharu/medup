@@ -20,22 +20,22 @@ export const CheckoutSkeleton = () => (
         </View>
       ))}
       <View className="mt-4">
-        <Text className="mb-6 text-2xl">Information</Text>
+        <Text className="mb-6 text-2xl">Datos del paciente</Text>
 
         <View className="mb-4 flex-row">
           <Text className="w-24 text-gray-300">Nombre completo</Text>
           <View className="h-5 w-1/3 rounded-md bg-gray-200" />
         </View>
         <View className="mb-4 flex-row">
-          <Text className="w-24 text-gray-300">Mail</Text>
+          <Text className="w-24 text-gray-300">Correo</Text>
           <View className="h-5 w-1/3 rounded-md bg-gray-200" />
         </View>
         <View className="mb-4 flex-row">
-          <Text className="w-24 text-gray-300">Address</Text>
+          <Text className="w-24 text-gray-300">Domicilio</Text>
           <View className="h-5 w-1/2 rounded-md bg-gray-200" />
         </View>
         <View className="mb-10 flex-row">
-          <Text className="w-24 text-gray-300">Phone</Text>
+          <Text className="w-24 text-gray-300">Teléfono</Text>
           <View className="h-5 w-1/3 rounded-md bg-gray-200" />
         </View>
       </View>

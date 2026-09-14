@@ -1,10 +1,12 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { resolveRequestActor } from "../../../../lib/require-role";
 
 /**
  * GET /admin/cash-sessions/current
- * Obtiene la sesión activa actual (status = "open")
- * Si no hay sesión abierta, retorna null
+ * El turno abierto de QUIEN pregunta (status = "open", cashier_id = yo).
+ * Los turnos son por cajero; el de otra caja no es "el actual" de ésta.
+ * Si no hay, retorna null
  */
 export async function GET(
     req: MedusaRequest,
@@ -12,6 +14,10 @@ export async function GET(
 ) {
     try {
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+        const actor = await resolveRequestActor(req);
+        if (!actor) {
+            return res.json({ session: null });
+        }
 
         const { data: sessions } = await query.graph({
             entity: "cash_session",
@@ -24,7 +30,7 @@ export async function GET(
                 "sales_channel_id",
                 "status",
             ],
-            filters: { status: "open" },
+            filters: { status: "open", cashier_id: actor.id },
         });
 
         const session = sessions && sessions.length > 0 ? sessions[0] : null;

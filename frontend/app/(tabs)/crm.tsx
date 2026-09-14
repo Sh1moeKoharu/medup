@@ -11,101 +11,26 @@ import { useAuthCtx } from '@/contexts/auth';
 import { ROLES, normalizeRole } from '@/constants/roles';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
-import { Form } from '@/components/form/Form';
-import { FormButton } from '@/components/form/FormButton';
-import { TextField } from '@/components/form/TextField';
-import { z } from 'zod/v4';
+import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
+import { useCuentasPendientes } from '@/api/hooks/clinica';
+import { abrirCuentaParaCobro } from '@/api/hooks/draft-orders';
+import { router } from 'expo-router';
 import { useOrders } from '@/api/hooks/orders';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
+import { formatearDinero } from '@/utils/dinero';
 import { useBreakpointValue } from '@/hooks/useBreakpointValue';
 import { clx } from '@/utils/clx';
 import { AdminCustomer } from '@medusajs/types';
 import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, SafeAreaView, ScrollView, TouchableOpacity, View } from 'react-native';
+import { etiquetaDeEstado } from '@/components/ui/OrderStatus';
 
 type CustomerWithMedical = AdminCustomer & { medical_customer?: any };
 
-
-const customerFormSchema = z.object({
-    email: z.email('Ingresa un correo válido').min(3, 'El correo es requerido'),
-    first_name: z.string().optional(),
-    last_name: z.string().optional(),
-    phone: z.string().optional(),
-});
-
-/**
- * Alta y modificación de pacientes desde el directorio.
- *
- * Antes el directorio sólo LISTABA: no había forma de dar de alta, corregir ni
- * dar de baja a nadie desde aquí. El alta existía únicamente escondida dentro
- * del buscador de clientes del carrito, que es un sitio al que sólo se llega
- * mientras se está cobrando.
- *
- * El mismo formulario sirve para los dos casos; lo único que cambia es si se
- * parte de un paciente existente.
- */
-const CustomerFormDialog: React.FC<{
-    visible: boolean;
-    customer?: CustomerWithMedical | null;
-    onClose: () => void;
-    onSaved?: (customer: AdminCustomer) => void;
-}> = ({ visible, customer, onClose, onSaved }) => {
-    const createCustomer = useCreateCustomer();
-    const updateCustomer = useUpdateCustomer();
-    const editando = !!customer;
-
-    return (
-        <Dialog
-            visible={visible}
-            title={editando ? 'Editar Paciente' : 'Nuevo Paciente'}
-            onClose={onClose}
-            dismissOnOverlayPress={true}
-            contentClassName="flex-shrink"
-        >
-            <Form
-                schema={customerFormSchema}
-                defaultValues={{
-                    email: customer?.email ?? '',
-                    first_name: customer?.first_name ?? '',
-                    last_name: customer?.last_name ?? '',
-                    phone: customer?.phone ?? '',
-                }}
-                onSubmit={(data, form) => {
-                    if (editando && customer) {
-                        updateCustomer.mutate(
-                            { id: customer.id, update: data },
-                            {
-                                onSuccess: (res) => {
-                                    onSaved?.(res.customer);
-                                    onClose();
-                                },
-                            },
-                        );
-                        return;
-                    }
-
-                    createCustomer.mutate(data, {
-                        onSuccess: (res) => {
-                            onSaved?.(res.customer);
-                            onClose();
-                            form.reset();
-                        },
-                    });
-                }}
-            >
-                <TextField name="email" placeholder="Correo Electrónico" autoComplete="off" autoCapitalize="none" inputMode="email" />
-                <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
-                <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
-                <TextField name="phone" placeholder="Número de Teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
-                <FormButton>{editando ? 'Guardar Cambios' : 'Crear Paciente'}</FormButton>
-            </Form>
-        </Dialog>
-    );
-};
 
 const CustomerDetails = ({
     customer,
@@ -119,6 +44,7 @@ const CustomerDetails = ({
     onDeleted: () => void;
 }) => {
     const ordersQuery = useOrders({ customer_id: customer.id });
+    const cuentas = useCuentasPendientes(customer.id);
     const deleteCustomer = useDeleteCustomer();
     const { state } = useAuthCtx();
     const [confirmandoBaja, setConfirmandoBaja] = useState(false);
@@ -130,20 +56,20 @@ const CustomerDetails = ({
     const puedeDarDeBaja = rol === ROLES.ADMIN;
 
     return (
-        <SafeAreaView className="flex-1 bg-white">
+        <SafeAreaView className="flex-1 bg-canvas">
             <Layout className="flex-1 pb-6 mt-4">
                 <View className="mb-6 flex-row items-center justify-between">
-                    <Text className="text-4xl text-black">Perfil del Cliente</Text>
+                    <Text className="text-4xl text-black">Perfil del paciente</Text>
                     <View className="flex-row items-center gap-2">
-                        <TouchableOpacity onPress={onEdit} className="rounded-full bg-blue-50 px-4 py-2">
-                            <Text className="font-semibold text-blue-700">Editar</Text>
+                        <TouchableOpacity onPress={onEdit} className="rounded-full bg-info-200 px-4 py-2">
+                            <Text className="font-semibold text-info-500">Editar</Text>
                         </TouchableOpacity>
                         {puedeDarDeBaja && (
                             <TouchableOpacity
                                 onPress={() => setConfirmandoBaja(true)}
-                                className="rounded-full bg-red-50 px-4 py-2"
+                                className="rounded-full bg-error-200 px-4 py-2"
                             >
-                                <Text className="font-semibold text-red-700">Eliminar</Text>
+                                <Text className="font-semibold text-error-500">Eliminar</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity onPress={onClose} className="rounded-full bg-gray-100 px-4 py-2">
@@ -186,15 +112,15 @@ const CustomerDetails = ({
                 </Dialog>
 
                 <View className="mb-6 rounded-2xl border border-gray-200 p-6 bg-gray-50">
-                    <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin Nombre'}</Text>
+                    <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin nombre'}</Text>
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
                         if (!medRecord) return null;
                         return (
                             <View className="mb-3 flex-row items-center">
-                                <View className={`rounded-full px-2 py-1 ${medRecord.customer_type === 'b2b' ? 'bg-purple-100' : 'bg-green-100'}`}>
-                                    <Text className={`text-xs font-bold ${medRecord.customer_type === 'b2b' ? 'text-purple-700' : 'text-green-700'}`}>
+                                <View className={`rounded-full px-2 py-1 ${medRecord.customer_type === 'b2b' ? 'bg-info-200' : 'bg-gray-100'}`}>
+                                    <Text className={`text-xs font-bold ${medRecord.customer_type === 'b2b' ? 'text-info-500' : 'text-gray-500'}`}>
                                         {medRecord.customer_type === 'b2b' ? 'B2B / Hospital' : 'B2C / Paciente'}
                                     </Text>
                                 </View>
@@ -210,8 +136,8 @@ const CustomerDetails = ({
                         const medRecord = (customer as any).medical_customer;
                         if (!medRecord?.medical_history && !medRecord?.insurance_policy) return null;
                         return (
-                            <View className="mt-4 p-3 bg-white rounded-lg border border-gray-200">
-                                <Text className="font-bold text-gray-800 mb-1">Expediente Médico</Text>
+                            <View className="mt-4 p-3 bg-white rounded-xl border border-gray-200">
+                                <Text className="font-bold text-gray-800 mb-1">Expediente médico</Text>
                                 {medRecord.insurance_policy && <Text className="text-sm text-gray-600">Seguro: {medRecord.insurance_policy}</Text>}
                                 {medRecord.medical_history && (
                                     <View className="mt-1 p-2 bg-gray-50 rounded">
@@ -222,6 +148,33 @@ const CustomerDetails = ({
                         );
                     })()}
                 </View>
+
+                {/* Lo que Enfermería aplicó en consulta y todavía no se cobra. Se
+                    abre en el carrito de esta caja y se cobra como cualquier venta. */}
+                {(cuentas.data ?? []).map((cuenta) => (
+                    <View key={cuenta.id} className="mb-4 rounded-2xl border border-warning-300 bg-warning-200 p-4">
+                        <Text className="text-lg font-semibold">Cuenta pendiente · {formatearDinero(cuenta.total, cuenta.currency_code)}</Text>
+                        {cuenta.items.map((i) => (
+                            <Text key={i.id} className="text-sm text-gray-700">{i.quantity} × {i.title}</Text>
+                        ))}
+                        {cuenta.medical_orders.length > 0 && (
+                            <Text className="mt-1 text-xs text-gray-500">
+                                {cuenta.medical_orders.length === 1 ? 'Consulta' : `${cuenta.medical_orders.length} consultas`}
+                                {cuenta.medical_orders[0]?.dispensed_by_name ? ` · aplicó ${cuenta.medical_orders[0].dispensed_by_name}` : ''}
+                            </Text>
+                        )}
+                        <Button
+                            className="mt-3 self-start px-4 py-3"
+                            onPress={async () => {
+                                await abrirCuentaParaCobro(cuenta.id);
+                                onClose();
+                                router.push(`/checkout/${cuenta.id}`);
+                            }}
+                        >
+                            Cobrar cuenta
+                        </Button>
+                    </View>
+                ))}
 
                 <Text className="mb-4 text-2xl font-semibold border-b border-gray-200 pb-2">Adquisiciones / Órdenes</Text>
 
@@ -237,16 +190,16 @@ const CustomerDetails = ({
                                         <Text className="text-gray-500">{new Date(order.created_at).toLocaleDateString()}</Text>
                                     </View>
                                     <View className="items-end">
-                                        <Text className="font-bold text-xl text-green-700">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency_code }).format((order.total || 0) / 100)}
+                                        <Text className="font-bold text-xl text-success-500">
+                                            {formatearDinero((order.total || 0) / 100, order.currency_code)}
                                         </Text>
-                                        <Text className="text-xs text-gray-500 uppercase mt-1 px-2 py-0.5 bg-gray-100 rounded-md overflow-hidden">{order.status}</Text>
+                                        <Text className="text-xs text-gray-500 uppercase mt-1 px-2 py-0.5 bg-gray-100 rounded-md overflow-hidden">{etiquetaDeEstado(order.status)}</Text>
                                     </View>
                                 </View>
                             </View>
                         ))}
                         {(!ordersQuery.data?.pages[0]?.orders || ordersQuery.data?.pages[0]?.orders.length === 0) && (
-                            <Text className="text-gray-500 mt-4 text-center text-lg">No se encontraron adquisiciones para este cliente.</Text>
+                            <Text className="text-gray-500 mt-4 text-center text-lg">No se encontraron adquisiciones para este paciente.</Text>
                         )}
                     </ScrollView>
                 )}
@@ -300,10 +253,10 @@ export default function CRMScreen() {
                         </View>
                         <View className="flex-1">
                             <View className="flex-row items-center gap-2">
-                                <Text className="text-lg font-semibold">{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Cliente Sin Nombre'}</Text>
+                                <Text className="text-lg font-semibold">{[item.first_name, item.last_name].filter(Boolean).join(' ') || 'Paciente sin nombre'}</Text>
                                 {item.has_account && (
-                                    <View className="rounded-full bg-blue-100 px-2 py-0.5">
-                                        <Text className="text-xs font-bold text-blue-700">Cuenta</Text>
+                                    <View className="rounded-full bg-info-200 px-2 py-0.5">
+                                        <Text className="text-xs font-bold text-info-500">Cuenta</Text>
                                     </View>
                                 )}
                             </View>
@@ -311,7 +264,7 @@ export default function CRMScreen() {
                             {item.phone && <Text className="text-gray-500">{item.phone}</Text>}
                         </View>
                         <View className="items-end">
-                            <Text className="font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full overflow-hidden">Detalles &rarr;</Text>
+                            <Text className="font-medium text-info-500 bg-info-200 px-3 py-1 rounded-full overflow-hidden">Detalles &rarr;</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -323,7 +276,7 @@ export default function CRMScreen() {
     return (
         <Layout>
             <View className="mt-8 mb-6 flex-row items-center justify-between">
-                <Text className="text-4xl">CRM / Directorio</Text>
+                <Text className="text-4xl">Pacientes</Text>
                 <Button
                     variant="outline"
                     onPress={() => {
@@ -331,14 +284,14 @@ export default function CRMScreen() {
                         setFormularioAbierto(true);
                     }}
                 >
-                    Nuevo Paciente
+                    Nuevo paciente
                 </Button>
             </View>
 
             <SearchInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Buscar clientes por nombre o correo..."
+                placeholder="Buscar pacientes por nombre o correo..."
                 className="mb-4"
             />
 
@@ -376,7 +329,7 @@ export default function CRMScreen() {
                 siempre con los datos del paciente correcto, en lugar de conservar
                 los valores iniciales del primero que se abrio. */}
             {formularioAbierto && (
-                <CustomerFormDialog
+                <FormularioPaciente
                     visible={formularioAbierto}
                     customer={customerEnEdicion}
                     onClose={() => {

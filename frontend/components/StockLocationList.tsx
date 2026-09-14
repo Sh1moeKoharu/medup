@@ -4,7 +4,7 @@ import { MapPin } from '@/components/icons/map-pin';
 import { InfoBanner } from '@/components/InfoBanner';
 import { LoadingBanner } from '@/components/LoadingBanner';
 import { Text } from '@/components/ui/Text';
-import { getCountryByAlpha2 } from '@/constants/countries';
+import { getCountryByAlpha2, getCountryName } from '@/constants/countries';
 import { findProvinceByCode } from '@/constants/provinces';
 import { clx } from '@/utils/clx';
 import React from 'react';
@@ -66,7 +66,10 @@ export const StockLocationList: React.FC<StockLocationListProps> = ({
                       ? findProvinceByCode(item.address.country_code, item.address.province)?.name ||
                         item.address.province
                       : undefined,
-                    getCountryByAlpha2(item.address.country_code)?.name || item.address.country_code,
+                    (() => {
+                        const pais = getCountryByAlpha2(item.address.country_code);
+                        return pais ? getCountryName(pais) : item.address.country_code;
+                      })(),
                   ]
                     .filter(Boolean)
                     .join(', ')}

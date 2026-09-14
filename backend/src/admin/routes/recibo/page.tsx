@@ -80,7 +80,7 @@ const ReciboPage = () => {
                 placeholder={marcador}
                 onChange={(e) => setConfig({ ...config, [clave]: e.target.value })}
             />
-            <Text size="small" style={{ color: "#9ca3af", marginTop: 4 }}>
+            <Text size="small" style={{ color: "var(--fg-subtle)", marginTop: 4 }}>
                 {ayuda}
             </Text>
         </div>
@@ -102,7 +102,7 @@ const ReciboPage = () => {
             <Heading level="h1" style={{ marginBottom: 8 }}>
                 Contenido del ticket
             </Heading>
-            <Text style={{ color: "#6b7280", marginBottom: 24 }}>
+            <Text style={{ color: "var(--fg-muted)", marginBottom: 24 }}>
                 Lo que se imprime en el comprobante de venta. Aplica a todas las cajas.
             </Text>
 
@@ -112,8 +112,8 @@ const ReciboPage = () => {
                         marginBottom: 20,
                         padding: 12,
                         borderRadius: 8,
-                        background: "#FEF3C7",
-                        border: "1px solid #FDE68A",
+                        background: "var(--tag-orange-bg)",
+                        border: "1px solid var(--tag-orange-border)",
                     }}
                 >
                     <Text size="small">
@@ -126,7 +126,7 @@ const ReciboPage = () => {
             {campo(
                 "nombre",
                 "Nombre del negocio",
-                "Encabeza el ticket. Es lo primero que ve el cliente.",
+                "Encabeza el ticket. Es lo primero que ve el paciente.",
                 "Ej. Farmacia San Rafael"
             )}
             {campo(
@@ -139,7 +139,7 @@ const ReciboPage = () => {
             {campo(
                 "rfc",
                 "RFC",
-                "Opcional. Se imprime para que el cliente pueda solicitar su factura después. Ponerlo NO convierte el ticket en factura: el CFDI exige timbrado con un PAC.",
+                "Opcional. Se imprime para que el paciente pueda solicitar su factura después. Ponerlo NO convierte el ticket en factura: el CFDI exige timbrado con un PAC.",
                 "Ej. XAXX010101000"
             )}
 
@@ -153,7 +153,7 @@ const ReciboPage = () => {
                     placeholder="Ej. Gracias por su compra. Cambios y devoluciones dentro de 24 h con este ticket."
                     onChange={(e) => setConfig({ ...config, pie: e.target.value })}
                 />
-                <Text size="small" style={{ color: "#9ca3af", marginTop: 4 }}>
+                <Text size="small" style={{ color: "var(--fg-subtle)", marginTop: 4 }}>
                     Texto libre al final del ticket. Un rollo de 80mm admite líneas cortas;
                     lo muy largo se recorta.
                 </Text>
@@ -163,18 +163,18 @@ const ReciboPage = () => {
                 <Button onClick={guardar} isLoading={guardando}>
                     Guardar
                 </Button>
-                {!!aviso && <Text size="small" style={{ color: "#059669" }}>{aviso}</Text>}
-                {!!error && <Text size="small" style={{ color: "#dc2626" }}>{error}</Text>}
+                {!!aviso && <Text size="small" style={{ color: "var(--tag-green-text)" }}>{aviso}</Text>}
+                {!!error && <Text size="small" style={{ color: "var(--fg-error)" }}>{error}</Text>}
             </div>
 
             <div
                 style={{
                     marginTop: 32,
                     paddingTop: 20,
-                    borderTop: "1px solid #e5e7eb",
+                    borderTop: "1px solid var(--border-base)",
                 }}
             >
-                <Text size="small" style={{ color: "#6b7280" }}>
+                <Text size="small" style={{ color: "var(--fg-muted)" }}>
                     El ticket siempre incluye el folio, la fecha, quién cobró, las líneas con
                     su importe, los totales y la leyenda de que no es un comprobante fiscal.
                     Eso no se configura porque son los datos que hacen que el comprobante

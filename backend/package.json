@@ -18,9 +18,12 @@
     "seed:patients": "medusa exec ./src/scripts/seed-customers.ts",
     "start": "medusa start",
     "dev": "medusa develop",
-    "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
-    "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
-    "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
+    "test:integration:http": "cross-env TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
+    "test:integration:modules": "cross-env TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
+    "test:unit": "cross-env TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
+    "dev:panel": "medusa build --admin-only && node pruebas/servir-admin.mjs .medusa/admin 4173 http://localhost:9000",
+    "seed:demo": "medusa exec ./src/scripts/seed-demo-completo.ts",
+    "seed:actividad": "node pruebas/sembrar-actividad.mjs"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.13.1",
@@ -38,6 +41,7 @@
     "@types/node": "^20.12.11",
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.2.25",
+    "cross-env": "^10.1.0",
     "exceljs": "^4.4.0",
     "jest": "^29.7.0",
     "prop-types": "^15.8.1",

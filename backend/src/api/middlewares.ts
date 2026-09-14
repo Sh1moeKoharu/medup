@@ -6,17 +6,24 @@ import { ROLES } from "../lib/roles";
 import {
     blockRoute,
     blockWrites,
+    denyBlockedAccounts,
     denyReadOnlyMutations,
+    denyUnpoliciedWrites,
     requireRole,
     requireRoleExcept,
     requireRoleForMethods,
     requireRoleForWritesExcept,
+    requirePanelRole,
     resolveRequestActor,
+    stripClinicalFields,
     stripPurchaseCosts,
 } from "../lib/require-role";
 import { API_POLICIES, findOverlappingPolicies } from "../lib/api-policy";
 import { redactForAudit } from "../lib/audit-redaction";
 import { GENESIS, calcularHuella, enFila } from "../lib/audit-chain";
+import { requireTurnoAbierto } from "../lib/turno";
+import { esLecturaSensible } from "../lib/bitacora";
+import { rejectBlockedLogin } from "../lib/bloqueo";
 
 /**
  * Interceptor de bitácora.
@@ -45,14 +52,19 @@ const auditLogInterceptor = (req: MedusaRequest, res: MedusaResponse, next: Medu
     // Hook al evento finish para saber si la petición fue exitosa
     res.on("finish", async () => {
         try {
-            // Solo auditar métodos de modificación y respuestas exitosas (< 400)
-            if (["POST", "PUT", "DELETE"].includes(req.method) && res.statusCode >= 200 && res.statusCode < 400) {
+            // Se auditan las escrituras y una lista corta de LECTURAS sensibles
+            // (ficha de paciente, expediente, notas): quién miró un expediente
+            // es la pregunta que hace un auditor. Ver lib/bitacora.ts. Sólo
+            // respuestas exitosas (< 400): un intento denegado no movió nada.
+            const esEscritura = ["POST", "PUT", "DELETE"].includes(req.method);
+            const esLectura = esLecturaSensible(req.method, req.originalUrl);
+            if ((esEscritura || esLectura) && res.statusCode >= 200 && res.statusCode < 400) {
                 const auditService: AuditLogsModuleService = req.scope.resolve(AUDIT_LOGS_MODULE);
 
                 const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
 
                 const isLogin = req.originalUrl.includes("/auth/user/emailpass");
-                const actionEndpoint = isLogin ? "Inicio de Sesión" : req.originalUrl;
+                const actionEndpoint = isLogin ? "Inicio de sesión" : req.originalUrl;
 
                 const payload = redactForAudit(req.body, actionEndpoint);
 
@@ -69,6 +81,7 @@ const auditLogInterceptor = (req: MedusaRequest, res: MedusaResponse, next: Medu
                     user_id: actor?.id ?? null,
                     user_email: actor?.email ?? attemptedEmail,
                     user_role: actor?.role ?? null,
+                    user_employee_number: actor?.employee_number ?? null,
                     method: req.method,
                     endpoint: actionEndpoint,
                     ip_address: (typeof ipAddress === "string" ? ipAddress : ipAddress[0]) ?? null,
@@ -143,6 +156,18 @@ const politicaDeRutas = API_POLICIES.flatMap((p) => {
 
 export default defineMiddlewares({
     routes: [
+        // ── Regla global: una cuenta bloqueada no entra a nada, ni a leer.
+        {
+            matcher: "/admin/*",
+            middlewares: [denyBlockedAccounts()],
+        },
+        // ── Y tampoco obtiene un token nuevo.
+        {
+            matcher: "/auth/user/emailpass",
+            methods: ["POST"],
+            middlewares: [rejectBlockedLogin()],
+        },
+
         // ── Regla global: el auditor (solo lectura) no muta nada, en ninguna
         //    ruta. Una ruta nueva bajo /admin nace protegida por omisión.
         {
@@ -159,6 +184,27 @@ export default defineMiddlewares({
             middlewares: [
                 blockRoute(
                     "Las invitaciones están deshabilitadas. El alta de personal se hace en Ajustes → Personal."
+                ),
+            ],
+        },
+
+        // ── Registro público de identidades, cerrado.
+        //
+        //    `/auth/user/emailpass/register` viene ABIERTO de fábrica: permite a
+        //    cualquiera, sin autenticarse, crear una identidad de acceso. Una
+        //    identidad huérfana no da acceso al panel —no lleva `user_id` en su
+        //    `app_metadata`— pero es escritura no autenticada en la tabla de
+        //    autenticación, y no hay razón para dejarla abierta.
+        //
+        //    Estaba abierta porque el alta de personal la usaba llamándose a sí
+        //    misma por HTTP. Ya no: `/admin/staff` crea la identidad por el
+        //    módulo. Si algún día vuelve a hacer falta registrar desde fuera,
+        //    hay que quitar este bloqueo A SABIENDAS.
+        {
+            matcher: "/auth/user/emailpass/register",
+            middlewares: [
+                blockRoute(
+                    "El registro directo está deshabilitado. El alta de personal se hace en Ajustes → Personal."
                 ),
             ],
         },
@@ -189,12 +235,98 @@ export default defineMiddlewares({
             methods: ["POST"],
             middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
         },
+        // Cancelar es acto de quien prescribe, no de quien surte: Farmacia no
+        // retira una receta que no emitió. Sin esta regla, el prefijo
+        // /admin/medical-orders la dejaría pasar.
+        {
+            matcher: "/admin/medical-orders/:id/cancel",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.DOCTOR, ROLES.NURSE, ROLES.ADMIN)],
+        },
+
+        // ── Cobrar exige turno de caja abierto (ver lib/turno.ts). Es la
+        //    ruta con la que el punto de venta convierte el carrito en venta.
+        {
+            matcher: "/admin/draft-orders/:id/convert-to-order",
+            methods: ["POST"],
+            middlewares: [requireTurnoAbierto()],
+        },
+
+        // ── Aplicar en consulta es acto de Enfermería; ajustar renglones, de
+        //    quien atiende.
+        {
+            matcher: "/admin/medical-orders/:id/consume",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.NURSE, ROLES.ADMIN)],
+        },
+        {
+            matcher: "/admin/medical-orders/:id/items",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.NURSE, ROLES.DOCTOR, ROLES.ADMIN)],
+        },
+
+        // ── Requisiciones: Enfermería pide y recibe; Farmacia surte.
+        {
+            matcher: "/admin/requisitions",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.NURSE, ROLES.ADMIN)],
+        },
+        {
+            matcher: "/admin/requisitions/:id/dispatch",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
+        },
+        {
+            matcher: "/admin/requisitions/:id/receive",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.NURSE, ROLES.ADMIN)],
+        },
+        {
+            matcher: "/admin/requisitions/:id/cancel",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.NURSE, ROLES.ADMIN)],
+        },
+
+        // ── Destrucción sanitaria: acto de Farmacia, no de Enfermería, aunque
+        //    la política general de lotes la deje escribir (para sus bajas).
+        {
+            matcher: "/admin/medical-batches/:id/destroy",
+            methods: ["POST"],
+            middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
+        },
 
         // ── Costos de adquisición fuera de la respuesta para quien no debe
         //    verlos. La propuesta lo exige para el perfil Médico.
         {
             matcher: "/admin/products",
             middlewares: [stripPurchaseCosts()],
+        },
+
+        // ── Contenido clínico fuera de la respuesta para quien no atiende.
+        //    Cerrar /admin/medical-customers no basta: el link con el paciente
+        //    deja `medical_history` alcanzable desde /admin/customers pidiendo
+        //    la expansión del campo.
+        {
+            matcher: "/admin/customers",
+            middlewares: [stripClinicalFields()],
+        },
+
+        // ── El panel, sólo para Administración. Ver requirePanelRole(): se
+        //    decide donde se emite la cookie de sesión, y nace apagado detrás
+        //    de PANEL_SOLO_ADMINISTRACION hasta que los demás perfiles tengan
+        //    su interfaz en el punto de venta.
+        {
+            matcher: "/auth/session",
+            methods: ["POST"],
+            middlewares: [requirePanelRole()],
+        },
+
+        // ── Omisión segura: lo que no está en la tabla, sólo Administrador.
+        //    Va AL FINAL, después de todas las políticas: si alguna ya se
+        //    pronunció sobre la ruta, esto no interviene.
+        {
+            matcher: "/admin/*",
+            middlewares: [denyUnpoliciedWrites()],
         },
 
         {

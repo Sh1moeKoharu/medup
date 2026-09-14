@@ -1,7 +1,9 @@
 import { Check } from '@/components/icons/check';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { TriangleAlert } from '@/components/icons/triangle-alert';
+import { AlertCircle } from '@/components/icons/alert-circle';
 import { Text } from '@/components/ui/Text';
+import { color } from '@/theme/tokens';
 import { clx } from '@/utils/clx';
 import { View } from 'react-native';
 
@@ -20,7 +22,7 @@ export type InfoBannerProps = {
    *
    * @default 'warning'
    */
-  colorScheme?: 'error' | 'warning' | 'success';
+  colorScheme?: 'error' | 'warning' | 'success' | 'info';
   /**
    * Additional class names for the text inside the banner.
    * This can be used to apply custom styles to the text.
@@ -39,7 +41,7 @@ export type InfoBannerProps = {
 
 export const getInfoBannerWrapperClasses = (
   variant: 'ghost' | 'solid' | 'outline',
-  colorScheme: 'error' | 'warning' | 'success',
+  colorScheme: 'error' | 'warning' | 'success' | 'info',
   className?: string,
 ): string => {
   return clx(
@@ -48,9 +50,11 @@ export const getInfoBannerWrapperClasses = (
       'bg-error-200': colorScheme === 'error' && variant === 'solid',
       'bg-warning-200': colorScheme === 'warning' && variant === 'solid',
       'bg-success-200': colorScheme === 'success' && variant === 'solid',
+      'bg-info-200': colorScheme === 'info' && variant === 'solid',
       'border-error-200': colorScheme === 'error' && variant === 'outline',
       'border-warning-200': colorScheme === 'warning' && variant === 'outline',
       'border-success-200': colorScheme === 'success' && variant === 'outline',
+      'border-info-200': colorScheme === 'info' && variant === 'outline',
       'p-4 rounded-xl justify-between gap-2': variant === 'solid' || variant === 'outline',
       'gap-2 flex-row-reverse': variant === 'ghost',
       'border bg-white': variant === 'outline',
@@ -60,7 +64,7 @@ export const getInfoBannerWrapperClasses = (
 };
 
 export const getInfoBannerTextClasses = (
-  colorScheme: 'error' | 'warning' | 'success',
+  colorScheme: 'error' | 'warning' | 'success' | 'info',
   textClassName?: string,
 ): string => {
   return clx(
@@ -68,16 +72,23 @@ export const getInfoBannerTextClasses = (
       'text-error-500': colorScheme === 'error',
       'text-warning-500': colorScheme === 'warning',
       'text-success-500': colorScheme === 'success',
+      'text-info-500': colorScheme === 'info',
     },
     textClassName,
   );
 };
 
-export const getInfoBannerIcon = (colorScheme: 'error' | 'warning' | 'success'): React.ReactNode => {
+/**
+ * El icono va con `color=` y no con clase porque es una propiedad del SVG. Los
+ * valores salen de `theme/tokens`: antes estaban escritos a mano aquí y había
+ * que acordarse de cambiarlos a la vez que la paleta.
+ */
+export const getInfoBannerIcon = (colorScheme: 'error' | 'warning' | 'success' | 'info'): React.ReactNode => {
   return {
-    error: <CircleAlert size={16} color="#F14747" />,
-    warning: <TriangleAlert size={16} color="#9B8435" />,
-    success: <Check size={16} color="#469B3B" />,
+    error: <CircleAlert size={16} color={color.iconoError} />,
+    warning: <TriangleAlert size={16} color={color.iconoAviso} />,
+    success: <Check size={16} color={color.iconoExito} />,
+    info: <AlertCircle size={16} color={color.iconoInfo} />,
   }[colorScheme];
 };
 

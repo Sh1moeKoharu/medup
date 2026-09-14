@@ -1,14 +1,21 @@
+// Efecto: traduce el vocabulario de tienda de Medusa ("Clientes") al de
+// clinica ("Pacientes"). No se usa nada de este modulo; el import ES el efecto.
+// Va en dos paginas a proposito, para que siga aplicandose si una desaparece.
+import "../../lib/vocabulario-clinico";
 import { Container, Heading, Text, Badge, Button, Table, Input } from "@medusajs/ui";
 import { ROLES } from "../../../lib/roles";
+import { esInvitadoDelPos } from "../../../lib/pos-guest";
 import { useCurrentRole } from "../../lib/use-current-role";
 import { roleLabel } from "../../../lib/roles";
 import { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Receipt } from "@medusajs/icons";
+import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
 
 const MedicalOrdersPage = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [denegado, setDenegado] = useState(false);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
     // Punto de entrada para CREAR una orden.
@@ -35,7 +42,9 @@ const MedicalOrdersPage = () => {
                 credentials: "include",
             });
             const data = await res.json();
-            setPacientes(data.customers || []);
+            // Fuera el invitado del punto de venta: no es un paciente y una
+            // receta a su nombre no tendria a quien entregarsela.
+            setPacientes((data.customers || []).filter((c: any) => !esInvitadoDelPos(c)));
         } catch (e) {
             console.error("Error buscando pacientes", e);
         } finally {
@@ -46,7 +55,10 @@ const MedicalOrdersPage = () => {
     const fetchOrders = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch("/admin/medical-orders?status=pending");
+            // Sólo lo dirigido a Farmacia: lo de consulta lo aplica Enfermería
+            // desde el punto de venta.
+            const res = await fetch("/admin/medical-orders?status=pending&recipient_area=pharmacy");
+            if (esDenegado(res)) { setDenegado(true); return; }
             const data = await res.json();
             if (data.medical_orders) {
                 // Ordenar más recientes primero
@@ -73,15 +85,29 @@ const MedicalOrdersPage = () => {
             const data = await res.json();
             
             if (res.ok) {
-                if (data.warnings && data.warnings.length > 0) {
-                    alert(`Orden surtida con advertencias de stock:\n${data.warnings.join("\n")}`);
-                } else {
-                    alert("¡Orden surtida y stock reservado correctamente!");
-                }
+                // Surtir DESCUENTA, no aparta. Se dice de qué lote salió cada
+                // cosa y cuánto queda: es lo que el farmacéutico puede
+                // contrastar contra el anaquel.
+                const lineas = (data.lotes || []).map(
+                    (l: any) =>
+                        `· ${l.cantidad} de ${l.product_title} — lote ${l.batch_number} (quedan ${l.saldo_restante})`
+                );
+                alert(
+                    [
+                        "Receta surtida. El stock se descontó de los lotes con caducidad más próxima.",
+                        ...lineas,
+                    ].join("\n")
+                );
                 // Refrescar lista
                 fetchOrders();
             } else {
-                alert(`Error: ${data.error}`);
+                // Cuando no alcanza, el servidor responde 409 SIN tocar nada y
+                // dice qué falta y cuánto. Antes se perdía ese detalle y sólo se
+                // veía "Error:".
+                const detalle = (data.detalle || []).map(
+                    (d: any) => `· ${d.product_title ?? d.variant_id}: faltan ${d.faltante} de ${d.solicitado}`
+                );
+                alert([data.error, data.message, ...detalle].filter(Boolean).join("\n"));
             }
         } catch (e) {
             console.error(e);
@@ -91,13 +117,15 @@ const MedicalOrdersPage = () => {
         }
     };
 
+    if (denegado) return <SinAcceso recurso="las órdenes médicas" />;
+
     return (
         <Container className="p-8">
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <Heading level="h1">Bandeja de Farmacia</Heading>
                     <Text className="text-ui-fg-subtle mt-1">
-                        Órdenes médicas pendientes por surtir. Al surtir, se apartará el stock de los lotes y la orden pasará a caja.
+                        Órdenes médicas pendientes por surtir. Al surtir se descuenta la existencia, empezando por el lote de caducidad más próxima. Si no alcanza, no se surte nada.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -189,13 +217,17 @@ const MedicalOrdersPage = () => {
                                         isLoading={isProcessing === order.id}
                                         disabled={isProcessing !== null}
                                     >
-                                        Validar y Surtir (Reservar Stock)
+                                        Validar y surtir (descuenta existencia)
                                     </Button>
                                 </div>
                             </div>
 
                             {/* Detalle de items */}
                             <div className="p-0">
+                                <div style={{ overflowX: "auto", width: "100%" }}>
+                                    {/* Scroll horizontal: la tabla es mas ancha que una tableta en vertical y,
+                                        sin este contenedor, las columnas de la derecha se recortan sin manera
+                                        de llegar a ellas. */}
                                 <Table>
                                     <Table.Header>
                                         <Table.Row>
@@ -214,6 +246,7 @@ const MedicalOrdersPage = () => {
                                         ))}
                                     </Table.Body>
                                 </Table>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -224,7 +257,7 @@ const MedicalOrdersPage = () => {
 };
 
 export const config = defineRouteConfig({
-    label: "Órdenes Médicas",
+    label: "Órdenes médicas",
     icon: Receipt,
 });
 

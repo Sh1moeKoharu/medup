@@ -11,9 +11,11 @@
     "web": "expo start --web",
     "build:web": "node scripts/sellar-version.js && expo export --platform web --output-dir dist",
     "postinstall": "node scripts/sellar-version.js",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "verificar:diseno": "node scripts/verificar-tokens.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/noto-sans": "^0.4.0",
     "@hookform/resolvers": "^5.1.1",
     "@medusajs/js-sdk": "2.10.2",

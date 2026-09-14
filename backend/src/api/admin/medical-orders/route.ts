@@ -13,6 +13,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         if (req.query.status) filters.status = req.query.status;
         if (req.query.customer_id) filters.customer_id = req.query.customer_id;
         if (req.query.creator_id) filters.creator_id = req.query.creator_id;
+        if (req.query.recipient_area) filters.recipient_area = req.query.recipient_area;
 
         const orders = await medicalOrdersModuleService.listMedicalOrders(filters, {
             relations: ["items"],
@@ -30,7 +31,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         
         // Sólo se toman del cuerpo los datos del PACIENTE y de la receta.
         // La identidad de quien prescribe NO se acepta del cliente (ver abajo).
-        const { customer_id, customer_name, notes, items } = req.body as any;
+        const { customer_id, customer_name, notes, items, recipient_area } = req.body as any;
+
+        // A quién va: Enfermería (consulta) por omisión, o Farmacia (mostrador).
+        // Decide la bandeja y el almacén; ver el modelo.
+        const destinatario = recipient_area ?? "nursing";
+        if (destinatario !== "nursing" && destinatario !== "pharmacy") {
+            return res.status(400).json({
+                error: `Destinatario inválido: "${recipient_area}". Válidos: nursing (Enfermería), pharmacy (Farmacia).`,
+            });
+        }
 
         /**
          * IDENTIDAD DEL PRESCRIPTOR — SIEMPRE DESDE LA SESIÓN.
@@ -73,7 +83,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             creator_id: actor.id,
             creator_name: actor.name,
             creator_role: actor.role,
-        });
+            recipient_area: destinatario,
+        } as any);
 
         // Crear items
         const itemCreates = items.map(item => ({

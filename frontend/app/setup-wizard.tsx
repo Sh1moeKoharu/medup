@@ -5,6 +5,10 @@ import { SetupWizardContent } from '@/components/setup-wizard/SetupWizardContent
 import { useAuthCtx } from '@/contexts/auth';
 import { useUpdateSettings } from '@/contexts/settings';
 import { getHomeRoute } from '@/utils/home-route';
+import { ROLES_CONFIGURACION } from '@/constants/acceso';
+import { normalizeRole, roleLabel } from '@/constants/roles';
+import { Button } from '@/components/ui/Button';
+import { PantallaDeAviso, ParrafoDeAviso } from '@/components/ui/PantallaDeAviso';
 import { showErrorToast } from '@/utils/errors';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -41,7 +45,18 @@ export default function SetupWizardScreen() {
   const isLoading = salesChannelsQuery.isLoading || stockLocationsQuery.isLoading || regionsQuery.isLoading;
 
   const salesChannels = salesChannelsQuery.data?.pages?.[0]?.sales_channels ?? [];
-  const stockLocations = stockLocationsQuery.data?.pages?.[0]?.stock_locations ?? [];
+  const todasLasUbicaciones = stockLocationsQuery.data?.pages?.[0]?.stock_locations ?? [];
+
+  /**
+   * Con dos almacenes (Farmacia y Enfermería) el mostrador vende SIEMPRE de
+   * Farmacia: es el que lleva `altus_area = pharmacy` en su metadata (ver
+   * backend/src/lib/almacenes.ts). Si está marcado, no hay nada que elegir y
+   * el asistente sigue sin aparecer. Si ninguno lo está, se ofrecen todos.
+   */
+  const deFarmacia = todasLasUbicaciones.filter(
+    (l) => ((l as { metadata?: Record<string, unknown> | null }).metadata)?.altus_area === 'pharmacy',
+  );
+  const stockLocations = deFarmacia.length ? deFarmacia : todasLasUbicaciones;
   const regions = regionsQuery.data?.pages?.[0]?.regions ?? [];
 
   /**
@@ -90,12 +105,51 @@ export default function SetupWizardScreen() {
 
   if (isLoading || (puedeAutoconfigurar && !updateSettings.isError)) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
+      <SafeAreaView className="flex-1 items-center justify-center bg-canvas">
         <View className="items-center gap-3">
           <ActivityIndicator size="large" className="text-gray-600" />
           {puedeAutoconfigurar && <Text className="text-gray-500">Preparando el punto de venta…</Text>}
         </View>
       </SafeAreaView>
+    );
+  }
+
+  /**
+   * Llegar hasta aquí significa que hay MÁS DE UNA opción de algo y que alguien
+   * tiene que elegir. Elegir región, moneda o canal de venta no es tarea del
+   * área médica ni de auditoría: equivocarse ahí deja todos los precios en otra
+   * divisa sin que nada lo advierta.
+   *
+   * El tester encontró justo esto: un médico ante la pantalla de crear regiones
+   * y configurar impuestos, porque esta barrera se levanta ANTES de que actúe el
+   * enrutado por rol.
+   *
+   * No se redirige, se explica. Su pantalla de inicio vive detrás de esta misma
+   * barrera, así que mandarlos allá los devolvería aquí en bucle.
+   */
+  const rol = auth.state.status === 'authenticated' ? normalizeRole(auth.state.user.role) : null;
+
+  if (!rol || !ROLES_CONFIGURACION.includes(rol)) {
+    return (
+      <PantallaDeAviso
+        titulo="Falta configurar el punto de venta"
+        acciones={
+          <Button variant="outline" onPress={() => auth.logout()}>
+            Cerrar sesión
+          </Button>
+        }
+      >
+        <ParrafoDeAviso>
+          Este equipo todavía no tiene elegidos la región, el canal de venta o la
+          ubicación de inventario, y tu perfil{rol ? ` (${roleLabel(rol)})` : ''} no hace
+          esa configuración.
+        </ParrafoDeAviso>
+
+        <ParrafoDeAviso>
+          Pídele a un administrador que abra el punto de venta en este equipo una primera
+          vez. Después podrás entrar con normalidad.
+        </ParrafoDeAviso>
+      </PantallaDeAviso>
     );
   }
 

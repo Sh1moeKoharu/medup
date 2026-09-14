@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { Container, Heading, Text, Table, Badge, Button } from "@medusajs/ui";
 import { useEffect, useState } from "react";
+import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
 
 interface CashSession {
     id: string;
@@ -47,6 +48,7 @@ const formatDate = (dateStr: string) =>
 const CashSessionsPage = () => {
     const [sessions, setSessions] = useState<CashSession[]>([]);
     const [loading, setLoading] = useState(true);
+    const [denegado, setDenegado] = useState(false);
     const [selectedSession, setSelectedSession] = useState<CashSession | null>(null);
     const [selectedSummary, setSelectedSummary] = useState<CashSessionSummary | null>(null);
 
@@ -56,6 +58,7 @@ const CashSessionsPage = () => {
             const res = await fetch("/admin/cash-sessions?limit=50", {
                 credentials: "include",
             });
+            if (esDenegado(res)) { setDenegado(true); return; }
             const data = await res.json();
             setSessions(data.sessions || []);
         } catch (err) {
@@ -86,12 +89,14 @@ const CashSessionsPage = () => {
         fetchSummary(session.id);
     };
 
+    if (denegado) return <SinAcceso recurso="los cortes de caja" />;
+
     return (
         <Container>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                 <div>
-                    <Heading level="h1">Cortes de Caja</Heading>
-                    <Text size="small" style={{ color: "#6b7280", marginTop: 4 }}>
+                    <Heading level="h1">Cortes de caja</Heading>
+                    <Text size="small" style={{ color: "var(--fg-muted)", marginTop: 4 }}>
                         Historial de sesiones de caja y cortes
                     </Text>
                 </div>
@@ -102,13 +107,13 @@ const CashSessionsPage = () => {
 
             {/* ── Detalle de Sesión Seleccionada ── */}
             {selectedSession && selectedSummary && (
-                <Container style={{ marginBottom: 24, background: "#f9fafb", borderRadius: 8, padding: 20 }}>
+                <Container style={{ marginBottom: 24, background: "var(--bg-subtle)", borderRadius: 8, padding: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                         <div>
                             <Heading level="h2">
                                 Corte: {selectedSession.cashier_name}
                             </Heading>
-                            <Text size="small" style={{ color: "#6b7280" }}>
+                            <Text size="small" style={{ color: "var(--fg-muted)" }}>
                                 {formatDate(selectedSession.opened_at)}
                                 {selectedSession.closed_at && ` → ${formatDate(selectedSession.closed_at)}`}
                             </Text>
@@ -122,26 +127,26 @@ const CashSessionsPage = () => {
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
-                        <SummaryCard label="Total Ventas" value={formatCurrency(selectedSummary.sales_total)} />
+                        <SummaryCard label="Total de ventas" value={formatCurrency(selectedSummary.sales_total)} />
                         <SummaryCard label="Transacciones" value={String(selectedSummary.transaction_count)} />
-                        <SummaryCard label="Ingresos Netos" value={formatCurrency(selectedSummary.total_revenue)} />
+                        <SummaryCard label="Ingresos netos" value={formatCurrency(selectedSummary.total_revenue)} />
                         <SummaryCard
-                            label="Efectivo Esperado"
+                            label="Efectivo esperado"
                             value={formatCurrency(selectedSummary.expected_cash_in_register)}
                         />
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
                         <div style={cardStyle}>
-                            <Text size="small"style={{ color: "#6b7280" }}>Efectivo</Text>
+                            <Text size="small"style={{ color: "var(--fg-muted)" }}>Efectivo</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_cash)}</Text>
                         </div>
                         <div style={cardStyle}>
-                            <Text size="small"style={{ color: "#6b7280" }}>Tarjeta</Text>
+                            <Text size="small"style={{ color: "var(--fg-muted)" }}>Tarjeta</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_card)}</Text>
                         </div>
                         <div style={cardStyle}>
-                            <Text size="small"style={{ color: "#6b7280" }}>Transferencia</Text>
+                            <Text size="small"style={{ color: "var(--fg-muted)" }}>Transferencia</Text>
                             <Text weight="plus">{formatCurrency(selectedSummary.sales_transfer)}</Text>
                         </div>
                     </div>
@@ -149,23 +154,23 @@ const CashSessionsPage = () => {
                     {selectedSession.status === "closed" && selectedSession.difference !== null && (
                         <div style={{
                             ...cardStyle,
-                            borderColor: selectedSession.difference === 0 ? "#10b981"
-                                : selectedSession.difference > 0 ? "#3b82f6" : "#ef4444",
+                            borderColor: selectedSession.difference === 0 ? "var(--tag-green-border)"
+                                : selectedSession.difference > 0 ? "var(--border-interactive)" : "var(--tag-red-border)",
                             borderWidth: 2,
                         }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
-                                    <Text size="small" style={{ color: "#6b7280" }}>Resultado del corte</Text>
+                                    <Text size="small" style={{ color: "var(--fg-muted)" }}>Resultado del corte</Text>
                                     <Text weight="plus" style={{ fontSize: 18 }}>
                                         {selectedSession.difference === 0
-                                           ? "Caja Cuadrada"
+                                           ? "Caja cuadrada"
                                             : selectedSession.difference > 0
                                                ? `Sobrante: ${formatCurrency(selectedSession.difference)}`
                                                : `Faltante: ${formatCurrency(Math.abs(selectedSession.difference))}`}
                                     </Text>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <Text size="small" style={{ color: "#6b7280" }}>Contado</Text>
+                                    <Text size="small" style={{ color: "var(--fg-muted)" }}>Contado</Text>
                                     <Text weight="plus">
                                         {formatCurrency(Number(selectedSession.actual_closing_amount) || 0)}
                                     </Text>
@@ -176,7 +181,7 @@ const CashSessionsPage = () => {
 
                     {selectedSession.notes && (
                         <div style={{ marginTop: 12 }}>
-                            <Text size="small" style={{ color: "#6b7280" }}>Observaciones:</Text>
+                            <Text size="small" style={{ color: "var(--fg-muted)" }}>Observaciones:</Text>
                             <Text>{selectedSession.notes}</Text>
                         </div>
                     )}
@@ -184,13 +189,17 @@ const CashSessionsPage = () => {
             )}
 
             {/* ── Tabla de Sesiones ── */}
+            <div style={{ overflowX: "auto", width: "100%" }}>
+                {/* Scroll horizontal: la tabla es mas ancha que una tableta en vertical y,
+                    sin este contenedor, las columnas de la derecha se recortan sin manera
+                    de llegar a ellas. */}
             <Table>
                 <Table.Header>
                     <Table.Row>
                         <Table.HeaderCell>Cajero</Table.HeaderCell>
                         <Table.HeaderCell>Apertura</Table.HeaderCell>
                         <Table.HeaderCell>Cierre</Table.HeaderCell>
-                        <Table.HeaderCell>Fondo Inicial</Table.HeaderCell>
+                        <Table.HeaderCell>Fondo inicial</Table.HeaderCell>
                         <Table.HeaderCell>Ventas</Table.HeaderCell>
                         <Table.HeaderCell>Diferencia</Table.HeaderCell>
                         <Table.HeaderCell>Estado</Table.HeaderCell>
@@ -224,10 +233,10 @@ const CashSessionsPage = () => {
                                     <Text
                                         style={{
                                             color: session.difference === 0
-                                                ? "#10b981"
+                                                ? "var(--tag-green-border)"
                                                 : session.difference > 0
-                                                    ? "#3b82f6"
-                                                    : "#ef4444",
+                                                    ? "var(--border-interactive)"
+                                                    : "var(--tag-red-border)",
                                         }}
                                         weight="plus"
                                     >
@@ -247,13 +256,41 @@ const CashSessionsPage = () => {
                                 </Badge>
                             </Table.Cell>
                             <Table.Cell>
-                                <Button
-                                    variant="secondary"
-                                    size="small"
-                                    onClick={() => handleViewDetails(session)}
-                                >
-                                    Ver Detalle
-                                </Button>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                    <Button
+                                        variant="secondary"
+                                        size="small"
+                                        onClick={() => handleViewDetails(session)}
+                                    >
+                                        Ver detalle
+                                    </Button>
+                                    {/* El corte lo compone el servidor; aquí sólo se abre
+                                        en una pestaña lista para imprimir. */}
+                                    <Button
+                                        variant="secondary"
+                                        size="small"
+                                        onClick={async () => {
+                                            const res = await fetch(`/admin/documents/corte/${session.id}`, { credentials: "include" });
+                                            const data = await res.json().catch(() => ({}));
+                                            if (!res.ok || !data.html) {
+                                                alert(data.error || data.message || "No se pudo obtener el corte.");
+                                                return;
+                                            }
+                                            const w = window.open("", "_blank");
+                                            if (!w) {
+                                                alert("El navegador bloqueó la pestaña del corte. Permite ventanas emergentes para este sitio.");
+                                                return;
+                                            }
+                                            w.document.open();
+                                            w.document.write(data.html);
+                                            w.document.close();
+                                            w.focus();
+                                            setTimeout(() => w.print(), 400);
+                                        }}
+                                    >
+                                        Imprimir corte
+                                    </Button>
+                                </div>
                             </Table.Cell>
                         </Table.Row>
                     ))}
@@ -261,7 +298,7 @@ const CashSessionsPage = () => {
                         <Table.Row>
                             {/* @ts-ignore */}
                             <Table.Cell colSpan={8}>
-                                <Text style={{ textAlign: "center", color: "#9ca3af", padding: 20 }}>
+                                <Text style={{ textAlign: "center", color: "var(--fg-subtle)", padding: 20 }}>
                                     No hay sesiones de caja registradas
                                 </Text>
                             </Table.Cell>
@@ -269,13 +306,14 @@ const CashSessionsPage = () => {
                     )}
                 </Table.Body>
             </Table>
+            </div>
         </Container>
     );
 };
 
 const SummaryCard = ({ label, value }: { label: string; value: string }) => (
     <div style={cardStyle}>
-        <Text size="small" style={{ color: "#6b7280" }}>{label}</Text>
+        <Text size="small" style={{ color: "var(--fg-muted)" }}>{label}</Text>
         <Text weight="plus" style={{ fontSize: 16 }}>{value}</Text>
     </div>
 );
@@ -284,11 +322,11 @@ const cardStyle: React.CSSProperties = {
     background: "white",
     borderRadius: 8,
     padding: 12,
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--border-base)",
 };
 
 export const config = defineRouteConfig({
-    label: "Cortes de Caja",
+    label: "Cortes de caja",
 });
 
 export default CashSessionsPage;

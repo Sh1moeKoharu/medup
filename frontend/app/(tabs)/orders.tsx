@@ -9,6 +9,7 @@ import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
 import { OrderListStatus } from '@/components/ui/OrderStatus';
 import { Text } from '@/components/ui/Text';
+import { formatearDinero } from '@/utils/dinero';
 import { useBreakpointValue } from '@/hooks/useBreakpointValue';
 import { clx } from '@/utils/clx';
 import { formatDate } from '@/utils/date';
@@ -95,7 +96,7 @@ export default function OrdersScreen() {
           ? `${item.customer.first_name} ${item.customer.last_name}`
           : item.customer?.email === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL
             ? 'POS'
-            : item.customer?.email || 'Cliente Desconocido';
+            : item.customer?.email || 'Paciente Desconocido';
 
       return (
         <View
@@ -124,11 +125,7 @@ export default function OrdersScreen() {
                 </View>
               </View>
               <Text>
-                {item.total.toLocaleString('en-US', {
-                  style: 'currency',
-                  currency: item.currency_code,
-                  currencyDisplay: 'narrowSymbol',
-                })}
+                {formatearDinero(item.total, item.currency_code)}
               </Text>
             </View>
             <View className="items-end gap-4">
@@ -162,7 +159,7 @@ export default function OrdersScreen() {
 
   return (
     <Layout>
-      <Text className="mt-8 mb-6 text-4xl">Mis Órdenes</Text>
+      <Text className="mt-8 mb-6 text-4xl">Mis órdenes</Text>
 
       <SearchInput
         value={searchQuery}

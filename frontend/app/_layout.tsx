@@ -5,8 +5,10 @@ import '../global.css';
 import { SplashScreenController } from '@/components/SplashScreenController';
 import { toastConfig } from '@/config/toast';
 import { AuthProvider, useAuthCtx } from '@/contexts/auth';
+import { RecetaProvider } from '@/contexts/receta';
 import { useSettings } from '@/contexts/settings';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRestaurarRutaInicial } from '@/hooks/useRestaurarRutaInicial';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
@@ -18,7 +20,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import * as React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { BloqueoProvider, useBloqueo } from '@/contexts/bloqueo';
 import { PantallaBloqueada } from '@/components/PantallaBloqueada';
 import { BarraDeSesion } from '@/components/BarraDeSesion';
@@ -47,12 +49,19 @@ function App() {
     !!settings.data.region &&
     !!settings.data.stock_location;
 
+  // Enlaces directos y F5: ver hooks/useRestaurarRutaInicial.ts.
+  useRestaurarRutaInicial(isSetupComplete);
+
   return (
     <Stack>
       <Stack.Protected guard={auth.state.status === 'authenticated' && isSetupComplete}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(doctor)" options={{ headerShown: false }} />
         <Stack.Screen name="(nurse)" options={{ headerShown: false }} />
+        {/* Farmacia y Auditoría (fase 7): antes la una compartía la interfaz
+            de Caja y la otra iba a una pantalla que la mandaba al panel. */}
+        <Stack.Screen name="(almacen)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auditoria)" options={{ headerShown: false }} />
 
         <Stack.Screen name="checkout/[draftOrderId]" options={{ title: 'Cobro', headerShown: false }} />
 
@@ -84,7 +93,7 @@ function App() {
           name="customer-lookup"
           options={{
             presentation: 'transparentModal',
-            title: 'Buscar cliente',
+            title: 'Buscar paciente',
             headerShown: false,
             animation: 'none',
           }}
@@ -152,27 +161,42 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
         <AuthProvider>
+          {/* Receta en construcción del área médica: va dentro de Auth porque
+              se guarda por usuario. */}
+          <RecetaProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <SplashScreenController />
             <AppStatusBar />
             <BloqueoProvider>
-              {/* El detector va por FUERA de <App/> para que cualquier gesto en
-                  cualquier pantalla cuente como actividad. Dentro de una
-                  pantalla, salir de ella dejaria de reiniciar el contador. */}
-              <DetectorDeActividad>
-                <GestureHandlerRootView>
-                  <KeyboardProvider>
-                    <App />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </DetectorDeActividad>
-              {/* Va DESPUES de la aplicacion: queda por encima en el orden de
-                  pintado, ademas del z-index. */}
-              <BarraDeSesion />
+              {/* Columna: la barra de sesion ocupa su franja y la aplicacion se
+                  queda con el resto de la altura.
+
+                  Antes la barra flotaba encima y tapaba los botones inferiores
+                  de cobrar, corte de caja y emitir receta. Al ponerla en el
+                  flujo no puede solaparse con nada, y no hay que reservarle
+                  hueco pantalla por pantalla. Ver components/BarraDeSesion.tsx. */}
+              <View style={{ flex: 1 }}>
+                <BarraDeSesion />
+                {/* El detector va por FUERA de <App/> para que cualquier gesto en
+                    cualquier pantalla cuente como actividad. Dentro de una
+                    pantalla, salir de ella dejaria de reiniciar el contador. */}
+                <DetectorDeActividad>
+                  {/* flex: 1 explicito: con un hermano encima, sin esto la
+                      aplicacion se quedaria con su altura natural. */}
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <App />
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </DetectorDeActividad>
+              </View>
+              {/* Va DESPUES: la pantalla de bloqueo se dibuja por encima de todo,
+                  barra incluida. */}
               <PantallaBloqueada />
             </BloqueoProvider>
             <Toast config={toastConfig} position="bottom" />
           </ThemeProvider>
+          </RecetaProvider>
         </AuthProvider>
       </PersistQueryClientProvider>
     </SafeAreaProvider>

@@ -72,10 +72,10 @@ const ALWAYS_PERSONAL_KEYS = [
  * condiciones comerciales. Redactarlas todas destruiría auditoría útil sin
  * ganar privacidad, así que se redactan sólo donde el contexto lo amerita.
  */
-const CLINICAL_CONTEXT_KEYS = ["notes", "notas", "instructions", "indicaciones"]
+const CLINICAL_CONTEXT_KEYS = ["notes", "notas", "instructions", "indicaciones", "content", "contenido"]
 
 /** Rutas cuyo cuerpo puede contener información clínica. */
-const CLINICAL_ROUTES = ["/admin/medical-orders", "/admin/medical-customers"]
+const CLINICAL_ROUTES = ["/admin/medical-orders", "/admin/medical-customers", "/admin/clinical-notes", "/admin/documents/nota"]
 
 /** Tope de tamaño del payload almacenado, para que no crezca sin control. */
 const MAX_PAYLOAD_CHARS = 8000

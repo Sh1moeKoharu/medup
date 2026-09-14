@@ -2,6 +2,7 @@ import { Loader } from '@/components/icons/loader';
 import { Text } from '@/components/ui/Text';
 import { clx } from '@/utils/clx';
 import { View } from 'react-native';
+import { color } from '@/theme/tokens';
 
 type LoadingBannerProps = {
   variant?: 'ghost' | 'outline';
@@ -28,7 +29,7 @@ export const LoadingBanner = ({ variant = 'outline', className, children }: Load
       <View className="flex-1">
         <Text className={textClasses}>{children}</Text>
       </View>
-      <Loader size={16} color="#B5B5B5" className="animate-spin" />
+      <Loader size={16} color={color.textoTerciario} className="animate-spin" />
     </View>
   );
 };

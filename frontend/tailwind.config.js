@@ -1,6 +1,19 @@
 const { hairlineWidth } = require('nativewind/theme');
+const { paletaTailwind, tipografia, radio, sombra } = require('./theme/tokens');
 
-/** @type {import('tailwindcss').Config} */
+/**
+ * Este archivo es un envoltorio: los valores viven en `theme/tokens.js`, que es
+ * la fuente única y también la lee el código de la aplicación. Ver
+ * DESIGN-SYSTEM.md en la raíz.
+ *
+ * ⚠️ `colors` va dentro de `extend` A PROPÓSITO. Sacarlo de ahí reemplazaría la
+ * paleta entera de Tailwind y dejaría sin color los ~90 sitios que todavía usan
+ * `red-*`, `blue-*`, `purple-*` o `amber-*` — sin ningún error, sólo texto
+ * invisible. Esas familias se irán sustituyendo por las semánticas, y hasta
+ * entonces tienen que seguir existiendo.
+ *
+ * @type {import('tailwindcss').Config}
+ */
 module.exports = {
   content: [
     './App.tsx',
@@ -8,59 +21,32 @@ module.exports = {
     './components/**/*.{js,jsx,ts,tsx}',
     './contexts/**/*.{js,jsx,ts,tsx}',
     './hooks/**/*.{js,jsx,ts,tsx}',
+    './theme/**/*.{js,ts}',
   ],
   presets: [require('nativewind/preset')],
   theme: {
-    fontSize: {
-      '4xl': ['2.5rem', { lineHeight: '3.5rem', fontWeight: '600' }],
-      '3xl': ['2rem', { lineHeight: '3rem', fontWeight: '500' }],
-      '2xl': ['1.5rem', { lineHeight: '2.5rem', fontWeight: '500' }],
-      xl: ['1.25rem', { lineHeight: '2rem', fontWeight: '500' }],
-      lg: ['1.125rem', { lineHeight: '1.5rem', fontWeight: '500' }],
-      base: ['1rem', { lineHeight: '1.375rem', fontWeight: '500' }],
-      sm: ['0.875rem', { lineHeight: '1.125rem', fontWeight: '500' }],
-      xs: ['0.75rem', { lineHeight: '1rem', fontWeight: '500' }],
-      '2xs': ['0.6875rem', { lineHeight: '0.875rem', fontWeight: '500' }],
-      '3xs': ['0.625rem', { lineHeight: '0.75rem', fontWeight: '500' }],
-    },
+    // Reemplaza la escala de Tailwind a propósito: el sistema tiene sus doce
+    // tamaños y no queremos los cuarenta y tantos de la librería.
+    fontSize: tipografia.escala,
     extend: {
       fontFamily: {
-        sans: ['Noto Sans', 'sans-serif'],
+        sans: tipografia.familia,
       },
-      colors: {
-        transparent: 'transparent',
-        white: '#FFF',
-        gray: {
-          100: '#F1F1F1',
-          200: '#E5E5E5',
-          300: '#B5B5B5',
-          400: '#888888',
-        },
-        black: '#282828',
-        success: {
-          200: '#B9F1B2',
-          500: '#469B3B',
-        },
-        warning: {
-          200: '#F8EC9A',
-          500: '#9B8435',
-        },
-        error: {
-          200: '#FFDFDF',
-          500: '#F14747',
-        },
-        active: {
-          200: '#B8CCFF',
-          500: '#4E78E5',
-          700: '#4E78E5',
-        },
-      },
+      colors: paletaTailwind,
       borderRadius: {
+        ...radio,
         '4xl': '2rem',
       },
+      boxShadow: sombra,
       height: {
         hairline: hairlineWidth(),
         13.5: '3.375rem',
+        // Altura mínima táctil. 44 px es el mínimo de las guías de iOS y
+        // Android; en un mostrador se pulsa deprisa y con guantes.
+        toque: '2.75rem',
+      },
+      minHeight: {
+        toque: '2.75rem',
       },
     },
   },

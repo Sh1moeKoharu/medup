@@ -3,10 +3,12 @@ import { Check } from '@/components/icons/check';
 import { ChevronDown } from '@/components/icons/chevron-down';
 import { X } from '@/components/icons/x';
 import { Text } from '@/components/ui/Text';
+import { contieneTexto } from '@/utils/buscar';
 import { clx } from '@/utils/clx';
 import React, { useState } from 'react';
 import { FlatList, TextInput, TouchableOpacity, View } from 'react-native';
 import { BottomSheet } from './ui/BottomSheet';
+import { color } from '@/theme/tokens';
 
 interface MultiSelectOption {
   label: string;
@@ -42,7 +44,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
   const selectedOptions = options.filter((option) => value.includes(option.value));
 
   const filteredOptions = searchable
-    ? options.filter((option) => option.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? options.filter((option) => contieneTexto(option.label, searchQuery))
     : options;
 
   const toggleOption = (optionValue: string) => {
@@ -70,7 +72,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
       >
         {option.label}
       </Text>
-      {isSelected && <Check size={16} color="#4E78E5" />}
+      {isSelected && <Check size={16} color={color.acento} />}
     </TouchableOpacity>
   );
 
@@ -136,9 +138,9 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
         {searchable && (
           <View className="border-b border-gray-200 p-4">
             <TextInput
-              className="rounded-lg border border-gray-200 px-4 py-3"
+              className="rounded-xl border border-gray-300 px-4 py-3"
               placeholder="Buscar opciones..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={color.textoTerciario}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -160,7 +162,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
           ListEmptyComponent={
             <View className="items-center p-8">
               <Text className="text-gray-500">
-                {searchable && searchQuery ? 'No options found' : 'No hay opciones disponibles'}
+                {searchable && searchQuery ? 'Sin resultados' : 'No hay opciones disponibles'}
               </Text>
             </View>
           }

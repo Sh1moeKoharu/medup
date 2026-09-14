@@ -1,6 +1,7 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { ROLE_LABELS, normalizeRole } from "../lib/roles"
+import { aIdentificador } from "../lib/usuarios"
 import {
   TEST_PASSWORD,
   TEST_USERS,
@@ -8,6 +9,7 @@ import {
   assertEveryRoleCovered,
   assertNotProduction,
 } from "../lib/test-users"
+import { CLAVE_NUMERO_EMPLEADO, numeroDeEmpleado } from "../lib/personal"
 
 /**
  * Siembra un usuario por cada rol canónico, para pruebas.
@@ -42,7 +44,9 @@ export default async function seedTestUsers({ container }: ExecArgs) {
   console.log("")
 
   for (const spec of TEST_USERS) {
-    const [existing] = await userModuleService.listUsers({ email: spec.email })
+    const [existing] = await userModuleService.listUsers({
+      email: aIdentificador(spec.username),
+    })
 
     if (existing) {
       const storedRole = (existing.metadata as any)?.role
@@ -51,53 +55,57 @@ export default async function seedTestUsers({ container }: ExecArgs) {
       // depurando quiere ver lo que realmente hay guardado.
       const storedLabel = storedRole ? `"${storedRole}"` : "sin rol"
 
-      if (currentRole === spec.role) {
+      const numeroActual = numeroDeEmpleado(existing)
+
+      if (currentRole === spec.role && numeroActual === spec.employee_number) {
         untouched.push(spec)
-        console.log(`   = ${spec.email.padEnd(24)} ya existe (${spec.role})`)
+        console.log(`   = ${spec.username.padEnd(16)} ya existe (${spec.role}, Nº ${spec.employee_number})`)
         continue
       }
 
-      // Corrige sólo la clave `role`, conservando el resto del metadata.
+      // Corrige sólo el rol y el número, conservando el resto del metadata.
       await userModuleService.updateUsers([
         {
           id: existing.id,
           metadata: {
             ...((existing.metadata as Record<string, unknown>) ?? {}),
             role: spec.role,
+            [CLAVE_NUMERO_EMPLEADO]: spec.employee_number,
           },
         },
       ])
 
       repaired.push({ spec, from: storedLabel })
       console.log(
-        `   ~ ${spec.email.padEnd(24)} rol corregido: ${storedLabel} -> ${spec.role}`
+        `   ~ ${spec.username.padEnd(16)} corregido: rol ${storedLabel} -> ${spec.role}, ` +
+          `Nº ${numeroActual ?? "sin número"} -> ${spec.employee_number}`
       )
       continue
     }
 
     // `register` delega el hashing al proveedor emailpass.
     const { success, error } = await authModuleService.register("emailpass", {
-      body: { email: spec.email, password: TEST_PASSWORD },
+      body: { email: aIdentificador(spec.username), password: TEST_PASSWORD },
     } as any)
 
     if (!success) {
-      throw new Error(`No se pudo registrar ${spec.email}: ${error}`)
+      throw new Error(`No se pudo registrar ${spec.username}: ${error}`)
     }
 
     const [authIdentity] = await authModuleService.listAuthIdentities({
-      provider_identities: { entity_id: spec.email },
+      provider_identities: { entity_id: aIdentificador(spec.username) },
     })
 
     if (!authIdentity) {
-      throw new Error(`Identidad de auth no encontrada para ${spec.email}`)
+      throw new Error(`Identidad de auth no encontrada para ${spec.username}`)
     }
 
     const [user] = await userModuleService.createUsers([
       {
-        email: spec.email,
+        email: aIdentificador(spec.username),
         first_name: spec.first_name,
         last_name: "Pruebas",
-        metadata: { role: spec.role },
+        metadata: { role: spec.role, [CLAVE_NUMERO_EMPLEADO]: spec.employee_number },
       },
     ])
 
@@ -106,7 +114,7 @@ export default async function seedTestUsers({ container }: ExecArgs) {
     ])
 
     created.push(spec)
-    console.log(`   + ${spec.email.padEnd(24)} creado (${spec.role})`)
+    console.log(`   + ${spec.username.padEnd(16)} creado (${spec.role}, Nº ${spec.employee_number})`)
   }
 
   console.log("")
@@ -119,8 +127,8 @@ export default async function seedTestUsers({ container }: ExecArgs) {
   console.log(`Contraseña (todas las cuentas): ${TEST_PASSWORD}`)
   console.log("")
   for (const spec of TEST_USERS) {
-    console.log(`   ${spec.email.padEnd(24)} ${ROLE_LABELS[spec.role]}`)
-    console.log(`   ${" ".repeat(24)} ${spec.purpose}`)
+    console.log(`   ${spec.username.padEnd(16)} ${ROLE_LABELS[spec.role]} · Nº ${spec.employee_number}`)
+    console.log(`   ${" ".repeat(16)} ${spec.purpose}`)
   }
   console.log("")
   console.log("Cuentas de prueba locales. No sembrar en un entorno con datos reales.")

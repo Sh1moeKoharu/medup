@@ -97,6 +97,7 @@ export default async function verificarBitacora({ container, args }: ExecArgs) {
         endpoint: a.endpoint,
         ip_address: a.ip_address ?? null,
         payload: a.payload ?? null,
+        user_employee_number: a.user_employee_number ?? null,
       },
       a.prev_hash ?? GENESIS
     )

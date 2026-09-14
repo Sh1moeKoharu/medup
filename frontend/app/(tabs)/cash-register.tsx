@@ -1,6 +1,7 @@
 import {
   useCurrentCashSession,
   useOpenCashSession,
+  useCashSessions,
   useCloseCashSession,
   useCashSessionSummary,
   useCashMovements,
@@ -12,8 +13,10 @@ import { Check } from '@/components/icons/check';
 import { Plus } from '@/components/icons/plus';
 import { Minus } from '@/components/icons/minus';
 import { InfoBanner } from '@/components/InfoBanner';
+import { formatearDinero } from '@/utils/dinero';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
+import { useImprimirDocumento } from '@/api/hooks/clinica';
 import { useAuthCtx } from '@/contexts/auth';
 import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
@@ -26,12 +29,10 @@ import { View, TextInput, TouchableOpacity, ScrollView, RefreshControl } from 'r
 // Helpers
 // ──────────────────────────────────────────────────
 
+// La caja ya traía su propio respaldo a MXN. Se conserva la función, que la
+// usan muchas líneas, pero por dentro pasa por el formateador del sistema.
 const formatCurrency = (amount: number, currencyCode?: string) =>
-  amount.toLocaleString('es-MX', {
-    style: 'currency',
-    currency: currencyCode || 'MXN',
-    currencyDisplay: 'narrowSymbol',
-  });
+  formatearDinero(amount, currencyCode);
 
 const formatTime = (dateString: string) => {
   const d = new Date(dateString);
@@ -50,10 +51,10 @@ const formatDateTime = (dateString: string) => {
 };
 
 const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
-  sale: { label: 'Venta', color: 'text-green-600', sign: '+' },
-  refund: { label: 'Reembolso', color: 'text-red-500', sign: '-' },
-  cash_in: { label: 'Entrada', color: 'text-blue-600', sign: '+' },
-  cash_out: { label: 'Salida', color: 'text-orange-500', sign: '-' },
+  sale: { label: 'Venta', color: 'text-success-500', sign: '+' },
+  refund: { label: 'Reembolso', color: 'text-error-500', sign: '-' },
+  cash_in: { label: 'Entrada', color: 'text-info-500', sign: '+' },
+  cash_out: { label: 'Salida', color: 'text-warning-500', sign: '-' },
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -114,15 +115,30 @@ const SummaryCard: React.FC<{
   currencyCode?: string;
   highlight?: boolean;
   negative?: boolean;
-}> = ({ label, value, currencyCode, highlight, negative }) => (
+  /**
+   * Muestra el valor como CANTIDAD, no como importe.
+   *
+   * Sin esto la tarjeta formateaba todo como moneda, así que el número de
+   * transacciones del turno salía como "$1.00" en vez de "1". Al lado de las
+   * cifras de dinero del corte, un conteo con signo de pesos se lee como un
+   * importe y confunde justo donde no conviene.
+   */
+  conteo?: boolean;
+}> = ({ label, value, currencyCode, highlight, negative, conteo }) => (
   <View
     className={`flex-1 rounded-xl p-3 ${
-      highlight ? 'bg-black' : negative ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+      highlight ? 'bg-black' : negative ? 'bg-error-200 border border-error-300' : 'bg-gray-50'
     }`}
   >
-    <Text className={`text-xs ${highlight ? 'text-gray-400' : 'text-gray-400'}`}>{label}</Text>
-    <Text className={`text-lg font-bold ${highlight ? 'text-white' : negative ? 'text-red-600' : 'text-black'}`}>
-      {formatCurrency(value, currencyCode)}
+    {/*
+      Sobre la tarjeta oscura la etiqueta va en claro. Las dos ramas de esta
+      condición eran idénticas —`text-gray-400` en los dos casos—, así que la
+      etiqueta de "Total de ventas" se dibujaba con el gris pensado para fondos
+      claros encima del negro: 2.6:1, ilegible.
+    */}
+    <Text className={`text-xs ${highlight ? 'text-gray-200' : 'text-gray-400'}`}>{label}</Text>
+    <Text className={`text-lg font-bold ${highlight ? 'text-white' : negative ? 'text-error-500' : 'text-black'}`}>
+      {conteo ? Math.round(value).toLocaleString('es-MX') : formatCurrency(value, currencyCode)}
     </Text>
   </View>
 );
@@ -130,6 +146,33 @@ const SummaryCard: React.FC<{
 // ──────────────────────────────────────────────────
 // Open Session Form
 // ──────────────────────────────────────────────────
+
+/**
+ * Los últimos cortes, para reimprimirlos. El corte lo compone el servidor
+ * (/admin/documents/corte/:id) con la misma aritmética que el resumen.
+ */
+const CortesAnteriores: React.FC = () => {
+  const cortes = useCashSessions({ status: 'closed', limit: 5 });
+  const imprimir = useImprimirDocumento();
+  const lista = cortes.data ?? [];
+  if (!lista.length) return null;
+  return (
+    <View className="w-full max-w-sm gap-2 mt-8">
+      <Text className="text-sm text-gray-400">Cortes anteriores</Text>
+      {lista.map((s) => (
+        <View key={s.id} className="flex-row items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <View className="flex-1">
+            <Text numberOfLines={1}>{s.cashier_name}</Text>
+            <Text className="text-xs text-gray-400">{new Date(s.opened_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
+          </View>
+          <Button variant="outline" className="px-4 py-2" onPress={() => imprimir.mutate({ tipo: 'corte', id: s.id })} isPending={imprimir.isPending}>
+            Reimprimir corte
+          </Button>
+        </View>
+      ))}
+    </View>
+  );
+};
 
 const OpenSessionView: React.FC = () => {
   const settings = useSettings();
@@ -187,9 +230,11 @@ const OpenSessionView: React.FC = () => {
             isPending={openSession.isPending}
             disabled={!cajero}
           >
-            Abrir Caja
+            Abrir caja
           </Button>
         </View>
+
+        <CortesAnteriores />
       </View>
     </Layout>
   );
@@ -205,6 +250,8 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   const summaryQuery = useCashSessionSummary(sessionId);
   const movementsQuery = useCashMovements(sessionId);
   const closeSession = useCloseCashSession();
+  // El corte sale por la impresora al cerrar, y se puede reimprimir después.
+  const imprimirCorte = useImprimirDocumento();
   const addMovement = useAddCashMovement();
 
   const [showCloseDialog, setShowCloseDialog] = useState(false);
@@ -241,7 +288,7 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
         >
           <Text className="mt-8 mb-2 text-4xl">Caja</Text>
           <View className="mb-6 flex-row items-center gap-2">
-            <View className="h-2 w-2 rounded-full bg-green-500" />
+            <View className="h-2 w-2 rounded-full bg-success-500" />
             <Text className="text-sm text-gray-400">
               Abierta por {session.cashier_name} · {formatDateTime(session.opened_at)}
             </Text>
@@ -249,8 +296,8 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
 
           {/* ── Resumen Principal ── */}
           <View className="mb-4 flex-row gap-2">
-            <SummaryCard label="Total Ventas" value={summary.sales_total} currencyCode={currencyCode} highlight />
-            <SummaryCard label="Transacciones" value={summary.transaction_count} currencyCode={currencyCode} />
+            <SummaryCard label="Total de ventas" value={summary.sales_total} currencyCode={currencyCode} highlight />
+            <SummaryCard label="Transacciones" value={summary.transaction_count} conteo />
           </View>
 
           {/* ── Desglose por método de pago ── */}
@@ -272,8 +319,8 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
               <>
                 <View className="h-hairline bg-gray-100" />
                 <View className="flex-row justify-between">
-                  <Text className="text-sm text-red-500">Reembolsos</Text>
-                  <Text className="text-sm font-medium text-red-500">
+                  <Text className="text-sm text-error-500">Reembolsos</Text>
+                  <Text className="text-sm font-medium text-error-500">
                     -{formatCurrency(summary.refunds_total, currencyCode)}
                   </Text>
                 </View>
@@ -324,7 +371,7 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           </View>
 
           {/* ── Últimos movimientos ── */}
-          <Text className="mb-2 text-lg font-medium">Últimos Movimientos</Text>
+          <Text className="mb-2 text-lg font-medium">Últimos movimientos</Text>
           {movements.length === 0 ? (
             <View className="items-center py-8">
               <CircleAlert size={20} />
@@ -344,16 +391,16 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
           <Button
             onPress={() => setShowCloseDialog(true)}
           >
-            Hacer Corte de Caja
+            Hacer corte de caja
           </Button>
         </View>
       </Layout>
 
-      {/* ── Dialog: Cerrar Caja ── */}
+      {/* ── Dialog: Cerrar caja ── */}
       <Dialog
         visible={showCloseDialog}
         onClose={() => setShowCloseDialog(false)}
-        title="Corte de Caja"
+        title="Corte de caja"
       >
         <View className="gap-4">
           <InfoBanner colorScheme="info">
@@ -376,10 +423,10 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
             <View
               className={`rounded-xl p-3 ${
                 Number(closingAmount) === summary.expected_cash_in_register
-                  ? 'bg-green-50 border border-green-200'
+                  ? 'bg-success-200 border border-success-300'
                   : Number(closingAmount) > summary.expected_cash_in_register
-                    ? 'bg-blue-50 border border-blue-200'
-                    : 'bg-red-50 border border-red-200'
+                    ? 'bg-info-200 border border-info-300'
+                    : 'bg-error-200 border border-error-300'
               }`}
             >
               <View className="flex-row justify-between items-center">
@@ -436,22 +483,23 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
                       setShowCloseDialog(false);
                       setClosingAmount('');
                       setClosingNotes('');
+                      imprimirCorte.mutate({ tipo: 'corte', id: sessionId });
                     },
                   }
                 );
               }}
             >
-              Cerrar Caja
+              Cerrar caja
             </Button>
           </View>
         </View>
       </Dialog>
 
-      {/* ── Dialog: Registrar Movimiento Manual ── */}
+      {/* ── Dialog: Registrar movimiento Manual ── */}
       <Dialog
         visible={showMovementDialog}
         onClose={() => setShowMovementDialog(false)}
-        title={movType === 'cash_in' ? 'Entrada de Efectivo' : 'Salida de Efectivo'}
+        title={movType === 'cash_in' ? 'Entrada de efectivo' : 'Salida de efectivo'}
       >
         <View className="gap-4">
           <View>
@@ -511,7 +559,7 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
                 );
               }}
             >
-              {movType === 'cash_in' ? 'Registrar Entrada' : 'Registrar Salida'}
+              {movType === 'cash_in' ? 'Registrar entrada' : 'Registrar salida'}
             </Button>
           </View>
         </View>

@@ -32,6 +32,16 @@ const Storage = {
 const DRAFT_ORDER_ID_STORAGE_KEY = 'draft_order_id';
 export const DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL = 'noreply+pos-guest@agilo.com';
 
+/**
+ * Adopta como carrito de ESTA caja la cuenta pendiente de un paciente (el
+ * pedido en borrador que Enfermería abrió al aplicar la consulta). A partir de
+ * aquí el cobro es el de siempre: /checkout/:id. Si la caja tenía un carrito a
+ * medias, queda en el servidor con su id anterior; no se pierde.
+ */
+export const abrirCuentaParaCobro = async (draftOrderId: string) => {
+  await Storage.setItemAsync(DRAFT_ORDER_ID_STORAGE_KEY, draftOrderId);
+};
+
 const useGetOrSetDefaultCustomer = () => {
   const sdk = useMedusaSdk();
 
@@ -46,9 +56,20 @@ const useGetOrSetDefaultCustomer = () => {
       return existingCustomer.customers[0].id;
     }
 
+    // Nace CON NOMBRE a propósito.
+    //
+    // Las pantallas de Medusa enseñan el nombre del cliente y, cuando no hay,
+    // caen al correo. Sin esto, la tabla de Pedidos del panel mostraba
+    // `noreply+pos-guest@agilo.com` en la columna Paciente de toda venta de
+    // mostrador: el dato es correcto pero se lee como un error.
+    //
+    // El nombre se pone aquí, al crearla, y no sólo con el script de arreglo:
+    // así una instalación nueva ya sale bien sin acordarse de nada.
     const newCustomer = await sdk.admin.customer.create(
       {
         email: DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
+        first_name: 'Venta',
+        last_name: 'de mostrador',
       },
       {
         fields: 'id',

@@ -8,7 +8,8 @@ import { Layout } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { useBreakpointValue } from '@/hooks/useBreakpointValue';
-import { useAddToDraftOrder } from '@/api/hooks/draft-orders';
+import { useReceta } from '@/contexts/receta';
+import Toast from 'react-native-toast-message';
 import { clx } from '@/utils/clx';
 import { showErrorToast } from '@/utils/errors';
 import { AdminProduct } from '@medusajs/types';
@@ -43,7 +44,7 @@ const ProductPlaceholder: React.FC<{ index: number; numColumns: number }> = ({ i
 };
 
 const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumns: number; index: number }> = ({ item, onPress, numColumns, index }) => {
-  const addToDraftOrder = useAddToDraftOrder();
+  const receta = useReceta();
   const thumbnail = item.thumbnail || item.images?.[0]?.url;
   const defaultVariant = item.variants?.[0];
 
@@ -57,8 +58,8 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumn
             {thumbnail && <Image source={{ uri: thumbnail }} className="h-full w-full object-contain" />}
             {item.status === 'draft' && (
               <View className="absolute inset-0 bg-white/60 items-center justify-center">
-                <View className="bg-red-100 px-2 py-1 rounded-full border border-red-200 shadow-sm">
-                  <Text className="text-red-700 text-[10px] font-bold text-center uppercase tracking-wider">Agotado</Text>
+                <View className="bg-error-200 px-2 py-1 rounded-full border border-error-300 shadow-sm">
+                  <Text className="text-error-500 text-[10px] font-bold text-center uppercase tracking-wider">Agotado</Text>
                 </View>
               </View>
             )}
@@ -74,7 +75,7 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumn
                 const nearest = sorted[0];
                 return (
                   <View className="mb-1">
-                    <Text className="text-[9px] text-red-600 font-medium">Caducidad: {new Date(nearest.expiration_date).toLocaleDateString()}</Text>
+                    <Text className="text-[9px] text-error-500 font-medium">Caducidad: {new Date(nearest.expiration_date).toLocaleDateString()}</Text>
                     {nearest.shelf_location && <Text className="text-[9px] text-gray-400">Estante: {nearest.shelf_location}</Text>}
                   </View>
                 );
@@ -95,20 +96,15 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumn
           <TouchableOpacity
             className={clx(
               "h-8 w-8 rounded-full items-center justify-center shadow-sm",
-              (!defaultVariant || addToDraftOrder.isPending || item.status === 'draft')
-                ? "bg-gray-300"
-                : "bg-[#1B1B1B]"
+              (!defaultVariant || item.status === 'draft')
+                ? "bg-gray-200"
+                : "bg-black"
             )}
-            disabled={!defaultVariant || addToDraftOrder.isPending || item.status === 'draft'}
+            disabled={!defaultVariant || item.status === 'draft'}
             onPress={() => {
               if (!defaultVariant) return;
-              addToDraftOrder.mutate({
-                items: [{ 
-                  quantity: 1, 
-                  variant_id: defaultVariant.id,
-                  unit_price: 0 // Precios no importan en la receta médica
-                }]
-              });
+              receta.agregar({ variant_id: defaultVariant.id, product_id: item.id, product_title: item.title });
+              Toast.show({ type: 'success', text1: 'Añadido a la receta', text2: item.title, visibilityTime: 1500 });
             }}
           >
             <Plus size={16} color="white" />
@@ -139,7 +135,7 @@ export default function DoctorProductsScreen() {
   const handleProductPress = React.useCallback((product: AdminProduct) => {
     router.push({
       pathname: '/product-details',
-      params: { productId: product.id, productName: product.title },
+      params: { productId: product.id, productName: product.title, destino: 'receta' },
     });
   }, []);
 
@@ -227,7 +223,7 @@ export default function DoctorProductsScreen() {
 
   if (isLargeScreen) {
     return (
-      <View className="flex-1 flex-row bg-[#F4F4F6]">
+      <View className="flex-1 flex-row bg-canvas">
         <View className="flex-[3] pr-2">
           {content}
         </View>
@@ -239,7 +235,7 @@ export default function DoctorProductsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F4F4F6]">
+    <View className="flex-1 bg-canvas">
       {content}
     </View>
   );

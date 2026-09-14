@@ -151,6 +151,27 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
         const { data: ordenes } = await query.graph({
             entity: "order",
+            /**
+             * ── POR QUÉ SE PIDE `items.*` Y NO CAMPO POR CAMPO ──────────────
+             *
+             * En Medusa v2 los totales de un pedido son propiedades CALCULADAS,
+             * no columnas: se derivan de las líneas, sus impuestos y sus
+             * descuentos. Si se restringe la selección a `items.quantity` y
+             * `items.total`, el cálculo se queda sin sus insumos y devuelve 0
+             * — sin error, sin aviso.
+             *
+             * El efecto era que TODO recibo salía con cantidad 0 y total
+             * $0.00, con el precio unitario correcto al lado. Comprobado con
+             * una venta real de 50 unidades a $45.00: la orden valía $2,250.00
+             * y el ticket decía cero.
+             *
+             * `items.*` más las relaciones de impuestos y descuentos es lo que
+             * permite que el motor calcule. `shipping_methods.*` entra por lo
+             * mismo: forma parte del total aunque en mostrador no se use.
+             *
+             * ⚠️ No volver a recortar esta lista "para pedir sólo lo necesario".
+             * Lo necesario incluye lo que alimenta el cálculo.
+             */
             fields: [
                 "id",
                 "display_id",
@@ -163,13 +184,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 "total",
                 "customer.first_name",
                 "customer.last_name",
-                "items.id",
-                "items.title",
-                "items.product_title",
-                "items.quantity",
-                "items.unit_price",
-                "items.total",
+                "items.*",
+                "items.tax_lines.*",
+                "items.adjustments.*",
                 "items.product.metadata",
+                "shipping_methods.*",
             ],
             filters: { id: orderId },
         });
@@ -186,12 +205,13 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         // apertura de caja, `cashier_name` sale de la sesión del usuario y no de
         // un campo que alguien haya tecleado.
         let cajero: string | null = null;
+        let referencia: string | null = null;
         let metodoPago: string | null = null;
 
         try {
             const { data: movimientos } = await query.graph({
                 entity: "cash_movement",
-                fields: ["id", "session_id", "payment_method", "type"],
+                fields: ["id", "session_id", "payment_method", "type", "reference"],
                 filters: { order_id: orderId },
             });
 
@@ -199,6 +219,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
             if (venta) {
                 metodoPago = venta.payment_method ?? null;
+                referencia = venta.reference ?? null;
                 const { data: sesiones } = await query.graph({
                     entity: "cash_session",
                     fields: ["id", "cashier_name"],
@@ -269,6 +290,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 impuestos: Number(orden.tax_total ?? 0),
                 total: Number(orden.total ?? 0),
                 metodo_pago: metodoPago,
+                // Referencia de la terminal cuando fue con tarjeta; null si no.
+                referencia,
                 leyendas,
             },
         });

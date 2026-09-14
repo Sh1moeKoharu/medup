@@ -1,3 +1,5 @@
+import { ROLES } from "../lib/roles";
+import { destinatariosPorRol } from "../lib/personal-servidor";
 import { MedusaContainer } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import * as fs from "fs";
@@ -67,22 +69,53 @@ export default async function blockExpiredBatchesJob(
             // Generate report
             generateReport(reportData, logger);
 
-            // Send notification
-            const notificationModuleService = container.resolve(Modules.NOTIFICATION);
-            if (notificationModuleService) {
-                try {
-                    await notificationModuleService.createNotifications({
-                        to: "admin@example.com",
-                        channel: "email",
-                        template: "expired-batches-alert",
-                        data: {
-                            count: reportData.length,
-                            report_path: path.join("reports", "destruccion-sanitaria")
-                        }
-                    });
-                    logger.info("Sent expiration notification email.");
-                } catch (notifErr) {
-                    logger.error("Failed to send notification email", notifErr);
+            /**
+             * ── A QUIÉN SE AVISA ────────────────────────────────────────────
+             * A las personas que tienen ese trabajo: las cuentas activas con
+             * rol de Administración o Farmacia que tengan correo de aviso.
+             * Cambia solo cuando cambia el personal; nadie tiene que acordarse
+             * de una variable de entorno.
+             *
+             * ALERTAS_EMAIL queda como respaldo, por si ninguna cuenta lo
+             * tiene. Y si tampoco está, se registra como ERROR en lugar de
+             * pasar en silencio: antes esto enviaba a "admin@example.com" y el
+             * registro decía "enviado" mientras no llegaba a nadie.
+             */
+            const destinatarios = await destinatariosPorRol(
+                container,
+                [ROLES.ADMIN, ROLES.PHARMACY],
+                process.env.ALERTAS_EMAIL
+            );
+
+            if (!destinatarios.length) {
+                logger.error(
+                    `[CADUCIDADES] Hay ${reportData.length} lote(s) en cuarentena que ` +
+                        `reportar, pero ninguna cuenta de Administración o Farmacia tiene ` +
+                        `correo de aviso y ALERTAS_EMAIL no está configurada: NO se envió ` +
+                        `ningún aviso. Pon un correo de aviso en Ajustes → Personal. El ` +
+                        `reporte CSV sí se generó.`
+                );
+            } else {
+                const notificationModuleService = container.resolve(Modules.NOTIFICATION);
+                for (const destinatario of destinatarios) {
+                    try {
+                        await notificationModuleService.createNotifications({
+                            to: destinatario,
+                            channel: "email",
+                            template: "expired-batches-alert",
+                            data: {
+                                count: reportData.length,
+                                report_path: path.join("reports", "destruccion-sanitaria")
+                            }
+                        });
+                        logger.info(`Aviso de caducidades enviado a ${destinatario}.`);
+                    } catch (notifErr) {
+                        logger.error(
+                            `[CADUCIDADES] No se pudo enviar el aviso a ${destinatario}. ` +
+                                `El reporte CSV sí se generó. Error:`,
+                            notifErr as any
+                        );
+                    }
                 }
             }
 

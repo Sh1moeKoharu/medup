@@ -127,7 +127,7 @@ export const useUpdateSettings = (
     mutationKey: ['update-settings'],
     mutationFn: async (settings) => {
       if (!settings.sales_channel_id && !settings.stock_location_id && !settings.region_id) {
-        throw new Error('At least one setting must be provided');
+        throw new Error('Hay que indicar al menos un ajuste.');
       }
 
       if (settings.sales_channel_id) {

@@ -112,17 +112,49 @@ const LEGACY_ROLE_ALIASES: Record<string, Role> = {
 }
 
 /**
- * Rol asumido para usuarios SIN `metadata.role`.
+ * ── NO HAY ROL POR OMISIÓN ──────────────────────────────────────────────────
  *
- * El admin de arranque creado por `npx medusa user -e ... -p ...` no tiene
- * metadata, y tratarlo como "sin acceso" dejaría al dueño fuera de su propio
- * sistema. Los usuarios sólo pueden ser creados por un admin, así que el
- * fallback no es una vía de escalación.
+ * Un usuario sin `metadata.role` NO tiene rol: `normalizeRole` devuelve null y
+ * los guards de `require-role.ts` deniegan. No se asume ninguno.
  *
- * Tras correr `migrate-roles.ts` (que estampa `admin` explícitamente en esos
- * usuarios) este fallback puede endurecerse a `null`.
+ * ANTES se asumía `admin`. La razón era buena —el administrador de arranque que
+ * crea `npx medusa user` no lleva metadata, y tratarlo como "sin acceso" dejaba
+ * al dueño fuera de su propio sistema— pero el precio era desproporcionado:
+ * CUALQUIER cuenta que perdiera su rol quedaba ascendida a administrador en
+ * silencio. Y se pierde con facilidad: bastaba un `updateUsers` que
+ * reemplazara el metadata en vez de fusionarlo, que es exactamente el bug que
+ * se corrigió en `/admin/staff/:id`.
+ *
+ * Una omisión que ESCALA privilegios está al revés. Ahora la omisión deniega.
+ *
+ * ── CÓMO SE DA DE ALTA UN ADMINISTRADOR ─────────────────────────────────────
+ * Con `scripts/crear-admin.ts`, que sí estampa el rol. NO con `npx medusa user`,
+ * que crea la cuenta sin rol y ahora la deja sin acceso. El mismo script repara
+ * una cuenta existente que se haya quedado sin rol, así que también es la vía
+ * de recuperación si alguien queda fuera.
+ *
+ * ── ANTES DE DESPLEGAR ESTE CAMBIO EN UN SERVIDOR VIVO ──────────────────────
+ * Hay que estampar el rol de las cuentas que hoy dependen de la omisión:
+ *
+ *     npx medusa exec ./src/scripts/migrate-roles.ts          (simulación)
+ *     npx medusa exec ./src/scripts/migrate-roles.ts apply
+ *
+ * La simulación lista exactamente qué cuentas están sin rol. Si no se corre,
+ * esas cuentas pierden el acceso al reiniciar.
  */
-export const FALLBACK_ROLE_FOR_LEGACY_USERS: Role = ROLES.ADMIN
+
+/**
+ * Rol que `migrate-roles.ts` estampa en las cuentas SIN rol.
+ *
+ * Es la contraparte de lo anterior: la omisión ya no concede nada en runtime,
+ * pero la migración sigue necesitando decidir qué escribir en esas cuentas
+ * heredadas, y ahí `admin` sigue siendo correcto — son el administrador de
+ * arranque creado por CLI antes de que existiera este vocabulario.
+ *
+ * ⚠️ Se aplica SÓLO desde el script, que corre en simulación por omisión y
+ * lista cada cuenta afectada antes de tocar nada. Nunca en una ruta HTTP.
+ */
+export const MIGRATION_ROLE_FOR_UNMARKED_USERS: Role = ROLES.ADMIN
 
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ALL_ROLES as string[]).includes(value)

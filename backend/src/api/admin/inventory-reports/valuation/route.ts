@@ -16,21 +16,28 @@ import { fetchVariantLabels } from "../../../../lib/variant-titles";
  * posible porque cada entrada quedó asentada con su costo.
  *
  * Query: ?include_quarantined=true  (por omisión sólo cuenta lo vendible)
+ *        &stock_location_id=        (sólo ese almacén; por omisión, todos)
  */
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
     try {
         const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
         const includeQuarantined =
             String((req.query as any).include_quarantined) === "true";
+        const stockLocationId = String((req.query as any).stock_location_id ?? "").trim();
+        const porAlmacen = stockLocationId ? { stock_location_id: stockLocationId } : {};
 
         const { data: batches } = await query.graph({
             entity: "medical_batch",
-            fields: ["id", "batch_number", "variant_id", "quantity", "status", "expiration_date"],
+            fields: ["id", "batch_number", "variant_id", "quantity", "status", "expiration_date", "stock_location_id"],
+            filters: porAlmacen,
         });
 
+        // El costo promedio se calcula con las entradas del MISMO almacén que
+        // se está valorizando: lo que costó lo que hay ahí.
         const { data: movements } = await query.graph({
             entity: "inventory_movement",
             fields: ["variant_id", "quantity_delta", "unit_cost", "type"],
+            filters: porAlmacen,
         });
 
         // ── Costo promedio ponderado por variante ───────────────────────────

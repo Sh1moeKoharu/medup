@@ -4,6 +4,7 @@ import { useSettings } from '@/contexts/settings';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, View } from 'react-native';
+import { color } from '@/theme/tokens';
 
 export default function RootLoadingScreen() {
   const router = useRouter();
@@ -38,6 +39,18 @@ export default function RootLoadingScreen() {
           // admin guardaba "enfermero" y aquí se comparaba contra 'nurse'.
           // Unificado el vocabulario, la heurística sobra y se elimina: un correo
           // como "medico.jefe@clinica.mx" con rol de caja ya no abre la vista médica.
+          //
+          // Si la app se abrio con una direccion concreta (enlace directo, o
+          // F5 en mitad de un corte), a ella se vuelve DESPUES de aterrizar
+          // aqui: lo hace hooks/useRestaurarRutaInicial.ts. Hacerlo desde este
+          // efecto no sirve: tras el inicio de sesion el navegador esta a medio
+          // recomponerse y el reemplazo cae en la pestana equivocada.
+          //
+          // Con el grupo de Caja este reemplazo, lanzado justo cuando el Stack
+          // quita la pantalla de login, deja el navegador a medias (pinta
+          // Productos pero la direccion dice /activity). Lo remata
+          // hooks/useRestaurarRutaInicial.ts, que ademas restaura la ruta
+          // pedida si la app se abrio con un enlace directo.
           router.replace(getHomeRoute(auth.state.user.role) as any);
           return;
         }
@@ -46,7 +59,7 @@ export default function RootLoadingScreen() {
   }, [auth.state.status, settings.isSuccess, router, isSetupComplete]);
 
   return (
-    <View className="flex-1 items-center justify-center" style={{ backgroundColor: '#f4faff' }}>
+    <View className="flex-1 items-center justify-center" style={{ backgroundColor: color.lienzo }}>
       <Image
         source={require('@/assets/images/splash-icon.png')}
         style={{

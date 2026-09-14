@@ -179,7 +179,7 @@ export const SwipeableListItem: React.FC<SwipeableListItemProps> = ({
       className={clx('justify-center', containerClassName)}
       accessible={true}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel || 'Swipeable item'}
+      accessibilityLabel={accessibilityLabel || 'Elemento deslizable'}
       accessibilityHint={
         accessibilityHint ||
         `Swipe ${leftContent ? 'right' : ''}${leftContent && rightContent ? ' or ' : ''}${

@@ -6,6 +6,7 @@ import { B2B_AGREEMENTS_MODULE } from "../modules/b2b-agreements"
 import { MEDICAL_CUSTOMER_MODULE } from "../modules/medical-customer"
 import { TEST_USERS } from "../lib/test-users"
 import { normalizeRole, ROLES } from "../lib/roles"
+import { aIdentificador } from "../lib/usuarios"
 
 /**
  * ⚠️ SCRIPT DESTRUCTIVO — deja el sistema listo para el cliente.
@@ -15,8 +16,9 @@ import { normalizeRole, ROLES } from "../lib/roles"
  *
  * Borra lo que se sembró para probar y no debe llegar a producción:
  *
- *   · Las seis cuentas @sigh.test. Su contraseña está escrita en el repositorio,
- *     que es PÚBLICO, y una de ellas es de administrador. Dejarlas equivale a
+ *   · Las seis cuentas del catálogo de prueba: admin, caja, farmacia, medico,
+ *     enfermeria y auditoria. Su contraseña está escrita en el repositorio, que
+ *     es PÚBLICO, y una de ellas es de administrador. Dejarlas equivale a
  *     publicar seis credenciales válidas del sistema de la clínica.
  *   · Los pacientes @paciente.test y su expediente.
  *   · Los convenios de empresas ficticias (*.test).
@@ -41,7 +43,24 @@ import { normalizeRole, ROLES } from "../lib/roles"
  * constancia de qué había, que es lo que hace falta si algo se echa de menos.
  */
 
-const DOMINIO_USUARIOS = "@sigh.test"
+/**
+ * Qué cuenta es «de prueba».
+ *
+ * Antes se miraba el dominio: todo lo que acabara en `@sigh.test` era de
+ * prueba. Ese criterio MURIÓ al pasar a nombres de usuario, porque ahora las
+ * cuentas de prueba y las reales comparten dominio (`@sigh.local`). Dejarlo así
+ * habría convertido este script en uno que borra al personal de la clínica.
+ *
+ * Se identifican por el catálogo, que es exacto: de prueba es la cuenta cuyo
+ * identificador coincide con el de un `TEST_USERS`, y ninguna más.
+ */
+const IDENTIFICADORES_DE_PRUEBA = new Set(
+  TEST_USERS.map((u) => aIdentificador(u.username).toLowerCase())
+)
+
+const esCuentaDePrueba = (correo: unknown): boolean =>
+  IDENTIFICADORES_DE_PRUEBA.has(String(correo ?? "").toLowerCase())
+
 const DOMINIO_PACIENTES = "@paciente.test"
 
 export default async function limpiarDatosPrueba({ container, args }: ExecArgs) {
@@ -60,12 +79,8 @@ export default async function limpiarDatosPrueba({ container, args }: ExecArgs) 
 
   // ── Qué hay ───────────────────────────────────────────────────────────────
   const todosLosUsuarios = await userService.listUsers({})
-  const correosPrueba = new Set(TEST_USERS.map((u) => u.email.toLowerCase()))
 
-  const usuariosPrueba = todosLosUsuarios.filter((u: any) => {
-    const correo = String(u.email ?? "").toLowerCase()
-    return correo.endsWith(DOMINIO_USUARIOS) || correosPrueba.has(correo)
-  })
+  const usuariosPrueba = todosLosUsuarios.filter((u: any) => esCuentaDePrueba(u.email))
 
   const usuariosReales = todosLosUsuarios.filter(
     (u: any) => !usuariosPrueba.some((p: any) => p.id === u.id)
@@ -215,9 +230,7 @@ export default async function limpiarDatosPrueba({ container, args }: ExecArgs) 
 
   // ── Comprobación final ────────────────────────────────────────────────────
   const restantes = await userService.listUsers({})
-  const quedanPrueba = restantes.filter((u: any) =>
-    String(u.email ?? "").toLowerCase().endsWith(DOMINIO_USUARIOS)
-  )
+  const quedanPrueba = restantes.filter((u: any) => esCuentaDePrueba(u.email))
 
   console.log("")
   if (errores === 0 && quedanPrueba.length === 0) {

@@ -79,7 +79,7 @@ const RegionCreateForm: React.FC<RegionCreateFormProps> = ({
       <SelectField
         name="currency_code"
         floatingPlaceholder
-        placeholder="Currency"
+        placeholder="Moneda"
         options={currencyOptions}
         searchable
         onEndReached={currenciesQuery.fetchNextPage}
@@ -88,7 +88,7 @@ const RegionCreateForm: React.FC<RegionCreateFormProps> = ({
       <MultiSelectField
         name="country_codes"
         floatingPlaceholder
-        placeholder="Countries (optional)"
+        placeholder="Países (opcional)"
         options={countryOptions}
         searchable
       />

@@ -2,7 +2,7 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import {
   ALL_ROLES,
-  FALLBACK_ROLE_FOR_LEGACY_USERS,
+  MIGRATION_ROLE_FOR_UNMARKED_USERS,
   Role,
   normalizeRole,
 } from "../lib/roles"
@@ -17,8 +17,17 @@ import {
  *   · "cajero"    -> "cashier"
  *   · "enfermero" -> "nurse"
  *   · usuarios sin rol (el admin de arranque creado por CLI) -> "admin"
- *     explícito, para poder endurecer después el fallback implícito.
+ *     explícito.
  *   · reporta los roles desconocidos SIN tocarlos: requieren decisión humana.
+ *
+ * ── ESTE SCRIPT ES REQUISITO, NO LIMPIEZA OPCIONAL ─────────────────────────
+ * Ya no existe rol por omisión: una cuenta sin `metadata.role` NO tiene acceso
+ * a nada (ver "NO HAY ROL POR OMISIÓN" en lib/roles.ts). Antes esas cuentas se
+ * trataban como administrador, así que funcionaban sin haber corrido esto.
+ *
+ * En un servidor que venía de esa versión, hay que correrlo ANTES de desplegar,
+ * o las cuentas sin rol pierden el acceso al reiniciar. La simulación dice
+ * exactamente cuáles son.
  *
  * Corre en simulación por omisión. Nada se escribe sin `apply`.
  */
@@ -49,7 +58,7 @@ export default async function migrateRoles({ container, args }: ExecArgs) {
         id: user.id,
         email: user.email,
         from: "(sin rol)",
-        to: FALLBACK_ROLE_FOR_LEGACY_USERS,
+        to: MIGRATION_ROLE_FOR_UNMARKED_USERS,
       })
       continue
     }
