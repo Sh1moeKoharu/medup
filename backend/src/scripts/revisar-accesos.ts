@@ -2,6 +2,7 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { ROLES, ROLE_LABELS, Role, normalizeRole } from "../lib/roles"
 import { HIDDEN_MENU_ROUTES } from "../lib/menu-policy"
+import { panelCerradoAOtrosRoles } from "../lib/require-role"
 
 /**
  * Quién es quién: lista cada cuenta con el rol que tiene GUARDADO.
@@ -35,16 +36,21 @@ import { HIDDEN_MENU_ROUTES } from "../lib/menu-policy"
 
 /** Espejo de `INICIO_POR_ROL` en frontend/constants/acceso.ts. */
 const INTERFAZ_POS: Record<Role, string> = {
-  [ROLES.ADMIN]: "Caja (punto de venta)",
-  [ROLES.CASHIER]: "Caja (punto de venta)",
-  [ROLES.PHARMACY]: "Caja (punto de venta)",
+  [ROLES.ADMIN]: "Caja (y entra a todas las demás)",
+  [ROLES.CASHIER]: "Caja",
+  [ROLES.PHARMACY]: "Almacén (existencias, recetas, traspasos)",
   [ROLES.DOCTOR]: "Médico",
   [ROLES.NURSE]: "Enfermería",
-  [ROLES.AUDITOR]: "NINGUNA — pantalla 'sin POS'",
+  [ROLES.AUDITOR]: "Auditoría (sólo lectura)",
 }
 
-/** Espejo de `ROLES_CAJA`. Los únicos que pueden cobrar. */
-const PUEDE_COBRAR: Role[] = [ROLES.ADMIN, ROLES.CASHIER, ROLES.PHARMACY]
+/**
+ * Espejo de `ROLES_CAJA`. Los únicos que pueden cobrar.
+ *
+ * Farmacia salió de aquí en la fase 7: tiene su propia interfaz de almacén y ya
+ * no abre turno de caja.
+ */
+const PUEDE_COBRAR: Role[] = [ROLES.ADMIN, ROLES.CASHIER]
 
 export default async function revisarAccesos({ container }: ExecArgs) {
   const userService = container.resolve(Modules.USER)
@@ -82,8 +88,9 @@ export default async function revisarAccesos({ container }: ExecArgs) {
           ? "(vacío)"
           : `"${String(crudo)}"`
       console.log(`  Rol guardado  : ${guardado}  <-- NO SE ENTIENDE`)
-      console.log(`  Punto de venta: NINGUNA — pantalla 'sin POS'`)
-      console.log(`  Panel         : entra, pero el servidor le niega escribir`)
+      // Desde que se quitó el rol por omisión, sin rol no hay acceso a nada:
+      // antes una cuenta así se trataba como administrador.
+      console.log(`  Acceso        : NINGUNO — el servidor lo deniega todo`)
       console.log("")
       console.log(`  Esta cuenta no puede trabajar. Asígnale un rol en`)
       console.log(`  Personal, o corre migrate-roles.ts si es una cuenta antigua.`)
@@ -100,15 +107,19 @@ export default async function revisarAccesos({ container }: ExecArgs) {
     console.log(`  Rol guardado  : "${String(crudo)}" -> ${rol}  (${ROLE_LABELS[rol]})`)
     console.log(`  Punto de venta: ${INTERFAZ_POS[rol]}`)
     console.log(`  ¿Puede cobrar?: ${cobra ? "SÍ" : "no"}`)
-    console.log(
-      `  Panel         : ${ocultas.length ? `${ocultas.length} sección(es) oculta(s)` : "todo visible"}`
-    )
+    const panel =
+      rol !== ROLES.ADMIN && panelCerradoAOtrosRoles()
+        ? "no (PANEL_SOLO_ADMINISTRACION encendida)"
+        : ocultas.length
+          ? `sí, con ${ocultas.length} sección(es) oculta(s)`
+          : "sí, todo visible"
+    console.log(`  Panel         : ${panel}`)
 
     if (rol === ROLES.ADMIN) {
       console.log("")
       console.log(`  ADMINISTRADOR: acceso total, incluida la caja.`)
       console.log(`  Si esta cuenta es de dirección o auditoría, el rol correcto`)
-      console.log(`  es "${ROLES.AUDITOR}" — sólo lectura, sin punto de venta.`)
+      console.log(`  es "${ROLES.AUDITOR}" — sólo lectura, sin caja.`)
       problemas.push(`${u.email}: es administrador (acceso total). Confirma que debe serlo.`)
     }
   }
