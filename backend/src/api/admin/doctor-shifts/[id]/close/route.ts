@@ -26,7 +26,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             return res.status(400).json({ error: "Este turno ya estaba cerrado." });
         }
         if (turno.doctor_id !== actor.id && actor.role !== ROLES.ADMIN) {
-            return res.status(403).json({ error: "Sólo el médico del turno (o Administración) puede cerrarlo." });
+            return res.status(403).json({ error: "Sólo quien abrió el turno (o Administración) puede cerrarlo." });
         }
 
         const cerrado = await service.updateDoctorShifts({

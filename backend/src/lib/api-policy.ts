@@ -16,6 +16,15 @@ import { ROLES, Role } from "./roles"
  *   Enfermería             Igual que Médico (el documento la lista como área).
  *   Auditor / Dirección    Reportes y bitácora. SOLO LECTURA.
  *
+ * Y dos perfiles que pidió la clínica después de la primera prueba:
+ *
+ *   Almacén                Compras y lotes, requisiciones, conteos, bajas y
+ *                          costos. Lo que antes hacía Farmacia con el inventario.
+ *   RH y contabilidad      Nómina, comisiones y actividad del personal. No ve
+ *                          contenido clínico.
+ *
+ * Farmacia se queda con surtir recetas y consultar existencias.
+ *
  * ── POR QUÉ UNA TABLA ───────────────────────────────────────────────────────
  * Antes las reglas cubrían sólo las rutas propias del proyecto. Medusa expone
  * además ~50 grupos de rutas nativas, y entre ellas su PROPIA gestión de
@@ -35,7 +44,10 @@ import { ROLES, Role } from "./roles"
  * auditor hay que dejarlo leer, y `denyReadOnlyMutations` ya le impide escribir.
  */
 
-/** Todos menos el auditor, que nunca escribe. */
+/**
+ * Quien atiende al paciente en el mostrador o en consulta. Almacén y RH no
+ * registran pacientes; Auditoría nunca escribe.
+ */
 const OPERATIVOS: Role[] = [
   ROLES.ADMIN,
   ROLES.PHARMACY,
@@ -68,8 +80,17 @@ export const API_POLICIES: ApiPolicy[] = [
   {
     path: "/admin/staff",
     write: [ROLES.ADMIN],
-    read: [ROLES.ADMIN, ROLES.AUDITOR],
+    // RH consulta la plantilla para la nómina; el alta sigue siendo de Administración.
+    read: [ROLES.ADMIN, ROLES.AUDITOR, ROLES.HR],
     nota: "Alta y baja de personal (pantalla propia)",
+  },
+
+  // Lo propio de cada quien: su nombre, su rol y sus datos para la receta. Lo
+  // lee cualquiera con sesión (cada uno lo suyo); no se escribe por aquí.
+  {
+    path: "/admin/mi-perfil",
+    write: [ROLES.ADMIN],
+    nota: "Datos propios para la pantalla de inicio y la receta",
   },
 
   // ── CREDENCIALES Y BITÁCORA ───────────────────────────────────────────────
@@ -150,8 +171,9 @@ export const API_POLICIES: ApiPolicy[] = [
     nota: `Requiere autorización de administrador: ${nota}`,
   })),
 
-  // ── CATÁLOGO E INVENTARIO — Farmacia ──────────────────────────────────────
-  // "Gestión de inventario, registro de entradas". Caja NO modifica inventario.
+  // ── CATÁLOGO E INVENTARIO — Almacén ───────────────────────────────────────
+  // "Gestión de inventario, registro de entradas". Caja NO modifica inventario,
+  // y Farmacia tampoco desde que existe el perfil de Almacén: consulta y surte.
   ...[
     ["/admin/products", "Catálogo de medicamentos"],
     ["/admin/product-variants", "Presentaciones"],
@@ -165,27 +187,27 @@ export const API_POLICIES: ApiPolicy[] = [
     ["/admin/inventory-counts", "Inventario físico"],
   ].map(([path, nota]) => ({
     path,
-    write: [ROLES.ADMIN, ROLES.PHARMACY],
+    write: [ROLES.ADMIN, ROLES.WAREHOUSE],
     nota: `Almacén: ${nota}`,
   })),
 
-  // Lotes: Farmacia los da de alta y Enfermería también puede escribir aquí,
+  // Lotes: Almacén los da de alta y Enfermería también puede escribir aquí,
   // pero SÓLO para dar de baja en su propio almacén (la ruta lo comprueba) y
-  // para dar de alta en él. La destrucción sanitaria sigue siendo de Farmacia
-  // y Administración: regla específica en middlewares.ts.
+  // para dar de alta en él. La destrucción sanitaria es de Almacén y
+  // Administración: regla específica en middlewares.ts.
   {
     path: "/admin/medical-batches",
-    write: [ROLES.ADMIN, ROLES.PHARMACY, ROLES.NURSE],
+    write: [ROLES.ADMIN, ROLES.WAREHOUSE, ROLES.NURSE],
     nota: "Almacén: lotes, bajas con motivo y destrucción sanitaria",
   },
 
   // ── REQUISICIONES ─────────────────────────────────────────────────────────
-  // Enfermería pide, Farmacia surte, Enfermería recibe. Quién hace cada paso
+  // Enfermería pide, Almacén surte, Enfermería recibe. Quién hace cada paso
   // se afina en middlewares.ts; aquí, quién puede escribir en general.
   {
     path: "/admin/requisitions",
-    write: [ROLES.ADMIN, ROLES.NURSE, ROLES.PHARMACY],
-    nota: "Traspasos de Farmacia a Enfermería",
+    write: [ROLES.ADMIN, ROLES.NURSE, ROLES.WAREHOUSE],
+    nota: "Traspasos del almacén general a Enfermería",
   },
 
   // ── VENTAS Y COBRO — Caja / Recepción ─────────────────────────────────────
@@ -257,7 +279,25 @@ export const API_POLICIES: ApiPolicy[] = [
   {
     path: "/admin/medical-orders",
     write: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY],
+    // Las indicaciones y las notas para enfermería son contenido clínico: no
+    // las lee Caja, ni Almacén, ni RH.
+    read: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY, ROLES.AUDITOR],
     nota: "Órdenes médicas: emitir (médico) y surtir (farmacia)",
+  },
+
+  // Existencia disponible por área (sin costos) y pacientes con pendientes:
+  // lo que el médico y Enfermería necesitan para recetar y atender.
+  {
+    path: "/admin/medical-stock",
+    write: [ROLES.ADMIN],
+    read: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY, ROLES.WAREHOUSE, ROLES.AUDITOR],
+    nota: "Existencia disponible en Enfermería y Farmacia, por presentación",
+  },
+  {
+    path: "/admin/pacientes-pendientes",
+    write: [ROLES.ADMIN],
+    read: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY, ROLES.AUDITOR],
+    nota: "Pacientes con órdenes o recetas pendientes",
   },
 
   // ── NOTAS DE ATENCIÓN Y DOCUMENTOS ────────────────────────────────────────
@@ -285,24 +325,39 @@ export const API_POLICIES: ApiPolicy[] = [
 
   // ── HONORARIOS ────────────────────────────────────────────────────────────
   // El turno lo abre y cierra el médico. La comisión es condición de contrato:
-  // la fija Administración, la ve Auditoría, y el médico NO la consulta. Los
-  // reportes de pago son de Administración y Auditoría.
+  // la fijan Administración y RH, la ve Auditoría, y el médico NO la consulta.
+  // Los reportes son de Administración, Auditoría y RH; cada tipo de reporte
+  // afina quién lo lee (ver lib/reportes.ts).
   {
     path: "/admin/doctor-shifts",
-    write: [ROLES.ADMIN, ROLES.DOCTOR],
-    nota: "Turnos de médico",
+    write: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY, ROLES.WAREHOUSE, ROLES.HR],
+    nota: "Turnos del personal (la tabla nació para médicos)",
   },
   {
     path: "/admin/doctor-commissions",
-    write: [ROLES.ADMIN],
-    read: [ROLES.ADMIN, ROLES.AUDITOR],
+    write: [ROLES.ADMIN, ROLES.HR],
+    read: [ROLES.ADMIN, ROLES.AUDITOR, ROLES.HR],
     nota: "Porcentaje de comisión por médico",
+  },
+  // Esquema de pago de cada persona y la nómina del periodo: condición de
+  // contrato. La fijan Administración y RH; la ve Auditoría.
+  {
+    path: "/admin/staff-compensation",
+    write: [ROLES.ADMIN, ROLES.HR],
+    read: [ROLES.ADMIN, ROLES.AUDITOR, ROLES.HR],
+    nota: "Pago fijo, por hora y comisiones por horario de cada persona",
+  },
+  {
+    path: "/admin/payroll",
+    write: [ROLES.ADMIN, ROLES.HR],
+    read: [ROLES.ADMIN, ROLES.AUDITOR, ROLES.HR],
+    nota: "Cálculo de la nómina del periodo y pagos realizados",
   },
   {
     path: "/admin/reports",
     write: [ROLES.ADMIN],
-    read: [ROLES.ADMIN, ROLES.AUDITOR],
-    nota: "Reportes de pagos a médicos e ingresos",
+    read: [ROLES.ADMIN, ROLES.AUDITOR, ROLES.HR, ROLES.WAREHOUSE],
+    nota: "Reportes y exportaciones; cada tipo decide quién lo lee",
   },
 
   // ── RECIBOS ───────────────────────────────────────────────────────────────
@@ -325,23 +380,24 @@ export const API_POLICIES: ApiPolicy[] = [
   {
     path: "/admin/inventory-movements",
     write: [ROLES.ADMIN],
-    read: [ROLES.ADMIN, ROLES.PHARMACY, ROLES.AUDITOR, ROLES.CASHIER],
+    read: [ROLES.ADMIN, ROLES.PHARMACY, ROLES.WAREHOUSE, ROLES.AUDITOR, ROLES.CASHIER],
     nota: "Kardex (solo lectura; se escribe desde el libro mayor)",
   },
   {
     path: "/admin/inventory-reports",
     write: [ROLES.ADMIN],
-    read: [ROLES.ADMIN, ROLES.PHARMACY, ROLES.AUDITOR],
+    // Farmacia consulta existencias aquí; la ruta le quita los costos.
+    read: [ROLES.ADMIN, ROLES.PHARMACY, ROLES.WAREHOUSE, ROLES.AUDITOR],
     nota: "Inventario valorizado: expone costos de compra",
   },
   {
     path: "/admin/expiring-inventory",
-    write: [ROLES.ADMIN, ROLES.PHARMACY],
+    write: [ROLES.ADMIN, ROLES.WAREHOUSE],
     nota: "Alertas de caducidad",
   },
   {
     path: "/admin/stock-policies",
-    write: [ROLES.ADMIN, ROLES.PHARMACY],
+    write: [ROLES.ADMIN, ROLES.WAREHOUSE],
     nota: "Mínimos y máximos por presentación y almacén",
   },
 ]

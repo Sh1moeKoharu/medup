@@ -29,6 +29,8 @@ export interface Requisicion {
   dispatched_by_name: string | null;
   received_by_name: string | null;
   notes: string | null;
+  /** La orden médica que la originó, si se pidió desde la bandeja. */
+  medical_order_id?: string | null;
   items: RenglonRequisicion[];
   created_at: string;
 }
@@ -36,6 +38,7 @@ export interface Requisicion {
 export interface NuevaRequisicion {
   items: Array<{ variant_id: string; product_title?: string; quantity: number }>;
   notes?: string;
+  medical_order_id?: string;
 }
 
 export interface Almacen {
@@ -74,7 +77,7 @@ export const useAlmacenes = () => {
   });
 };
 
-export const useRequisiciones = (filtros?: { status?: EstadoRequisicion; requested_by_id?: string }) => {
+export const useRequisiciones = (filtros?: { status?: EstadoRequisicion | string; requested_by_id?: string; medical_order_id?: string }, opciones?: { enabled?: boolean }) => {
   const sdk = useMedusaSdk();
   return useQuery({
     queryKey: ['requisiciones', filtros ?? {}],
@@ -82,6 +85,7 @@ export const useRequisiciones = (filtros?: { status?: EstadoRequisicion; request
       const r = await sdk.client.fetch<{ requisitions: Requisicion[] }>('/admin/requisitions', { query: filtros });
       return r.requisitions;
     },
+    ...opciones,
   });
 };
 

@@ -27,18 +27,36 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
     // hacía lo mismo y por eso "no tenía presentación" al registrar un lote.
     // Se piden aparte.
     const [variantId, setVariantId] = useState<string | undefined>(product?.variants?.[0]?.id);
+    // Precio de venta (el de la presentación, en MXN) y costo promedio real.
+    const [precioVenta, setPrecioVenta] = useState<string>("");
+    const [precioOriginal, setPrecioOriginal] = useState<string>("");
+    const [costoPromedio, setCostoPromedio] = useState<number | null>(null);
 
     useEffect(() => {
-        if (product?.variants?.[0]?.id) {
-            setVariantId(product.variants[0].id);
-            return;
-        }
         if (!product?.id) return;
-        fetch(`/admin/products/${product.id}?fields=id,*variants`, { credentials: "include" })
+        fetch(`/admin/products/${product.id}?fields=id,*variants,*variants.prices`, { credentials: "include" })
             .then((res) => res.json())
-            .then((data) => setVariantId(data?.product?.variants?.[0]?.id))
+            .then((data) => {
+                const v = data?.product?.variants?.[0];
+                setVariantId(v?.id);
+                const precio = (v?.prices ?? []).find((p: any) => p.currency_code === "mxn")?.amount;
+                const texto = precio === undefined || precio === null ? "" : String(precio);
+                setPrecioVenta(texto);
+                setPrecioOriginal(texto);
+            })
             .catch((err) => console.error("Error fetching variants:", err));
     }, [product]);
+
+    useEffect(() => {
+        if (!variantId) return;
+        fetch("/admin/inventory-reports/valuation?include_quarantined=true", { credentials: "include" })
+            .then((res) => res.json())
+            .then((data) => {
+                const fila = (data?.items ?? []).find((i: any) => i.variant_id === variantId);
+                setCostoPromedio(fila?.average_unit_cost ?? null);
+            })
+            .catch(() => undefined);
+    }, [variantId]);
 
     // Alta de lote
     const [lote, setLote] = useState<string>("");
@@ -150,6 +168,8 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
     const costoVenta = costoCompra !== "" && factorNum > 0 ? Number(costoCompra) / factorNum : null;
     const precioPrevisto = costoVenta !== null ? precioConMargen(costoVenta, margenAutomatico) : null;
     const nombreAlmacen = almacenes.find((a) => a.id === almacenId)?.name ?? "";
+    const margenReal =
+        costoPromedio && Number(precioVenta) > 0 ? Math.round(((Number(precioVenta) - costoPromedio) / costoPromedio) * 1000) / 10 : null;
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -184,6 +204,23 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
                     }
                 })
             });
+
+            // El precio de venta se corrige aquí mismo, sin ir a Variantes.
+            let precioMsg = "";
+            if (variantId && precioVenta !== precioOriginal && Number(precioVenta) > 0) {
+                const rp = await fetch(`/admin/products/${product?.id}/variants/${variantId}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prices: [{ amount: Number(precioVenta), currency_code: "mxn" }] }),
+                });
+                if (rp.ok) {
+                    setPrecioOriginal(precioVenta);
+                    precioMsg = ` Precio de venta: $${Number(precioVenta).toFixed(2)}.`;
+                } else {
+                    const dp = await rp.json().catch(() => ({}));
+                    precioMsg = ` Error al cambiar el precio: ${dp?.message ?? rp.status}.`;
+                }
+            }
 
             let batchMsg = "";
             if (lote && caducidad) {
@@ -232,7 +269,7 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
             }
 
             if (res.ok) {
-                setSuccessMsg("Expediente actualizado." + batchMsg);
+                setSuccessMsg("Expediente actualizado." + precioMsg + batchMsg);
                 setTimeout(() => { setSuccessMsg(""); }, 6000);
             } else {
                 setSuccessMsg("Error al guardar en la base de datos." + batchMsg);
@@ -283,6 +320,44 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
                         Registra la información clínica, regulatoria y de costos del producto.
                         <i> (El código de barras se administra en la sección de <b>Variantes</b>. El precio de venta también, salvo que el producto tenga margen automático: entonces lo fija cada compra.)</i>
                     </Text>
+                </div>
+
+                {/* Costo y precio: primero, porque es lo que la clínica pidió poder registrar y corregir. */}
+                <div className="border-t border-ui-border-base pt-4">
+                    <Heading level="h3" className="text-ui-fg-base text-base mb-4">Costo y precio</Heading>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="precio_venta" className="text-sm font-medium">Precio de venta</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-ui-fg-muted">$</span>
+                                <Input id="precio_venta" type="number" step="0.01" className="pl-7" placeholder="0.00" value={precioVenta} onChange={(e) => setPrecioVenta(e.target.value)} />
+                            </div>
+                            <Text className="text-xs text-ui-fg-subtle">
+                                {margenReal !== null ? `Margen real sobre el costo promedio: ${margenReal}%.` : "El que cobra el punto de venta."}
+                            </Text>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label className="text-sm font-medium">Costo promedio actual</Label>
+                            <Text className="text-base">{costoPromedio !== null ? `${costoPromedio.toFixed(2)}` : "Sin compras con costo"}</Text>
+                            <Text className="text-xs text-ui-fg-subtle">Ponderado sobre las compras registradas en todos los almacenes.</Text>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="compra" className="text-sm font-medium">Precio de compra de referencia</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-ui-fg-muted">$</span>
+                                <Input id="compra" type="number" step="0.01" className="pl-7" placeholder="0.00" value={precioCompra} onChange={(e) => setPrecioCompra(e.target.value)} />
+                            </div>
+                            <Text className="text-xs text-ui-fg-subtle">Informativo. El costo real es el de cada lote.</Text>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="margen" className="text-sm font-medium">Margen automático (%)</Label>
+                            <div className="relative">
+                                <Input id="margen" type="number" step="0.1" placeholder="Ej. 30" value={margenAutomatico} onChange={(e) => setMargenAutomatico(e.target.value)} />
+                                <span className="absolute right-3 top-2 text-ui-fg-muted">%</span>
+                            </div>
+                            <Text className="text-xs text-ui-fg-subtle">Con margen, cada compra con costo fija el precio de venta. Vacío: el precio se pone a mano en Variantes.</Text>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Section 1: Identificación clínica */}
@@ -349,29 +424,6 @@ const ProductPharmacyCard = ({ data: product }: { data: any }) => {
                                 <Text className="text-xs text-ui-fg-subtle">La farmacia debe conservar la receta</Text>
                             </div>
                             <Switch checked={recetaRetenida} onCheckedChange={setRecetaRetenida} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Section 3: Costos */}
-                <div className="border-t border-ui-border-base pt-4">
-                    <Heading level="h3" className="text-ui-fg-base text-base mb-4">Márgenes y compra</Heading>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="compra" className="text-sm font-medium">Precio de compra de referencia</Label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-2 text-ui-fg-muted">$</span>
-                                <Input id="compra" type="number" step="0.01" className="pl-7" placeholder="0.00" value={precioCompra} onChange={(e) => setPrecioCompra(e.target.value)} />
-                            </div>
-                            <Text className="text-xs text-ui-fg-subtle">Informativo. El costo real es el de cada lote.</Text>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="margen" className="text-sm font-medium">Margen automático (%)</Label>
-                            <div className="relative">
-                                <Input id="margen" type="number" step="0.1" placeholder="Ej. 30" value={margenAutomatico} onChange={(e) => setMargenAutomatico(e.target.value)} />
-                                <span className="absolute right-3 top-2 text-ui-fg-muted">%</span>
-                            </div>
-                            <Text className="text-xs text-ui-fg-subtle">Con margen, cada compra con costo fija el precio de venta. Vacío: el precio se pone a mano en Variantes.</Text>
                         </div>
                     </div>
                 </div>

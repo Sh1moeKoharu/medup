@@ -36,6 +36,13 @@ export const Requisition = model.define("requisition", {
 
     notes: model.text().nullable(),
 
+    /**
+     * La orden médica que la originó, si Enfermería la pidió desde la bandeja
+     * para cubrir lo que le faltaba al aplicar. Así la bandeja sabe que ya va en
+     * camino y no se pide dos veces.
+     */
+    medical_order_id: model.text().nullable(),
+
     items: model.hasMany(() => RequisitionItem, {
         mappedBy: "requisition",
     }),

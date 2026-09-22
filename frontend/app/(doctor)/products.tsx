@@ -1,6 +1,8 @@
+import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useProducts } from '@/api/hooks/products';
+import { useExistenciasPorArea, type ExistenciaPorArea } from '@/api/hooks/clinica';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { Plus } from '@/components/icons/plus';
 import { SearchInput } from '@/components/SearchInput';
@@ -43,10 +45,15 @@ const ProductPlaceholder: React.FC<{ index: number; numColumns: number }> = ({ i
   );
 };
 
-const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumns: number; index: number }> = ({ item, onPress, numColumns, index }) => {
+const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumns: number; index: number; existencia?: ExistenciaPorArea }> = ({ item, onPress, numColumns, index, existencia }) => {
   const receta = useReceta();
   const thumbnail = item.thumbnail || item.images?.[0]?.url;
   const defaultVariant = item.variants?.[0];
+  // Sólo se receta lo que hay entre Enfermería y Farmacia (punto 19). Mientras
+  // la existencia carga no se bloquea: el servidor lo vuelve a comprobar.
+  const disponible = existencia ? existencia.nursing + existencia.pharmacy : undefined;
+  const yaRecetado = receta.renglones.find((r) => r.variant_id === defaultVariant?.id)?.quantity ?? 0;
+  const sinExistencia = disponible !== undefined && yaRecetado >= disponible;
 
   return (
     <View className="w-full px-1">
@@ -82,6 +89,11 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumn
               }
               return null;
             })()}
+            {existencia && (
+              <Text className={clx('text-[10px]', disponible === 0 ? 'text-error-500' : 'text-gray-500')}>
+                {disponible === 0 ? 'Sin existencia' : `Enf. ${existencia.nursing} · Farm. ${existencia.pharmacy}`}
+              </Text>
+            )}
           </View>
         </TouchableOpacity>
         
@@ -96,11 +108,12 @@ const ProductCard: React.FC<{ item: AdminProduct; onPress: () => void; numColumn
           <TouchableOpacity
             className={clx(
               "h-8 w-8 rounded-full items-center justify-center shadow-sm",
-              (!defaultVariant || item.status === 'draft')
+              (!defaultVariant || item.status === 'draft' || sinExistencia)
                 ? "bg-gray-200"
                 : "bg-black"
             )}
-            disabled={!defaultVariant || item.status === 'draft'}
+            disabled={!defaultVariant || item.status === 'draft' || sinExistencia}
+            accessibilityLabel={sinExistencia ? `${item.title}: no hay más existencia para recetar` : `Añadir ${item.title} a la receta`}
             onPress={() => {
               if (!defaultVariant) return;
               receta.agregar({ variant_id: defaultVariant.id, product_id: item.id, product_title: item.title });
@@ -132,6 +145,12 @@ export default function DoctorProductsScreen() {
     fields: '+variants.prices.*',
   });
 
+  const idsDeVariantes = React.useMemo(
+    () => (productsQuery.data?.pages ?? []).flatMap((p) => p.products).map((p) => p.variants?.[0]?.id).filter((id): id is string => !!id),
+    [productsQuery.data],
+  );
+  const existencias = useExistenciasPorArea(idsDeVariantes);
+
   const handleProductPress = React.useCallback((product: AdminProduct) => {
     router.push({
       pathname: '/product-details',
@@ -150,11 +169,12 @@ export default function DoctorProductsScreen() {
           item={item}
           index={index}
           numColumns={numColumns}
+          existencia={item.variants?.[0]?.id ? existencias.data?.[item.variants[0].id] : undefined}
           onPress={() => handleProductPress(item)}
         />
       );
     },
-    [handleProductPress, numColumns],
+    [handleProductPress, numColumns, existencias.data],
   );
 
   const data = React.useMemo(() => {
@@ -175,6 +195,9 @@ export default function DoctorProductsScreen() {
 
   const content = (
     <Layout className="gap-4 flex-1">
+      {/* La pantalla de inicio del médico lleva el encabezado de su receta:
+          clínica, nombre, especialidad y cédula (puntos 13 y 15). */}
+      <EncabezadoDeReceta className="mx-auto w-full max-w-2xl" />
       <SearchInput
         value={searchQuery}
         onChangeText={setSearchQuery}
@@ -186,6 +209,7 @@ export default function DoctorProductsScreen() {
         data={data}
         numColumns={numColumns}
         renderItem={renderProduct}
+        extraData={existencias.data}
         keyExtractor={(item) => item.id}
         refreshing={productsQuery.isRefetching}
         ItemSeparatorComponent={() => <View className="h-4 w-full" />}

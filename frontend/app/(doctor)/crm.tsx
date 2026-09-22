@@ -1,3 +1,5 @@
+import { usePacientesConPendientes } from '@/components/pacientes/usePacientesConPendientes';
+import { contactoDePaciente } from '@/utils/paciente';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
@@ -119,8 +121,7 @@ const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWith
                         );
                     })()}
 
-                    <Text className="text-lg text-gray-600 mb-1">{customer.email}</Text>
-                    {customer.phone && <Text className="text-lg text-gray-600 mt-1">{customer.phone}</Text>}
+                    {!!contactoDePaciente(customer) && <Text className="text-lg text-gray-600 mb-1">{contactoDePaciente(customer)}</Text>}
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
@@ -159,16 +160,20 @@ export default function DoctorCRMScreen() {
     });
 
     const medicalQuery = useMedicalCustomers();
+    // Con orden o receta pendiente, arriba (punto 16). Al buscar, manda la búsqueda.
+    const pendientes = usePacientesConPendientes();
 
     const customers = useMemo(() => {
-        const raw = customersQuery.data?.pages.flatMap((page) => page.customers) || [];
+        const cargados = customersQuery.data?.pages.flatMap((page) => page.customers) || [];
+        const arriba = busqueda ? [] : pendientes.lista;
+        const raw = [...arriba, ...cargados.filter((c) => !arriba.some((p) => p.id === c.id))];
         const medicalData = medicalQuery.data || {};
 
         return raw.map(c => ({
             ...c,
             medical_customer: medicalData[c.id] || null
         })) as CustomerWithMedical[];
-    }, [customersQuery.data, medicalQuery.data]);
+    }, [customersQuery.data, medicalQuery.data, pendientes.lista, busqueda]);
 
     const renderCustomer = React.useCallback(
         ({ item, index }: { item: CustomerWithMedical, index: number }) => {
@@ -195,6 +200,13 @@ export default function DoctorCRMScreen() {
                                         <Text className="text-xs font-bold text-info-500">Cuenta</Text>
                                     </View>
                                 )}
+                                {!!pendientes.conteo.get(item.id) && (
+                                    <View className="rounded-full bg-warning-200 px-2 py-0.5">
+                                        <Text className="text-xs font-bold text-warning-500">
+                                            {pendientes.conteo.get(item.id) === 1 ? 'Orden pendiente' : `${pendientes.conteo.get(item.id)} órdenes pendientes`}
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                             {item.phone && <Text className="text-gray-500">{item.phone}</Text>}
                         </View>
@@ -205,7 +217,7 @@ export default function DoctorCRMScreen() {
                 </View>
             );
         },
-        [numColumns],
+        [numColumns, pendientes.conteo],
     );
 
     return (
@@ -225,6 +237,7 @@ export default function DoctorCRMScreen() {
                 <FlashList
                     data={customers as any[]}
                     renderItem={renderCustomer}
+                    extraData={pendientes.conteo}
                     keyExtractor={(item: any) => item.id}
                     numColumns={numColumns}
                     ItemSeparatorComponent={() => <View className="h-4 w-full" />}

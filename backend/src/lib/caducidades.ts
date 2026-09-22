@@ -1,3 +1,5 @@
+import { aCsv } from "./csv"
+
 /**
  * Caducidades: el tramo de alerta de cada lote y su exportación.
  *
@@ -62,32 +64,22 @@ export function resumirTramos(items: LoteProximo[]): ResumenTramos {
   return r
 }
 
-/** Un campo CSV: entre comillas si hace falta, comillas dobladas. */
-function campo(valor: unknown): string {
-  const s = String(valor ?? "")
-  return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
 /**
  * CSV de caducidades, listo para Excel: BOM UTF-8 para que las tildes salgan
  * bien y fecha en ISO para que no se reinterprete.
  */
 export function csvDeCaducidades(items: LoteProximo[]): string {
   const cabecera = ["Almacén", "Presentación", "Lote", "Caducidad", "Días restantes", "Tramo", "Existencia", "Estado", "Estante"]
-  const filas = items.map((i) =>
-    [
-      i.stock_location_name ?? i.stock_location_id ?? "",
-      i.title,
-      i.batch_number,
-      String(i.expiration_date).slice(0, 10),
-      i.days_left,
-      ETIQUETA_TRAMO[i.tier],
-      i.quantity,
-      i.status === "quarantined" ? "En cuarentena" : i.status === "destroyed" ? "Destruido" : "Activo",
-      i.shelf_location ?? "",
-    ]
-      .map(campo)
-      .join(",")
-  )
-  return "﻿" + [cabecera.map(campo).join(","), ...filas].join("\r\n") + "\r\n"
+  const filas = items.map((i) => [
+    i.stock_location_name ?? i.stock_location_id ?? "",
+    i.title,
+    i.batch_number,
+    String(i.expiration_date).slice(0, 10),
+    i.days_left,
+    ETIQUETA_TRAMO[i.tier],
+    i.quantity,
+    i.status === "quarantined" ? "En cuarentena" : i.status === "destroyed" ? "Destruido" : "Activo",
+    i.shelf_location ?? "",
+  ])
+  return aCsv(cabecera, filas)
 }

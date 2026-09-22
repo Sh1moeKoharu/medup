@@ -32,15 +32,20 @@ export const RUTA_SIN_POS = '/sin-pos';
 /** A dónde va cada rol al entrar. */
 export const INICIO_POR_ROL: Record<Role, string> = {
   [ROLES.ADMIN]: '/(tabs)/products',
-  [ROLES.CASHIER]: '/(tabs)/products',
+  // Caja entra a la caja: lo primero del turno es abrirla (o ver quién la tiene).
+  [ROLES.CASHIER]: '/(tabs)/cash-register',
   // Farmacia ya no comparte la interfaz de Caja: lleva el almacén, surte las
   // recetas de mostrador y los traspasos a Enfermería. No cobra ni ve el corte.
   [ROLES.PHARMACY]: '/(almacen)/existencias',
   [ROLES.DOCTOR]: '/(doctor)/products',
-  [ROLES.NURSE]: '/(nurse)/products',
+  // Enfermería entra a su bandeja: lo pendiente de aplicar es su trabajo del día.
+  [ROLES.NURSE]: '/(nurse)/bandeja',
   // Auditoría / Dirección es de SOLO LECTURA: no cobra, no dispensa y no
   // prescribe. Consulta la bitácora, el kardex, las caducidades y los cortes.
   [ROLES.AUDITOR]: '/(auditoria)/bitacora',
+  // Almacén comparte grupo con Farmacia; cada uno ve sus pestañas.
+  [ROLES.WAREHOUSE]: '/(almacen)/existencias',
+  [ROLES.HR]: '/(rh)/reportes',
 };
 
 /**
@@ -62,21 +67,33 @@ export const GRUPO_POR_ROL: Record<Role, string> = {
   [ROLES.DOCTOR]: "(doctor)",
   [ROLES.NURSE]: "(nurse)",
   [ROLES.AUDITOR]: "(auditoria)",
+  [ROLES.WAREHOUSE]: "(almacen)",
+  [ROLES.HR]: "(rh)",
 };
 
 export const PANTALLAS_DE_GRUPO: Record<string, string[]> = {
   "(tabs)": ["products", "orders", "scan", "crm", "activity", "cash-register", "settings", "cart"],
   "(doctor)": ["products", "crm", "recetas", "settings", "cart"],
   "(nurse)": ["products", "crm", "recetas", "bandeja", "almacen", "settings", "cart"],
-  "(almacen)": ["existencias", "recetas", "traspasos", "lotes", "kardex", "caducidades", "settings"],
-  "(auditoria)": ["bitacora", "kardex", "caducidades", "cortes", "settings"],
+  "(almacen)": ["existencias", "recetas", "traspasos", "lotes", "kardex", "caducidades", "reportes", "settings"],
+  "(auditoria)": ["bitacora", "reportes", "kardex", "caducidades", "cortes", "settings"],
+  "(rh)": ["reportes", "nomina", "cortes", "settings"],
 };
 
 export const ROLES_CAJA: Role[] = [ROLES.ADMIN, ROLES.CASHIER];
 export const ROLES_MEDICO: Role[] = [ROLES.ADMIN, ROLES.DOCTOR];
 export const ROLES_ENFERMERIA: Role[] = [ROLES.ADMIN, ROLES.NURSE];
-/** Farmacia: el almacén, las recetas de mostrador y los traspasos. */
-export const ROLES_ALMACEN: Role[] = [ROLES.ADMIN, ROLES.PHARMACY];
+/** El grupo del almacén: Farmacia (consulta y surte) y Almacén (gestiona). */
+export const ROLES_ALMACEN: Role[] = [ROLES.ADMIN, ROLES.PHARMACY, ROLES.WAREHOUSE];
+/**
+ * Quién MUEVE el inventario: altas de lote, bajas, destrucción, traspasos,
+ * mínimos y máximos. Farmacia entra al grupo, pero sólo consulta y surte.
+ */
+export const ROLES_GESTION_ALMACEN: Role[] = [ROLES.ADMIN, ROLES.WAREHOUSE];
+/** Quién surte recetas de mostrador. */
+export const ROLES_SURTE_RECETAS: Role[] = [ROLES.ADMIN, ROLES.PHARMACY];
+/** RH y contabilidad: nómina, honorarios y actividad del personal. */
+export const ROLES_RH: Role[] = [ROLES.ADMIN, ROLES.HR];
 /** Auditoría / Dirección: todo de sólo lectura. */
 export const ROLES_AUDITORIA: Role[] = [ROLES.ADMIN, ROLES.AUDITOR];
 

@@ -32,6 +32,11 @@ export type ConfiguracionRecibo = {
   rfc: string;
   /** Texto libre al final del ticket. */
   pie: string;
+  /**
+   * Logotipo de la clínica: la dirección de una imagen subida al sistema. Sale
+   * en la receta y en la pantalla del médico; el ticket térmico no lo usa.
+   */
+  logo_url: string;
 };
 
 export const RECIBO_POR_OMISION: ConfiguracionRecibo = {
@@ -40,6 +45,7 @@ export const RECIBO_POR_OMISION: ConfiguracionRecibo = {
   telefono: "",
   rfc: "",
   pie: "Gracias por su compra",
+  logo_url: "",
 };
 
 /** Sólo estas claves se leen y se guardan; cualquier otra cosa se descarta. */
@@ -49,6 +55,7 @@ const CAMPOS: (keyof ConfiguracionRecibo)[] = [
   "telefono",
   "rfc",
   "pie",
+  "logo_url",
 ];
 
 /** Un ticket de 80mm no admite líneas largas: se recortan en lugar de deformarlo. */
@@ -107,7 +114,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             message: `El campo "${campo}" debe ser texto.`,
           });
         }
-        nueva[campo] = valor.trim().slice(0, LARGO_MAXIMO);
+        if (campo === "logo_url" && valor.trim() && !/^(https?:\/\/|\/)/.test(valor.trim())) {
+          return res.status(400).json({ message: "El logotipo debe ser una imagen subida al sistema." });
+        }
+        nueva[campo] = valor.trim().slice(0, campo === "logo_url" ? 1000 : LARGO_MAXIMO);
       }
     }
 

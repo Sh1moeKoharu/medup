@@ -1,4 +1,5 @@
 import { Antenna } from '@/components/icons/antenna';
+import { MiTurno } from '@/components/MiTurno';
 import { Button } from '@/components/ui/Button';
 import { LayoutWithScroll } from '@/components/ui/Layout';
 import { Prompt } from '@/components/ui/Prompt';
@@ -21,6 +22,7 @@ export default function DoctorSettingsScreen() {
     <>
       <LayoutWithScroll>
         <Text className="mt-8 mb-6 text-4xl">Ajustes</Text>
+        <MiTurno />
         <Text className="mb-4 text-2xl">Canal de ventas</Text>
         <Button
           onPress={() => router.push('/settings/sales-channel')}

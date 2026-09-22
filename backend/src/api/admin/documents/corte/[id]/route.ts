@@ -7,7 +7,7 @@ import { ROLES, Role } from "../../../../../lib/roles";
 import { resolveRequestRole } from "../../../../../lib/require-role";
 
 /** Quién imprime un corte: quien cobra, quien administra y quien audita. */
-const PUEDEN_VER_CORTES: Role[] = [ROLES.ADMIN, ROLES.CASHIER, ROLES.AUDITOR];
+const PUEDEN_VER_CORTES: Role[] = [ROLES.ADMIN, ROLES.CASHIER, ROLES.AUDITOR, ROLES.HR];
 
 /**
  * GET /admin/documents/corte/:id — el corte de un turno de caja (arqueo).

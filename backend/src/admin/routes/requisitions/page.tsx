@@ -1,6 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ArrowsPointingOut } from "@medusajs/icons";
-import { Badge, Button, Container, Heading, Select, Table, Text } from "@medusajs/ui";
+import { Badge, Button, Container, Heading, Input, Select, Table, Text } from "@medusajs/ui";
+import { BuscadorDeProducto, CuadroDeMotivo, enviar } from "../../lib/motivo";
 import { useEffect, useState } from "react";
 import { ROLES } from "../../../lib/roles";
 import { useCurrentRole } from "../../lib/use-current-role";
@@ -44,7 +45,46 @@ const ESTADO: Record<Requisicion["status"], { texto: string; color: "orange" | "
 
 const RequisitionsPage = () => {
     const { role } = useCurrentRole();
-    const puedeSurtir = role === ROLES.PHARMACY || role === ROLES.ADMIN;
+    const puedeSurtir = role === ROLES.WAREHOUSE || role === ROLES.ADMIN;
+    // Pedir, cancelar y confirmar la recepción es de Enfermería; Administración
+    // lo hace por ella desde aquí (un pedido urgente, una requisición que ya no procede).
+    const puedePedir = role === ROLES.NURSE || role === ROLES.ADMIN;
+    const [creando, setCreando] = useState(false);
+    const [renglones, setRenglones] = useState<{ variant_id: string; title: string; quantity: number }[]>([]);
+    const [notas, setNotas] = useState("");
+    const [cancelando, setCancelando] = useState<string | null>(null);
+
+    const crear = async () => {
+        if (!renglones.length) return alert("Añade al menos una presentación.");
+        setProcesando("nueva");
+        const { error } = await enviar("/admin/requisitions", {
+            items: renglones.map((r) => ({ variant_id: r.variant_id, quantity: r.quantity, product_title: r.title })),
+            notes: notas.trim() || undefined,
+        });
+        setProcesando(null);
+        if (error) return alert(error);
+        setCreando(false);
+        setRenglones([]);
+        setNotas("");
+        setEstado("pending");
+        cargar();
+    };
+    const cancelar = async (id: string, motivo: string) => {
+        setProcesando(id);
+        const { error } = await enviar(`/admin/requisitions/${id}/cancel`, { motivo });
+        setProcesando(null);
+        if (error) return alert(error);
+        setCancelando(null);
+        cargar();
+    };
+    const recibir = async (r: Requisicion) => {
+        if (!window.confirm(`¿Confirmar que lo surtido llegó a ${r.destination_location_name ?? "Enfermería"}? La existencia entra a ese almacén con el mismo lote.`)) return;
+        setProcesando(r.id);
+        const { error } = await enviar(`/admin/requisitions/${r.id}/receive`, {});
+        setProcesando(null);
+        if (error) return alert(error);
+        cargar();
+    };
 
     const [filas, setFilas] = useState<Requisicion[]>([]);
     const [estado, setEstado] = useState<string>("pending");
@@ -121,9 +161,49 @@ const RequisitionsPage = () => {
                             </Select.Content>
                         </Select>
                     </div>
+                    {puedePedir && !creando && <Button onClick={() => setCreando(true)}>Nueva requisición</Button>}
                     <Button variant="secondary" onClick={cargar} isLoading={cargando}>Actualizar</Button>
                 </div>
             </div>
+
+            {creando && (
+                <div className="mb-6 flex flex-col gap-3 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
+                    <Heading level="h2">Nueva requisición a Farmacia</Heading>
+                    <Text size="small" className="text-ui-fg-subtle">Lo que hace falta en Enfermería. Almacén la surte y Enfermería confirma que llegó.</Text>
+                    <div style={{ maxWidth: 420 }}>
+                        <BuscadorDeProducto onElegir={(p) => { if (!renglones.some((r) => r.variant_id === p.variant_id)) setRenglones([...renglones, { variant_id: p.variant_id, title: p.title, quantity: 1 }]); }} />
+                    </div>
+                    {renglones.length > 0 && (
+                        <Table>
+                            <Table.Header>
+                                <Table.Row>
+                                    <Table.HeaderCell>Presentación</Table.HeaderCell>
+                                    <Table.HeaderCell>Unidades</Table.HeaderCell>
+                                    <Table.HeaderCell></Table.HeaderCell>
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
+                                {renglones.map((r, i) => (
+                                    <Table.Row key={r.variant_id}>
+                                        <Table.Cell>{r.title}</Table.Cell>
+                                        <Table.Cell>
+                                            <div style={{ width: 90 }}>
+                                                <Input type="number" min="1" step="1" value={r.quantity} onChange={(e) => setRenglones(renglones.map((x, j) => (j === i ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x)))} />
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell><Button size="small" variant="transparent" onClick={() => setRenglones(renglones.filter((_, j) => j !== i))}>Quitar</Button></Table.Cell>
+                                    </Table.Row>
+                                ))}
+                            </Table.Body>
+                        </Table>
+                    )}
+                    <Input placeholder="Nota para Almacén (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} />
+                    <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setCreando(false)}>Cancelar</Button>
+                        <Button onClick={crear} isLoading={procesando === "nueva"}>Enviar requisición</Button>
+                    </div>
+                </div>
+            )}
 
             {!cargando && filas.length === 0 && (
                 <Text className="text-ui-fg-muted">No hay requisiciones en este estado.</Text>
@@ -148,12 +228,33 @@ const RequisitionsPage = () => {
                                     </Text>
                                     {r.notes && <Text className="text-xs text-ui-fg-muted mt-1">{r.notes}</Text>}
                                 </div>
-                                {puedeSurtir && r.status === "pending" && (
-                                    <Button variant="primary" size="small" onClick={() => surtir(r)} isLoading={procesando === r.id}>
-                                        Surtir {pendientes} pendientes
-                                    </Button>
-                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    {puedePedir && r.status === "pending" && cancelando !== r.id && (
+                                        <Button variant="danger" size="small" onClick={() => setCancelando(r.id)}>Cancelar</Button>
+                                    )}
+                                    {puedeSurtir && r.status === "pending" && (
+                                        <Button variant="primary" size="small" onClick={() => surtir(r)} isLoading={procesando === r.id}>
+                                            Surtir {pendientes} pendientes
+                                        </Button>
+                                    )}
+                                    {puedePedir && r.status === "dispatched" && (
+                                        <Button variant="primary" size="small" onClick={() => recibir(r)} isLoading={procesando === r.id}>
+                                            Confirmar que llegó
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
+                            {cancelando === r.id && (
+                                <div className="mb-3">
+                                    <CuadroDeMotivo
+                                        titulo="Cancelar esta requisición"
+                                        etiqueta="Cancelar requisición"
+                                        enviando={procesando === r.id}
+                                        onCancelar={() => setCancelando(null)}
+                                        onConfirmar={(m) => cancelar(r.id, m)}
+                                    />
+                                </div>
+                            )}
                             <Table>
                                 <Table.Header>
                                     <Table.Row>

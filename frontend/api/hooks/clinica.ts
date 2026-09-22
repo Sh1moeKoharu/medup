@@ -23,6 +23,11 @@ export interface NotaDeAtencion {
   author_role: 'doctor' | 'nurse' | 'admin';
   medical_order_id: string | null;
   content: string;
+  /** Qué revisó y qué hizo, en la nota del médico. */
+  findings?: string | null;
+  procedures?: string | null;
+  /** Fecha de la atención; si falta, la de captura. */
+  attended_at?: string | null;
   created_at: string;
 }
 
@@ -56,10 +61,12 @@ export const useAjustarOrden = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationKey: ['medical-orders', 'items'],
-    mutationFn: async ({ id, items }: { id: string; items: { variant_id: string; quantity: number; product_title?: string; instructions?: string }[] }) => {
+    // `motivo`: obligatorio (20+ caracteres) cuando Enfermería o Farmacia quitan
+    // o reducen lo recetado. Ver backend/src/lib/ajustes-de-orden.ts.
+    mutationFn: async ({ id, items, motivo }: { id: string; items: { variant_id: string; quantity: number; product_title?: string; instructions?: string }[]; motivo?: string }) => {
       const r = await sdk.client.fetch<{ medical_order: OrdenMedica; cambios: string[] }>(`/admin/medical-orders/${id}/items`, {
         method: 'POST',
-        body: { items },
+        body: { items, ...(motivo ? { motivo } : {}) },
       });
       return r;
     },
@@ -86,6 +93,7 @@ export const useAplicarOrden = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['medical-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['medical-stock'] });
       queryClient.invalidateQueries({ queryKey: ['lotes-de-almacen'] });
       queryClient.invalidateQueries({ queryKey: ['patient-bills'] });
     },
@@ -149,5 +157,74 @@ export const useCuentasPendientes = (customerId?: string) => {
       const r = await sdk.client.fetch<{ bills: CuentaPendiente[] }>('/admin/patient-bills', { query: { customer_id: customerId } });
       return r.bills;
     },
+  });
+};
+
+export interface MiPerfil {
+  nombre: string;
+  rol: string | null;
+  rol_etiqueta: string | null;
+  numero_empleado: string | null;
+  perfil_profesional: {
+    cedula_profesional?: string;
+    universidad?: string;
+    especialidad?: string;
+    cedula_especialidad?: string;
+    telefono?: string;
+    consultorio_nombre?: string;
+    consultorio_direccion?: string;
+    logo_url?: string;
+  };
+  perfil_completo: boolean;
+  clinica: { establecimiento: string; direccion?: string | null; telefono?: string | null; rfc?: string | null; logo_url?: string | null };
+}
+
+/** Quién soy para la receta: mis datos profesionales y los de la clínica (GET /admin/mi-perfil). */
+export const useMiPerfil = () => {
+  const sdk = useMedusaSdk();
+  return useQuery({
+    queryKey: ['mi-perfil'],
+    queryFn: () => sdk.client.fetch<MiPerfil>('/admin/mi-perfil'),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export type ExistenciaPorArea = { nursing: number; pharmacy: number };
+
+/**
+ * Cuánto hay disponible de cada presentación en Enfermería y en Farmacia
+ * (GET /admin/medical-stock). Para recetar sólo lo que hay y para que la
+ * bandeja diga dónde está cada cosa.
+ */
+export const useExistenciasPorArea = (variantIds: string[]) => {
+  const sdk = useMedusaSdk();
+  const ids = [...new Set(variantIds.filter(Boolean))].sort();
+  return useQuery({
+    queryKey: ['medical-stock', ids],
+    enabled: ids.length > 0,
+    staleTime: 15_000,
+    queryFn: async () => {
+      const r = await sdk.client.fetch<{ existencias: Record<string, ExistenciaPorArea> }>('/admin/medical-stock', {
+        query: { variant_ids: ids.join(',') },
+      });
+      return r.existencias;
+    },
+  });
+};
+
+export interface PacienteConPendientes {
+  customer_id: string;
+  customer_name: string | null;
+  pendientes: number;
+  desde: string;
+}
+
+/** Pacientes con órdenes o recetas pendientes, quien más espera primero. */
+export const usePacientesPendientes = (area?: Destinatario, opciones?: { enabled?: boolean }) => {
+  const sdk = useMedusaSdk();
+  return useQuery({
+    queryKey: ['medical-orders', 'pacientes-pendientes', area ?? 'todas'],
+    queryFn: async () => (await sdk.client.fetch<{ pacientes: PacienteConPendientes[] }>('/admin/pacientes-pendientes', { query: area ? { recipient_area: area } : {} })).pacientes,
+    ...opciones,
   });
 };

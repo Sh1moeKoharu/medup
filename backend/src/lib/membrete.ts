@@ -32,5 +32,6 @@ export async function membreteDeLaClinica(container: MedusaContainer): Promise<M
     direccion: config.direccion || null,
     telefono: config.telefono || null,
     rfc: config.rfc || null,
+    logo_url: config.logo_url || null,
   }
 }

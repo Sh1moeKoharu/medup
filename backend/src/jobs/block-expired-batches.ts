@@ -72,7 +72,7 @@ export default async function blockExpiredBatchesJob(
             /**
              * ── A QUIÉN SE AVISA ────────────────────────────────────────────
              * A las personas que tienen ese trabajo: las cuentas activas con
-             * rol de Administración o Farmacia que tengan correo de aviso.
+             * rol de Administración o Almacén que tengan correo de aviso.
              * Cambia solo cuando cambia el personal; nadie tiene que acordarse
              * de una variable de entorno.
              *
@@ -83,14 +83,14 @@ export default async function blockExpiredBatchesJob(
              */
             const destinatarios = await destinatariosPorRol(
                 container,
-                [ROLES.ADMIN, ROLES.PHARMACY],
+                [ROLES.ADMIN, ROLES.WAREHOUSE],
                 process.env.ALERTAS_EMAIL
             );
 
             if (!destinatarios.length) {
                 logger.error(
                     `[CADUCIDADES] Hay ${reportData.length} lote(s) en cuarentena que ` +
-                        `reportar, pero ninguna cuenta de Administración o Farmacia tiene ` +
+                        `reportar, pero ninguna cuenta de Administración o Almacén tiene ` +
                         `correo de aviso y ALERTAS_EMAIL no está configurada: NO se envió ` +
                         `ningún aviso. Pon un correo de aviso en Ajustes → Personal. El ` +
                         `reporte CSV sí se generó.`

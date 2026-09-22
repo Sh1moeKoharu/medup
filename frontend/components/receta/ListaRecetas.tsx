@@ -1,3 +1,4 @@
+import { HistorialDeAjustes } from '@/components/clinica/Ajustes';
 import { EstadoOrdenMedica, OrdenMedica, useCancelarOrdenMedica, useOrdenesMedicas } from '@/api/hooks/medical-orders';
 import { ClipboardList } from '@/components/icons/clipboard-list';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -81,7 +82,8 @@ const TarjetaReceta: React.FC<{ orden: OrdenMedica; onCancelar: (o: OrdenMedica)
               </View>
             </View>
           ))}
-          {!!orden.notes && <Text className="text-sm text-gray-400">Notas: {orden.notes}</Text>}
+          {!!orden.notes && <Text className="text-sm text-gray-400">Notas para Enfermería: {orden.notes}</Text>}
+          <HistorialDeAjustes ajustes={orden.ajustes} />
           <Text className="text-xs text-gray-300">Folio {orden.id}</Text>
           {orden.status === 'pending' && (
             <Button variant="outline" className="mt-2 self-start px-4 py-3" onPress={() => onCancelar(orden)}>

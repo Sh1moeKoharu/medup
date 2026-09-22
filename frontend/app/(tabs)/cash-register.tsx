@@ -7,6 +7,7 @@ import {
   useCashMovements,
   useAddCashMovement,
   CashMovement,
+  useCajaOcupada,
 } from '@/api/hooks/cash-session';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { Check } from '@/components/icons/check';
@@ -24,6 +25,14 @@ import { useSettings } from '@/contexts/settings';
 import { FlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { useRouter } from 'expo-router';
+
+/** "las 09:12" si fue hoy; "el 13 sep a las 18:40" si no. */
+const horaDeApertura = (iso: string) => {
+  const d = new Date(iso);
+  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return d.toDateString() === new Date().toDateString() ? `las ${hora}` : `el ${d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} a las ${hora}`;
+};
 
 // ──────────────────────────────────────────────────
 // Helpers
@@ -177,6 +186,8 @@ const CortesAnteriores: React.FC = () => {
 const OpenSessionView: React.FC = () => {
   const settings = useSettings();
   const openSession = useOpenCashSession();
+  const ocupada = useCajaOcupada().data;
+  const router = useRouter();
   const { state } = useAuthCtx();
   const [openingAmount, setOpeningAmount] = useState('');
 
@@ -197,10 +208,16 @@ const OpenSessionView: React.FC = () => {
       <View className="flex-1 items-center justify-center gap-4">
         <View className="h-20 w-20 items-center justify-center rounded-full bg-gray-50">
         </View>
-        <Text className="text-xl font-medium">La caja está cerrada</Text>
-        <Text className="text-center text-gray-400">
-          Abre una sesión de caja para comenzar{'\n'}a registrar ventas y movimientos.
-        </Text>
+        <Text className="text-xl font-medium">{ocupada ? 'La caja está ocupada' : 'La caja está cerrada'}</Text>
+        {ocupada ? (
+          <InfoBanner colorScheme="warning" className="w-full max-w-sm">
+            {`Abierta por ${ocupada.cashier_name} desde ${horaDeApertura(ocupada.opened_at)}. Debe cerrarse antes de abrir otra.`}
+          </InfoBanner>
+        ) : (
+          <Text className="text-center text-gray-400">
+            Abre una sesión de caja para comenzar{'\n'}a registrar ventas y movimientos.
+          </Text>
+        )}
 
         <View className="w-full max-w-sm gap-3 mt-4">
           <View>
@@ -222,13 +239,22 @@ const OpenSessionView: React.FC = () => {
           </View>
           <Button
             onPress={() =>
-              openSession.mutate({
-                opening_amount: Number(openingAmount) || 0,
-                sales_channel_id: settings.data?.sales_channel?.id,
-              })
+              // Con la caja abierta, a vender: el catálogo es donde empieza el
+              // turno. Con la promesa y no con el `onSuccess` de `mutate`: al
+              // abrirse la caja esta vista se desmonta, y React Query no llama
+              // a los callbacks de una llamada cuyo componente ya no existe.
+              openSession
+                .mutateAsync({
+                  opening_amount: Number(openingAmount) || 0,
+                  sales_channel_id: settings.data?.sales_channel?.id,
+                })
+                .then(() => router.replace('/(tabs)/products'))
+                .catch(() => {
+                  // El error ya lo enseña el hook.
+                })
             }
             isPending={openSession.isPending}
-            disabled={!cajero}
+            disabled={!cajero || !!ocupada}
           >
             Abrir caja
           </Button>

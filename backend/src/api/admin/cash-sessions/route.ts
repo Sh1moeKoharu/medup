@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { ZONA_CLINICA } from "../../../lib/zona-horaria";
 import { resolveRequestActor } from "../../../lib/require-role";
 
 /**
@@ -102,18 +103,29 @@ export async function POST(
             });
         }
 
-        // Un turno por CAJERO, no uno global: dos cajas pueden trabajar a la
-        // vez. Lo que no puede es la misma persona tener dos abiertos.
+        // UNA sola caja abierta en toda la clínica. Antes era un turno por
+        // cajero y dos cajas podían trabajar a la vez; la clínica pidió que no
+        // se abra caja hasta que la anterior esté cerrada, para que cada corte
+        // cuadre contra un solo cajón. La base lo refuerza con un índice único
+        // parcial (Migration20260914120000).
         const { data: openSessions } = await query.graph({
             entity: "cash_session",
-            fields: ["id"],
-            filters: { status: "open", cashier_id: actor.id },
+            fields: ["id", "cashier_id", "cashier_name", "opened_at"],
+            filters: { status: "open" },
         });
 
-        if (openSessions && openSessions.length > 0) {
-            return res.status(400).json({
-                message: "Ya tienes un turno de caja abierto. Ciérralo antes de abrir otro.",
-                existing_session_id: openSessions[0].id,
+        const abierta = openSessions?.[0];
+        if (abierta) {
+            if (abierta.cashier_id === actor.id) {
+                return res.status(400).json({
+                    message: "Ya tienes un turno de caja abierto. Ciérralo antes de abrir otro.",
+                    existing_session_id: abierta.id,
+                });
+            }
+            return res.status(409).json({
+                type: "caja_ocupada",
+                message: `La caja está abierta por ${abierta.cashier_name} desde ${horaDeLaClinica(abierta.opened_at)}. Debe cerrarse antes de abrir otra.`,
+                open_session: { id: abierta.id, cashier_name: abierta.cashier_name, opened_at: abierta.opened_at },
             });
         }
 
@@ -128,6 +140,20 @@ export async function POST(
 
         res.status(201).json({ session });
     } catch (error: any) {
+        // Dos aperturas en el mismo instante: la segunda choca con el índice.
+        // Medusa traduce la violación de unicidad a «Cash session with … already exists».
+        if (String(error?.code ?? error?.cause?.code) === "23505" || /IDX_cash_session_una_abierta|already exists/.test(String(error?.message))) {
+            return res.status(409).json({ type: "caja_ocupada", message: "Otra persona acaba de abrir la caja. Debe cerrarse antes de abrir otra." });
+        }
         res.status(400).json({ message: error.message });
     }
+}
+
+/** "hoy a las 09:12" o "el 13/09 a las 18:40", en hora de la clínica. */
+function horaDeLaClinica(fecha: string | Date): string {
+    const d = new Date(fecha);
+    const zona = { timeZone: ZONA_CLINICA } as const;
+    const dia = (x: Date) => x.toLocaleDateString("es-MX", { ...zona, day: "2-digit", month: "2-digit" });
+    const hora = d.toLocaleTimeString("es-MX", { ...zona, hour: "2-digit", minute: "2-digit", hour12: false });
+    return dia(d) === dia(new Date()) ? `hoy a las ${hora}` : `el ${dia(d)} a las ${hora}`;
 }

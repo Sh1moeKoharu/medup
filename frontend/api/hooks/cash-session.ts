@@ -56,22 +56,35 @@ export interface CashSessionSummary {
 // Hooks
 // ──────────────────────────────────────────────────
 
+/** Quién tiene la caja abierta cuando no es uno mismo. */
+export interface CajaOcupada {
+  cashier_name: string;
+  opened_at: string;
+}
+
+type RespuestaTurnoActual = { session: CashSession | null; otra_caja_abierta?: CajaOcupada | null };
+
+const useTurnoActual = <T,>(select: (r: RespuestaTurnoActual) => T, opciones?: { refetchInterval?: number }) => {
+  const sdk = useMedusaSdk();
+  return useQuery({
+    queryKey: ['cash-session', 'current'],
+    queryFn: () => sdk.client.fetch<RespuestaTurnoActual>('/admin/cash-sessions/current'),
+    select,
+    ...opciones,
+  });
+};
+
 /**
  * Obtiene la sesión de caja activa actual
  */
-export const useCurrentCashSession = () => {
-  const sdk = useMedusaSdk();
+export const useCurrentCashSession = () => useTurnoActual((r) => r.session);
 
-  return useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: async () => {
-      const response = await sdk.client.fetch<{ session: CashSession | null }>(
-        '/admin/cash-sessions/current'
-      );
-      return response.session;
-    },
-  });
-};
+/**
+ * Si la caja la tiene abierta OTRA persona. La clínica trabaja con una sola
+ * caja a la vez: mientras esté ocupada no se puede abrir otra. Se vuelve a
+ * preguntar cada 15 s para que el botón se habilite en cuanto la cierren.
+ */
+export const useCajaOcupada = () => useTurnoActual((r) => r.otra_caja_abierta ?? null, { refetchInterval: 15_000 });
 
 /**
  * Lista el historial de sesiones de caja
@@ -120,10 +133,13 @@ export const useOpenCashSession = () => {
       );
       return response.session;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cash-session'] });
-    },
+    // Al abrir caja se refresca TODO lo que el punto de venta tiene en memoria
+    // —existencias, pacientes, ventas en curso—: lo que se vio antes de abrir
+    // puede venir de horas atrás, y el turno debe empezar con datos de ahora.
+    onSuccess: () => queryClient.invalidateQueries(),
     onError: (error) => {
+      // Si otra persona abrió la caja mientras tanto, la pantalla lo muestra.
+      queryClient.invalidateQueries({ queryKey: ['cash-session'] });
       showErrorToast(error);
     },
   });

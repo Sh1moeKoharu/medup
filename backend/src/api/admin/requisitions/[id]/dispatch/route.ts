@@ -5,6 +5,7 @@ import { MEDICAL_INVENTORY_MODULE } from "../../../../../modules/medical-invento
 import { resolveRequestActor } from "../../../../../lib/require-role";
 import { planificarFefo, aplicarFefo, PlanFefo } from "../../../../../lib/fefo";
 import { recordInventoryMovement } from "../../../../../lib/inventory-ledger";
+import { costoPromedio } from "../../../../../lib/valuacion";
 import { nombresDeAlmacenes } from "../../../../../lib/almacenes";
 import { estadoTrasSurtir, planificarSurtido, puedeSurtirse, type Pedido } from "../../../../../lib/requisiciones";
 
@@ -85,6 +86,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         let asientosFallidos = 0;
 
         for (const { surtido, fefo } of planes) {
+            const costoTraspaso = await costoPromedio(req.scope as any, surtido.renglon.variant_id, origen);
             const aplicadas = await aplicarFefo(req.scope as any, fefo);
 
             for (const a of aplicadas) {
@@ -97,6 +99,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
                     expiration_date: a.lote.expiration_date,
                     quantity_delta: -a.cantidad,
                     quantity_after: a.saldoResultante,
+                    // El traspaso viaja a costo promedio del origen: así el almacén
+                    // de destino queda valorizado y el origen cuadra.
+                    unit_cost: costoTraspaso,
                     type: "exit_transfer",
                     reason: `Traspaso a ${nombres.get(destino) ?? destino} por requisición`,
                     reference_type: "requisition",
@@ -144,6 +149,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
                     expiration_date: a.lote.expiration_date,
                     quantity_delta: a.cantidad,
                     quantity_after: Number(loteDestino.quantity),
+                    unit_cost: costoTraspaso,
                     type: "entry_transfer",
                     reason: `Traspaso desde ${nombres.get(origen) ?? origen} por requisición`,
                     reference_type: "requisition",

@@ -1,5 +1,9 @@
 import { useProducts } from '@/api/hooks/products';
-import { useAjustarOrden, useAplicarOrden, useBandeja, useImprimirDocumento, type ResultadoDeAplicar } from '@/api/hooks/clinica';
+import { useAjustarOrden, useAplicarOrden, useBandeja, useExistenciasPorArea, useImprimirDocumento, type ResultadoDeAplicar } from '@/api/hooks/clinica';
+import { useCrearRequisicion, useRequisiciones } from '@/api/hooks/requisiciones';
+import { ExistenciaDelRenglon, HistorialDeAjustes, MotivoDeAjuste } from '@/components/clinica/Ajustes';
+import { Trash2 } from '@/components/icons/trash-2';
+import Toast from 'react-native-toast-message';
 import type { OrdenMedica } from '@/api/hooks/medical-orders';
 import { NotaDeAtencion } from '@/components/clinica/NotaDeAtencion';
 import { ClipboardList } from '@/components/icons/clipboard-list';
@@ -53,11 +57,49 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
   const aplicar = useAplicarOrden();
   const imprimir = useImprimirDocumento();
   const [confirmando, setConfirmando] = React.useState(false);
+  // Quitar o reducir lo recetado pide motivo: se escribe aquí, bajo el renglón.
+  const [porReducir, setPorReducir] = React.useState<{ variant_id: string; cantidad: number; antes: number; titulo: string | null } | null>(null);
+  const existencias = useExistenciasPorArea(abierta ? orden.items.map((i) => i.variant_id) : []);
+  const requisiciones = useRequisiciones({ medical_order_id: orden.id }, { enabled: abierta });
+  const pedir = useCrearRequisicion();
 
   const unidades = orden.items.reduce((s, i) => s + i.quantity, 0);
 
-  const cambiar = (variantId: string, cantidad: number, titulo?: string | null) =>
-    ajustar.mutate({ id: orden.id, items: [{ variant_id: variantId, quantity: Math.max(0, cantidad), product_title: titulo ?? undefined }] });
+  const cambiar = (variantId: string, cantidad: number, titulo?: string | null) => {
+    const actual = orden.items.find((i) => i.variant_id === variantId)?.quantity ?? 0;
+    const nueva = Math.max(0, cantidad);
+    if (nueva < actual) {
+      setPorReducir({ variant_id: variantId, cantidad: nueva, antes: actual, titulo: titulo ?? null });
+      return;
+    }
+    ajustar.mutate({ id: orden.id, items: [{ variant_id: variantId, quantity: nueva, product_title: titulo ?? undefined }] });
+  };
+
+  const confirmarReduccion = (motivo: string) => {
+    if (!porReducir) return;
+    ajustar.mutate(
+      { id: orden.id, motivo, items: [{ variant_id: porReducir.variant_id, quantity: porReducir.cantidad, product_title: porReducir.titulo ?? undefined }] },
+      { onSuccess: () => setPorReducir(null) },
+    );
+  };
+
+  // Lo que falta en Enfermería para aplicar la orden completa (punto 21), y si
+  // ya se pidió a Farmacia desde aquí (punto 22).
+  const faltantes = orden.items
+    .map((i) => ({ i, e: existencias.data?.[i.variant_id] }))
+    .filter(({ i, e }) => e && e.nursing < i.quantity)
+    .map(({ i, e }) => ({ variant_id: i.variant_id, product_title: i.product_title ?? undefined, quantity: i.quantity - e!.nursing, enFarmacia: e!.pharmacy }));
+  const enCamino = (requisiciones.data ?? []).find((r) => r.status === 'pending' || r.status === 'dispatched');
+
+  const pedirFaltantes = () =>
+    pedir.mutate(
+      {
+        medical_order_id: orden.id,
+        notes: `Para aplicar la orden de ${orden.customer_name ?? 'un paciente'}`,
+        items: faltantes.map(({ variant_id, product_title, quantity }) => ({ variant_id, product_title, quantity })),
+      },
+      { onSuccess: () => Toast.show({ type: 'success', text1: 'Pedido a Farmacia', text2: 'Aplica la orden cuando llegue y la recibas en Almacén.' }) },
+    );
 
   const resultados = productos.data?.pages?.[0]?.products ?? [];
 
@@ -107,17 +149,47 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
       {abierta && (
         <View className="mt-2 gap-3 border-t border-gray-100 pt-3">
           {orden.items.map((i) => (
-            <View key={i.id} className="flex-row items-center gap-3">
-              <View className="flex-1">
-                <Text>{i.product_title ?? i.variant_id}</Text>
-                {!!i.instructions && <Text className="text-sm text-gray-400">{i.instructions}</Text>}
+            <View key={i.id} className="gap-2">
+              <View className="flex-row items-center gap-3">
+                <View className="flex-1">
+                  <Text>{i.product_title ?? i.variant_id}</Text>
+                  {!!i.instructions && <Text className="text-sm text-gray-400">{i.instructions}</Text>}
+                  <ExistenciaDelRenglon existencia={existencias.data?.[i.variant_id]} necesita={i.quantity} />
+                </View>
+                <Boton onPress={() => cambiar(i.variant_id, i.quantity - 1, i.product_title)} label="Una menos"><Minus size={16} /></Boton>
+                <Text className="w-8 text-center text-lg">{i.quantity}</Text>
+                <Boton onPress={() => cambiar(i.variant_id, i.quantity + 1, i.product_title)} label="Una más"><Plus size={16} /></Boton>
+                <Boton onPress={() => cambiar(i.variant_id, 0, i.product_title)} label={`Quitar ${i.product_title ?? 'renglón'}`}><Trash2 size={16} color={color.iconoError} /></Boton>
               </View>
-              <Boton onPress={() => cambiar(i.variant_id, i.quantity - 1, i.product_title)} label="Una menos"><Minus size={16} /></Boton>
-              <Text className="w-8 text-center text-lg">{i.quantity}</Text>
-              <Boton onPress={() => cambiar(i.variant_id, i.quantity + 1, i.product_title)} label="Una más"><Plus size={16} /></Boton>
+              {porReducir?.variant_id === i.variant_id && (
+                <MotivoDeAjuste
+                  descripcion={porReducir.cantidad === 0 ? `Quitar ${i.product_title ?? 'este renglón'} de la receta.` : `Bajar ${i.product_title ?? 'este renglón'} de ${porReducir.antes} a ${porReducir.cantidad}.`}
+                  enviando={ajustar.isPending}
+                  onConfirmar={confirmarReduccion}
+                  onCancelar={() => setPorReducir(null)}
+                />
+              )}
             </View>
           ))}
-          {!!orden.notes && <Text className="text-sm text-gray-400">Notas: {orden.notes}</Text>}
+          {!!orden.notes && <Text className="text-sm text-gray-400">Notas para Enfermería: {orden.notes}</Text>}
+          <HistorialDeAjustes ajustes={orden.ajustes} />
+
+          {faltantes.length > 0 && (
+            <View className="gap-2 rounded-xl border border-error-300 bg-error-200 p-3">
+              <Text className="text-sm text-error-500">
+                {faltantes.map((f) => `${f.product_title ?? 'Un renglón'}: faltan ${f.quantity}${f.enFarmacia < f.quantity ? ` (Farmacia tiene ${f.enFarmacia})` : ''}`).join(' · ')}
+              </Text>
+              {enCamino ? (
+                <Text className="text-sm">
+                  {enCamino.status === 'dispatched' ? 'Farmacia ya lo surtió: recíbelo en Almacén y aplica la orden.' : 'Requisición en camino: Farmacia aún no la surte.'}
+                </Text>
+              ) : (
+                <Button variant="outline" className="self-start px-4" onPress={pedirFaltantes} isPending={pedir.isPending}>
+                  Pedir faltantes a Farmacia
+                </Button>
+              )}
+            </View>
+          )}
 
           <TextInput
             value={busqueda}
@@ -198,7 +270,7 @@ export default function BandejaScreen() {
   return (
     <LayoutWithScroll contentContainerClassName="pb-10">
       <Text className="mb-1 mt-8 text-4xl">Bandeja</Text>
-      <Text className="mb-6 text-gray-400">Órdenes que el médico dirigió a consulta. Ajusta lo que se usó y aplícala: sale de tu almacén y queda en la cuenta del paciente.</Text>
+      <Text className="mb-6 text-gray-400">Órdenes que el médico dirigió a consulta. Revisa dónde hay existencia, pide a Farmacia lo que falte y aplícala: sale de tu almacén y queda en la cuenta del paciente. Quitar o reducir lo recetado pide motivo.</Text>
 
       {recientes.length > 0 && (
         <View className="mb-3 gap-3">

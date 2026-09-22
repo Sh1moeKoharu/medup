@@ -57,9 +57,9 @@ export default function AjustesImpresionScreen() {
 
       <View className="mb-2 flex-row items-center justify-between rounded-2xl border border-gray-200 p-4">
         <View className="flex-1 pr-4">
-          <Text className="text-lg">Imprimir al terminar la venta</Text>
+          <Text className="text-lg">Imprimir al completar la orden</Text>
           <Text className="text-sm text-gray-400">
-            El ticket sale solo al confirmar el cobro, sin pulsar nada.
+            Al pulsar «Completar orden» se abre directamente la impresión del recibo.
           </Text>
         </View>
         <Switch
@@ -70,8 +70,8 @@ export default function AjustesImpresionScreen() {
       </View>
 
       <Text className="mb-8 text-sm text-gray-400">
-        Actívalo sólo en la caja que tiene la impresora conectada. En una tableta
-        de consulta, cada venta abriría un diálogo de impresión inútil.
+        Apágalo en los equipos que no tienen impresora: en lugar de imprimir,
+        al terminar la venta aparece un aviso con la opción de imprimir después.
       </Text>
 
       <Text className="mb-4 text-2xl">Probar</Text>

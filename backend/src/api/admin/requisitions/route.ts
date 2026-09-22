@@ -21,7 +21,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         const service: RequisitionsModuleService = req.scope.resolve(REQUISITIONS_MODULE);
 
         const filters: any = {};
-        const { status, requested_by_id, destination_location_id, source_location_id } = req.query as Record<string, string>;
+        const { status, requested_by_id, destination_location_id, source_location_id, medical_order_id } = req.query as Record<string, string>;
+        if (medical_order_id) filters.medical_order_id = medical_order_id.includes(",") ? medical_order_id.split(",") : medical_order_id;
         if (status) filters.status = status.includes(",") ? status.split(",") : status;
         if (requested_by_id) filters.requested_by_id = requested_by_id;
         if (destination_location_id) filters.destination_location_id = destination_location_id;
@@ -49,7 +50,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
         const service: RequisitionsModuleService = req.scope.resolve(REQUISITIONS_MODULE);
-        const { items, notes } = (req.body ?? {}) as any;
+        const { items, notes, medical_order_id } = (req.body ?? {}) as any;
 
         const actor = await resolveRequestActor(req);
         if (!actor) {
@@ -97,6 +98,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             requested_by_id: actor.id,
             requested_by_name: actor.name,
             notes: notes ?? null,
+            // Pedida desde la bandeja para cubrir una orden: queda ligada a ella.
+            medical_order_id: typeof medical_order_id === "string" && medical_order_id ? medical_order_id : null,
         });
 
         await service.createRequisitionItems(

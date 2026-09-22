@@ -262,10 +262,11 @@ export default defineMiddlewares({
         {
             matcher: "/admin/medical-orders/:id/items",
             methods: ["POST"],
-            middlewares: [requireRole(ROLES.NURSE, ROLES.DOCTOR, ROLES.ADMIN)],
+            // Farmacia entra sólo para quitar o reducir, con motivo: la ruta lo comprueba.
+            middlewares: [requireRole(ROLES.NURSE, ROLES.DOCTOR, ROLES.PHARMACY, ROLES.ADMIN)],
         },
 
-        // ── Requisiciones: Enfermería pide y recibe; Farmacia surte.
+        // ── Requisiciones: Enfermería pide y recibe; Almacén surte.
         {
             matcher: "/admin/requisitions",
             methods: ["POST"],
@@ -274,7 +275,7 @@ export default defineMiddlewares({
         {
             matcher: "/admin/requisitions/:id/dispatch",
             methods: ["POST"],
-            middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
+            middlewares: [requireRole(ROLES.WAREHOUSE, ROLES.ADMIN)],
         },
         {
             matcher: "/admin/requisitions/:id/receive",
@@ -287,12 +288,12 @@ export default defineMiddlewares({
             middlewares: [requireRole(ROLES.NURSE, ROLES.ADMIN)],
         },
 
-        // ── Destrucción sanitaria: acto de Farmacia, no de Enfermería, aunque
+        // ── Destrucción sanitaria: acto de Almacén, no de Enfermería, aunque
         //    la política general de lotes la deje escribir (para sus bajas).
         {
             matcher: "/admin/medical-batches/:id/destroy",
             methods: ["POST"],
-            middlewares: [requireRole(ROLES.PHARMACY, ROLES.ADMIN)],
+            middlewares: [requireRole(ROLES.WAREHOUSE, ROLES.ADMIN)],
         },
 
         // ── Costos de adquisición fuera de la respuesta para quien no debe

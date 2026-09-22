@@ -10,10 +10,11 @@ import {
     revisarNumeroDeEmpleado,
 } from "../../../../lib/personal";
 import { quienTieneElNumero } from "../../../../lib/personal-servidor";
+import { CLAVE_PERFIL_PROFESIONAL, normalizarPerfil, perfilDe, revisarPerfil } from "../../../../lib/perfil-profesional";
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params;
-  const { first_name, last_name, role, employee_number, notification_email } = req.body as any;
+  const { first_name, last_name, role, employee_number, notification_email, perfil_profesional } = req.body as any;
 
   const userModuleService = req.scope.resolve(Modules.USER);
 
@@ -27,7 +28,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     // reemplazarlo: la versión anterior escribía `{ role }` y borraba cualquier
     // otra clave. Ahora hay más de una.
     const tocaMetadata =
-      role !== undefined || employee_number !== undefined || notification_email !== undefined;
+      role !== undefined || employee_number !== undefined || notification_email !== undefined || perfil_profesional !== undefined;
 
     if (tocaMetadata) {
       const [existing] = await userModuleService.listUsers({ id });
@@ -77,6 +78,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             return res.status(400).json({ message: problema });
           }
           metadata[CLAVE_CORREO_AVISO] = correo;
+        }
+      }
+
+      // Datos para la receta. Se revisan contra el rol que quedará: pasar a
+      // alguien a médico sin cédula se rechaza igual que darlo de alta así.
+      if (perfil_profesional !== undefined || role !== undefined) {
+        const perfil = perfil_profesional !== undefined ? normalizarPerfil(perfil_profesional) : perfilDe(existing);
+        const problema = revisarPerfil(perfil, normalizeRole(metadata.role));
+        if (problema) {
+          return res.status(400).json({ message: problema });
+        }
+        if (perfil_profesional !== undefined) {
+          metadata[CLAVE_PERFIL_PROFESIONAL] = Object.keys(perfil).length ? perfil : null;
         }
       }
 

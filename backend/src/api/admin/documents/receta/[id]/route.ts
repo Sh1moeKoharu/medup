@@ -1,9 +1,11 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { MEDICAL_ORDERS_MODULE } from "../../../../../modules/medical-orders";
 import MedicalOrdersModuleService from "../../../../../modules/medical-orders/service";
-import { htmlReceta } from "../../../../../lib/documentos";
+import { folioCorto, htmlReceta } from "../../../../../lib/documentos";
 import { membreteDeLaClinica } from "../../../../../lib/membrete";
 import { ROLE_LABELS, normalizeRole } from "../../../../../lib/roles";
+import { perfilDe } from "../../../../../lib/perfil-profesional";
+import { Modules } from "@medusajs/framework/utils";
 
 /**
  * GET /admin/documents/receta/:id — la receta de una orden médica, lista
@@ -16,6 +18,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         const [orden] = await service.listMedicalOrders({ id: req.params.id }, { relations: ["items"] });
         if (!orden) {
             return res.status(404).json({ error: "Orden médica no encontrada." });
+        }
+
+        // Los datos profesionales de quien prescribió, tal como están hoy en
+        // su cuenta. Si ya no existe, la receta sale con su nombre guardado.
+        let perfil: ReturnType<typeof perfilDe> | null = null;
+        try {
+            const usuarios: any = req.scope.resolve(Modules.USER);
+            const [autor] = await usuarios.listUsers({ id: orden.creator_id }, { withDeleted: true });
+            perfil = autor ? perfilDe(autor) : null;
+        } catch {
+            // Sin perfil: la receta sale sin cédula antes que no salir.
         }
 
         const html = htmlReceta({
@@ -31,14 +44,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
                 quantity: i.quantity,
                 instructions: i.instructions,
             })),
-            notas: orden.notes,
+            perfil,
         });
 
         if (!html) {
             return res.status(400).json({ error: "La orden no tiene lo necesario para imprimir una receta." });
         }
 
-        res.json({ html, title: `Receta ${orden.id}` });
+        res.json({ html, title: `Receta ${folioCorto(orden.id)}` });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

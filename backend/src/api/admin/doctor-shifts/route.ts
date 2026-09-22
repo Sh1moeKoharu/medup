@@ -2,7 +2,10 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { HONORARIOS_MODULE } from "../../../modules/honorarios";
 import HonorariosModuleService from "../../../modules/honorarios/service";
 import { resolveRequestActor } from "../../../lib/require-role";
-import { ROLES } from "../../../lib/roles";
+import { ROLES, type Role } from "../../../lib/roles";
+
+/** Quién abre y cierra su turno aquí. */
+const ROLES_CON_TURNO: Role[] = [ROLES.DOCTOR, ROLES.NURSE, ROLES.PHARMACY, ROLES.WAREHOUSE, ROLES.HR, ROLES.ADMIN];
 
 /**
  * Turnos de médico.
@@ -44,8 +47,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         if (!actor) {
             return res.status(401).json({ error: "No se pudo identificar al médico. Vuelve a iniciar sesión." });
         }
-        if (actor.role !== ROLES.DOCTOR && actor.role !== ROLES.ADMIN) {
-            return res.status(403).json({ error: "El turno médico lo abre el médico." });
+        // Desde la nómina, el turno no es sólo del médico: Enfermería, Farmacia
+        // y Almacén también registran sus horas. Caja usa su turno de caja.
+        if (!ROLES_CON_TURNO.includes(actor.role as any)) {
+            return res.status(403).json({ error: "Tu perfil no registra turnos aquí. Caja usa su turno de caja." });
         }
 
         const [abierto] = await service.listDoctorShifts({ doctor_id: actor.id, closed_at: null });
@@ -56,6 +61,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         const turno = await service.createDoctorShifts({
             doctor_id: actor.id,
             doctor_name: actor.name,
+            role: actor.role,
             opened_at: new Date(),
             notes: notes ?? null,
         });

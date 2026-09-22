@@ -5,6 +5,7 @@ import { color } from '@/theme/tokens';
 import { useWindowDimensions } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
+import { Archive } from '@/components/icons/archive';
 import { Clock } from '@/components/icons/clock';
 import { Package } from '@/components/icons/package';
 import { Settings } from '@/components/icons/settings';
@@ -50,6 +51,13 @@ export default function AuditoriaTabLayout() {
           options={{
             title: 'Bitácora',
             tabBarIcon: ({ color }) => <Clock size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="reportes"
+          options={{
+            title: 'Reportes',
+            tabBarIcon: ({ color }) => <Archive size={20} color={color} />,
           }}
         />
         <Tabs.Screen

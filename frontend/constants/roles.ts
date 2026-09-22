@@ -16,6 +16,8 @@ export const ROLES = {
   DOCTOR: 'doctor',
   NURSE: 'nurse',
   AUDITOR: 'auditor',
+  WAREHOUSE: 'warehouse',
+  HR: 'hr',
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -29,6 +31,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.DOCTOR]: 'Médico',
   [ROLES.NURSE]: 'Enfermería',
   [ROLES.AUDITOR]: 'Auditor / Dirección',
+  [ROLES.WAREHOUSE]: 'Almacén',
+  [ROLES.HR]: 'RH y contabilidad',
 };
 
 /** Valores heredados anteriores a la unificación. Ver roles.ts del backend. */
@@ -43,6 +47,13 @@ const LEGACY_ROLE_ALIASES: Record<string, Role> = {
   farmacia: ROLES.PHARMACY,
   farmaceutico: ROLES.PHARMACY,
   administrador: ROLES.ADMIN,
+  almacen: ROLES.WAREHOUSE,
+  almacenista: ROLES.WAREHOUSE,
+  rh: ROLES.HR,
+  rrhh: ROLES.HR,
+  'recursos humanos': ROLES.HR,
+  contabilidad: ROLES.HR,
+  contador: ROLES.HR,
 };
 
 export function isRole(value: unknown): value is Role {

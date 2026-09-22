@@ -1,3 +1,4 @@
+import { usePacientesConPendientes } from '@/components/pacientes/usePacientesConPendientes';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCreateCustomer, useCustomers } from '@/api/hooks/customers';
 import { useUpdateDraftOrderCustomer } from '@/api/hooks/draft-orders';
@@ -17,14 +18,10 @@ import { useReceta } from '@/contexts/receta';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as React from 'react';
 import { FlatList, TouchableOpacity, View } from 'react-native';
-import { z } from 'zod/v4';
+import { esquemaPaciente } from '@/components/pacientes/FormularioPaciente';
+import { contactoDePaciente } from '@/utils/paciente';
 
-const customerFormSchema = z.object({
-  email: z.email('Por favor ingrese un correo válido').min(3, 'El correo es requerido'),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  phone: z.string().optional(),
-});
+const customerFormSchema = esquemaPaciente;
 
 /**
  * Alta de paciente, DENTRO del mismo cuadro que la búsqueda.
@@ -77,20 +74,12 @@ const NuevoPacienteForm: React.FC<{
           {error}
         </InfoBanner>
       )}
-      {/* autoFocus: el cajero abre esto para escribir un correo, asi que el
+      {/* autoFocus: quien abre esto va a escribir el nombre, asi que el
           cursor deberia estar ya ahi. Ademas sirve de senal: si con esto SI se
           puede escribir pero al hacer clic en otro campo no, el problema esta
           en el camino del clic y no en el del foco. */}
-      <TextField
-        name="email"
-        placeholder="Correo electrónico"
-        autoComplete="off"
-        autoCapitalize="none"
-        inputMode="email"
-        autoFocus
-      />
-      <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
-      <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
+      <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" autoFocus />
+      <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="words" />
       <TextField name="phone" placeholder="Número de teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
       <FormButton>Crear y asignar</FormButton>
       <Button variant="outline" className="mt-2" onPress={onCancelar}>
@@ -122,8 +111,10 @@ const CustomersList: React.FC<{
 }> = ({ q, selectedCustomerId, onCustomerSelect }) => {
   const customersQuery = useCustomers({
     q,
-    order: 'email',
+    order: 'first_name',
   });
+  // Para el médico y Enfermería, los que tienen algo pendiente van arriba (punto 16).
+  const pendientes = usePacientesConPendientes();
 
   const renderCustomer = React.useCallback(
     ({ item }: { item: AdminCustomer | { id: `placeholder_${string}` } }) => {
@@ -139,7 +130,7 @@ const CustomersList: React.FC<{
             'bg-black': selectedCustomerId === item.id,
           })}
           accessibilityRole="button"
-          accessibilityLabel={`Elegir a ${customerName || item.email}`}
+          accessibilityLabel={`Elegir a ${customerName || contactoDePaciente(item)}`}
           onPress={() => onCustomerSelect(item)}
         >
           {customerName.length > 0 && (
@@ -149,6 +140,7 @@ const CustomersList: React.FC<{
               })}
             >
               {customerName}
+              {pendientes.conteo.get(item.id) ? ` · ${pendientes.conteo.get(item.id) === 1 ? 'orden pendiente' : `${pendientes.conteo.get(item.id)} órdenes pendientes`}` : ''}
             </Text>
           )}
           <Text
@@ -163,12 +155,12 @@ const CustomersList: React.FC<{
                 },
             )}
           >
-            {item.email}
+            {contactoDePaciente(item)}
           </Text>
         </TouchableOpacity>
       );
     },
-    [onCustomerSelect, selectedCustomerId],
+    [onCustomerSelect, selectedCustomerId, pendientes.conteo],
   );
 
   const data = React.useMemo(() => {
@@ -178,10 +170,12 @@ const CustomersList: React.FC<{
       }));
     }
 
-    const customers = customersQuery.data?.pages.flatMap((page) => page.customers) || [];
+    const cargados = customersQuery.data?.pages.flatMap((page) => page.customers) || [];
+    const arriba = q ? [] : pendientes.lista;
+    const customers = [...arriba, ...cargados.filter((c) => !arriba.some((p) => p.id === c.id))];
 
     return customers.length > 0 ? customers : null;
-  }, [customersQuery]);
+  }, [customersQuery, pendientes.lista, q]);
 
   if (customersQuery.isError) {
     return <InfoBanner colorScheme="error">Error cargando pacientes. Por favor, intenta de nuevo.</InfoBanner>;
@@ -336,7 +330,7 @@ export default function CustomerLookupScreen() {
             {!selectedCustomerId
               ? 'Elige un paciente de la lista'
               : selectedCustomer
-                ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || selectedCustomer.email}`
+                ? `Asignar a ${[selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ') || contactoDePaciente(selectedCustomer)}`
                 : 'Asignar paciente'}
           </Button>
         </>

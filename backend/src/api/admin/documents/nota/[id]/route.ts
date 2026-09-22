@@ -5,6 +5,7 @@ import { htmlNota } from "../../../../../lib/documentos";
 import { membreteDeLaClinica } from "../../../../../lib/membrete";
 import { ROLES, ROLE_LABELS, Role, normalizeRole } from "../../../../../lib/roles";
 import { resolveRequestRole } from "../../../../../lib/require-role";
+import { puedeLeerNota } from "../../../../../lib/notas-clinicas";
 
 /** Quién puede imprimir una nota de atención: los mismos que pueden leerla. */
 const PUEDEN_LEER_NOTAS: Role[] = [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE, ROLES.AUDITOR];
@@ -22,14 +23,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
         const service: ClinicalNotesModuleService = req.scope.resolve(CLINICAL_NOTES_MODULE);
         const [nota] = await service.listClinicalNotes({ id: req.params.id });
-        if (!nota) {
+        if (!nota || !puedeLeerNota(rol, nota)) {
             return res.status(404).json({ error: "Nota de atención no encontrada." });
         }
 
         const html = htmlNota({
             membrete: await membreteDeLaClinica(req.scope as any),
             folio: nota.id,
-            fecha: nota.created_at,
+            fecha: (nota as any).attended_at ?? nota.created_at,
             paciente: nota.customer_name || nota.customer_id,
             autor: nota.author_name || nota.author_id,
             rol_autor: ROLE_LABELS[normalizeRole(nota.author_role) ?? "doctor"],

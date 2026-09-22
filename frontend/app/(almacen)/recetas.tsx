@@ -1,5 +1,9 @@
 import { ResultadoDeSurtido, useRecetasSurtidas, useSurtirReceta } from '@/api/hooks/almacen';
-import { useBandeja, useImprimirDocumento } from '@/api/hooks/clinica';
+import { useAjustarOrden, useBandeja, useImprimirDocumento } from '@/api/hooks/clinica';
+import { HistorialDeAjustes, MotivoDeAjuste } from '@/components/clinica/Ajustes';
+import { Minus } from '@/components/icons/minus';
+import { Trash2 } from '@/components/icons/trash-2';
+import { color } from '@/theme/tokens';
 import type { OrdenMedica } from '@/api/hooks/medical-orders';
 import { Distintivo, fechaCorta } from '@/components/almacen/base';
 import { ClipboardList } from '@/components/icons/clipboard-list';
@@ -27,6 +31,9 @@ const Receta: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeSurtido; onS
   const [confirmando, setConfirmando] = React.useState(false);
   const surtir = useSurtirReceta();
   const imprimir = useImprimirDocumento();
+  const ajustar = useAjustarOrden();
+  // Farmacia puede quitar o reducir lo que no va a surtir, siempre con motivo.
+  const [porReducir, setPorReducir] = React.useState<{ variant_id: string; cantidad: number; antes: number; titulo: string | null } | null>(null);
   const unidades = orden.items.reduce((s, i) => s + i.quantity, 0);
 
   if (resultado) {
@@ -68,15 +75,47 @@ const Receta: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeSurtido; onS
       {abierta && (
         <View className="mt-2 gap-2 border-t border-gray-100 pt-3">
           {orden.items.map((i) => (
-            <View key={i.id} className="flex-row gap-3">
-              <Text className="w-10 text-right text-gray-500">{i.quantity}</Text>
-              <View className="flex-1">
-                <Text>{i.product_title ?? i.variant_id}</Text>
-                {i.instructions ? <Text className="text-xs text-gray-400">{i.instructions}</Text> : null}
+            <View key={i.id} className="gap-2">
+              <View className="flex-row items-center gap-3">
+                <Text className="w-10 text-right text-gray-500">{i.quantity}</Text>
+                <View className="flex-1">
+                  <Text>{i.product_title ?? i.variant_id}</Text>
+                  {i.instructions ? <Text className="text-xs text-gray-400">{i.instructions}</Text> : null}
+                </View>
+                {i.quantity > 1 && (
+                  <Pressable
+                    onPress={() => setPorReducir({ variant_id: i.variant_id, cantidad: i.quantity - 1, antes: i.quantity, titulo: i.product_title })}
+                    accessibilityLabel={`Surtir una menos de ${i.product_title ?? 'este renglón'}`}
+                    className="min-h-toque min-w-toque items-center justify-center rounded-full border border-gray-200"
+                  >
+                    <Minus size={16} />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => setPorReducir({ variant_id: i.variant_id, cantidad: 0, antes: i.quantity, titulo: i.product_title })}
+                  accessibilityLabel={`Quitar ${i.product_title ?? 'este renglón'} de la receta`}
+                  className="min-h-toque min-w-toque items-center justify-center rounded-full border border-gray-200"
+                >
+                  <Trash2 size={16} color={color.iconoError} />
+                </Pressable>
               </View>
+              {porReducir?.variant_id === i.variant_id && (
+                <MotivoDeAjuste
+                  descripcion={porReducir.cantidad === 0 ? `Quitar ${i.product_title ?? 'este renglón'} de la receta.` : `Surtir ${porReducir.cantidad} en lugar de ${porReducir.antes}.`}
+                  enviando={ajustar.isPending}
+                  onCancelar={() => setPorReducir(null)}
+                  onConfirmar={(motivo) =>
+                    ajustar.mutate(
+                      { id: orden.id, motivo, items: [{ variant_id: porReducir.variant_id, quantity: porReducir.cantidad, product_title: porReducir.titulo ?? undefined }] },
+                      { onSuccess: () => setPorReducir(null) },
+                    )
+                  }
+                />
+              )}
             </View>
           ))}
           {orden.notes ? <Text className="text-sm text-gray-400">«{orden.notes}»</Text> : null}
+          <HistorialDeAjustes ajustes={orden.ajustes} />
           <View className="mt-1 flex-row flex-wrap gap-2">
             <Button className="px-4 py-3" onPress={() => setConfirmando(true)} isPending={surtir.isPending}>
               Surtir ({unidades})
@@ -145,7 +184,7 @@ export default function RecetasDeFarmaciaScreen() {
   return (
     <LayoutWithScroll contentContainerClassName="pb-10">
       <Text className="mb-1 mt-8 text-4xl">Recetas</Text>
-      <Text className="mb-6 text-gray-400">Las que el médico dirigió al mostrador. Surtir descuenta del almacén de Farmacia, del lote que caduque antes.</Text>
+      <Text className="mb-6 text-gray-400">Las recetas de mostrador pendientes de surtir. Surtir descuenta del almacén general, del lote que caduque antes; quitar o reducir pide motivo.</Text>
 
       {recientes.length > 0 && (
         <View className="mb-3 gap-3">

@@ -13,7 +13,7 @@ import { Store } from '@/components/icons/store';
 import { UserRound } from '@/components/icons/user-round';
 
 export const unstable_settings = {
-  initialRouteName: 'products',
+  initialRouteName: 'bandeja',
   detachInactiveScreens: false,
 };
 

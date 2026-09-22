@@ -1,3 +1,4 @@
+import { contactoDePaciente } from '@/utils/paciente';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers } from '@/api/hooks/customers';
 import {
@@ -260,12 +261,12 @@ const CustomerBadge: React.FC<{ customer: AdminDraftOrder['customer'] }> = ({ cu
       {customerName.length > 0 ? (
         <View>
           <Text className="text-lg">{customerName}</Text>
-          <Text className="text-sm text-gray-300">{customer.email}</Text>
+          <Text className="text-sm text-gray-300">{contactoDePaciente(customer)}</Text>
         </View>
       ) : (
         <View>
           <Text className="text-sm text-gray-300">Paciente</Text>
-          <Text className="text-lg">{customer.email}</Text>
+          <Text className="text-lg">{contactoDePaciente(customer) || 'Sin nombre'}</Text>
         </View>
       )}
 

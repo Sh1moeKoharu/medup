@@ -99,3 +99,42 @@ describe("isMedicalOrderCreatorRole", () => {
     expect(isMedicalOrderCreatorRole(null)).toBe(false)
   })
 })
+
+describe("Almacén y RH (roles nuevos)", () => {
+  // Importados aquí para no tocar el encabezado del archivo.
+  const { API_POLICIES } = require("../api-policy")
+  const { canSeeCost } = require("../roles")
+  const regla = (path: string) => API_POLICIES.find((p: any) => p.path === path)
+
+  it("se reconocen por su nombre en español", () => {
+    expect(normalizeRole("Almacén")).toBe(ROLES.WAREHOUSE)
+    expect(normalizeRole("RH")).toBe(ROLES.HR)
+    expect(normalizeRole("Contabilidad")).toBe(ROLES.HR)
+  })
+
+  it("el costo lo ve Almacén, no Farmacia", () => {
+    expect(canSeeCost(ROLES.WAREHOUSE)).toBe(true)
+    expect(canSeeCost(ROLES.PHARMACY)).toBe(false)
+  })
+
+  it("el inventario lo mueve Almacén; Farmacia sólo surte", () => {
+    for (const path of ["/admin/medical-batches", "/admin/requisitions", "/admin/stock-policies", "/admin/inventory-counts"]) {
+      expect(regla(path).write).toContain(ROLES.WAREHOUSE)
+      expect(regla(path).write).not.toContain(ROLES.PHARMACY)
+    }
+    expect(regla("/admin/medical-orders").write).toContain(ROLES.PHARMACY)
+  })
+
+  it("ni Almacén ni RH leen contenido clínico", () => {
+    for (const path of ["/admin/clinical-notes", "/admin/medical-customers", "/admin/medical-orders"]) {
+      expect(regla(path).read).not.toContain(ROLES.WAREHOUSE)
+      expect(regla(path).read).not.toContain(ROLES.HR)
+    }
+  })
+
+  it("RH fija comisiones y consulta la plantilla, pero no da de alta personal", () => {
+    expect(regla("/admin/doctor-commissions").write).toContain(ROLES.HR)
+    expect(regla("/admin/staff").read).toContain(ROLES.HR)
+    expect(regla("/admin/staff").write).not.toContain(ROLES.HR)
+  })
+})

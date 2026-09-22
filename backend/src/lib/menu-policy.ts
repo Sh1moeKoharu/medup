@@ -47,6 +47,8 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   [ROLES.AUDITOR]: ["/app/pos"],
 
   [ROLES.PHARMACY]: [
+    "/app/alta-de-producto",
+    "/app/reportes",
     "/app/staff",
     "/app/honorarios",
     "/app/audit-logs",
@@ -59,6 +61,9 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   ],
 
   [ROLES.CASHIER]: [
+    "/app/almacenes",
+    "/app/alta-de-producto",
+    "/app/reportes",
     "/app/staff",
     "/app/audit-logs",
     "/app/inventory-batches",
@@ -74,6 +79,9 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
   // Área médica: sólo órdenes médicas y expedientes de pacientes.
   // Es lo que pidió el cliente de forma explícita.
   [ROLES.DOCTOR]: [
+    "/app/almacenes",
+    "/app/alta-de-producto",
+    "/app/reportes",
     "/app/pos",
     "/app/staff",
     "/app/audit-logs",
@@ -93,7 +101,50 @@ export const HIDDEN_MENU_ROUTES: Record<Role, string[]> = {
     "/app/campaigns",
   ],
 
+  // Almacén: el inventario y el catálogo. Ni cobro, ni personal, ni pacientes.
+  [ROLES.WAREHOUSE]: [
+    "/app/pos",
+    "/app/staff",
+    "/app/honorarios",
+    "/app/audit-logs",
+    "/app/cash-sessions",
+    "/app/b2b-agreements",
+    "/app/customers-by-company",
+    "/app/medical-orders",
+    "/app/customers",
+    "/app/orders",
+    "/app/promotions",
+    "/app/price-lists",
+    "/app/campaigns",
+  ],
+
+  // RH y contabilidad: personal, honorarios y reportes. Nada clínico ni de
+  // inventario.
+  [ROLES.HR]: [
+    "/app/almacenes",
+    "/app/alta-de-producto",
+    "/app/pos",
+    "/app/audit-logs",
+    "/app/inventory-batches",
+    "/app/requisitions",
+    "/app/inventory-movements",
+    "/app/medical-orders",
+    "/app/customers",
+    "/app/b2b-agreements",
+    "/app/customers-by-company",
+    "/app/products",
+    "/app/orders",
+    "/app/inventory",
+    "/app/reservations",
+    "/app/promotions",
+    "/app/price-lists",
+    "/app/campaigns",
+  ],
+
   [ROLES.NURSE]: [
+    "/app/almacenes",
+    "/app/alta-de-producto",
+    "/app/reportes",
     "/app/pos",
     "/app/staff",
     "/app/audit-logs",

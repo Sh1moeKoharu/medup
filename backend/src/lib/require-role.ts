@@ -569,6 +569,7 @@ const ROLES_ALLOWED_TO_SEE_CLINICAL: Role[] = [
   ROLES.PHARMACY,
   ROLES.AUDITOR,
 ]
+// Almacén, RH y Caja quedan fuera a propósito: no atienden al paciente.
 
 function scrubClinicalFields(node: unknown): void {
   if (Array.isArray(node)) {

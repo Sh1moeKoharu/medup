@@ -88,8 +88,11 @@ export const useCreateCustomer = () => {
 
   return useMutation({
     mutationKey: ['customers', 'create'],
-    mutationFn: async (data: AdminCreateCustomer) => {
-      return sdk.admin.customer.create(data);
+    // Sin correo: los pacientes ya no lo llevan. El tipo del SDK lo marca como
+    // obligatorio, pero el servidor lo admite vacío (validators de Medusa:
+    // `email: nullish`), así que se relaja aquí y no en cada pantalla.
+    mutationFn: async (data: Omit<AdminCreateCustomer, 'email'> & { email?: string }) => {
+      return sdk.admin.customer.create(data as AdminCreateCustomer);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({

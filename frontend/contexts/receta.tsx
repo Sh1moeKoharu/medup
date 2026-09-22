@@ -43,15 +43,30 @@ export type PacienteReceta = Pick<AdminCustomer, 'id' | 'email' | 'first_name' |
 
 export type DestinatarioReceta = 'nursing' | 'pharmacy';
 
+/**
+ * La nota de atención de la consulta: qué revisó el médico, qué hizo y cuándo.
+ * Va al expediente, NO a Enfermería (para eso están las notas de la orden).
+ */
+export type NotaDeLaConsulta = {
+  revision: string;
+  hecho: string;
+  /** "2026-09-14"; vacío = hoy. */
+  fecha: string;
+};
+
 type EstadoReceta = {
   paciente: PacienteReceta | null;
   renglones: RenglonReceta[];
+  /** Notas para Enfermería (o para Farmacia, si la envía Enfermería al mostrador). */
   notas: string;
   /** A quién va: Enfermería la aplica en consulta; Farmacia la surte en mostrador. */
   destinatario: DestinatarioReceta;
+  nota: NotaDeLaConsulta;
 };
 
-const VACIA: EstadoReceta = { paciente: null, renglones: [], notas: '', destinatario: 'nursing' };
+const NOTA_VACIA: NotaDeLaConsulta = { revision: '', hecho: '', fecha: '' };
+
+const VACIA: EstadoReceta = { paciente: null, renglones: [], notas: '', destinatario: 'nursing', nota: NOTA_VACIA };
 
 type RecetaContexto = EstadoReceta & {
   /** Mientras se lee el borrador guardado. Evita pintar "vacío" un instante. */
@@ -65,6 +80,7 @@ type RecetaContexto = EstadoReceta & {
   quitar: (id: string) => void;
   cambiarNotas: (notas: string) => void;
   cambiarDestinatario: (destinatario: DestinatarioReceta) => void;
+  cambiarNota: (cambios: Partial<NotaDeLaConsulta>) => void;
   vaciar: () => void;
   /** Cuántas unidades hay en total, para el distintivo de la pestaña. */
   totalUnidades: number;
@@ -106,6 +122,7 @@ export const RecetaProvider: React.FC<React.PropsWithChildren> = ({ children }) 
             renglones: Array.isArray(guardado.renglones) ? guardado.renglones : [],
             notas: typeof guardado.notas === 'string' ? guardado.notas : '',
             destinatario: guardado.destinatario === 'pharmacy' ? 'pharmacy' : 'nursing',
+            nota: { ...NOTA_VACIA, ...(guardado.nota ?? {}) },
           });
         } catch {
           // Un borrador corrupto no debe impedir trabajar: se empieza de cero.
@@ -195,6 +212,10 @@ export const RecetaProvider: React.FC<React.PropsWithChildren> = ({ children }) 
     setEstado((e) => ({ ...e, destinatario }));
   }, []);
 
+  const cambiarNota = React.useCallback((cambios: Partial<NotaDeLaConsulta>) => {
+    setEstado((e) => ({ ...e, nota: { ...e.nota, ...cambios } }));
+  }, []);
+
   const vaciar = React.useCallback(() => {
     setEstado(VACIA);
   }, []);
@@ -216,10 +237,11 @@ export const RecetaProvider: React.FC<React.PropsWithChildren> = ({ children }) 
       quitar,
       cambiarNotas,
       cambiarDestinatario,
+      cambiarNota,
       vaciar,
       totalUnidades,
     }),
-    [estado, cargando, asignarPaciente, quitarPaciente, agregar, cambiarCantidad, cambiarIndicaciones, quitar, cambiarNotas, cambiarDestinatario, vaciar, totalUnidades],
+    [estado, cargando, asignarPaciente, quitarPaciente, agregar, cambiarCantidad, cambiarIndicaciones, quitar, cambiarNotas, cambiarDestinatario, cambiarNota, vaciar, totalUnidades],
   );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;

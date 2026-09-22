@@ -1,5 +1,8 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { Container, Heading, Text, Table, Badge, Button } from "@medusajs/ui";
+import { Container, Heading, Text, Table, Badge, Button, Input } from "@medusajs/ui";
+import { ROLES } from "../../../lib/roles";
+import { CuadroDeMotivo, enviar } from "../../lib/motivo";
+import { useCurrentRole } from "../../lib/use-current-role";
 import { useEffect, useState } from "react";
 import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
 
@@ -51,6 +54,22 @@ const CashSessionsPage = () => {
     const [denegado, setDenegado] = useState(false);
     const [selectedSession, setSelectedSession] = useState<CashSession | null>(null);
     const [selectedSummary, setSelectedSummary] = useState<CashSessionSummary | null>(null);
+    // En la clínica hay UNA sola caja: una que se quedó abierta bloquea a todos.
+    // Administración la cierra por la persona, con lo contado y el motivo.
+    const { role } = useCurrentRole();
+    const [cerrando, setCerrando] = useState<string | null>(null);
+    const [contado, setContado] = useState("");
+    const [enviando, setEnviando] = useState(false);
+    const cerrarAjena = async (session: CashSession, motivo: string) => {
+        setEnviando(true);
+        const { error, data } = await enviar(`/admin/cash-sessions/${session.id}/close`, { actual_closing_amount: Number(contado) || 0, motivo });
+        setEnviando(false);
+        if (error) return alert(error);
+        alert(`Caja cerrada. Esperado ${formatCurrency(data.summary.expected_cash)}, contado ${formatCurrency(data.summary.actual_cash)}: ${data.summary.difference_label}.`);
+        setCerrando(null);
+        setContado("");
+        fetchSessions();
+    };
 
     const fetchSessions = async () => {
         setLoading(true);
@@ -264,6 +283,11 @@ const CashSessionsPage = () => {
                                     >
                                         Ver detalle
                                     </Button>
+                                    {session.status === "open" && role === ROLES.ADMIN && cerrando !== session.id && (
+                                        <Button variant="danger" size="small" onClick={() => setCerrando(session.id)}>
+                                            Cerrar por {session.cashier_name}
+                                        </Button>
+                                    )}
                                     {/* El corte lo compone el servidor; aquí sólo se abre
                                         en una pestaña lista para imprimir. */}
                                     <Button
@@ -294,6 +318,26 @@ const CashSessionsPage = () => {
                             </Table.Cell>
                         </Table.Row>
                     ))}
+                    {cerrando && sessions.find((s) => s.id === cerrando) && (
+                        <Table.Row>
+                            {/* @ts-ignore */}
+                            <Table.Cell colSpan={8}>
+                                <CuadroDeMotivo
+                                    titulo={`Cerrar la caja de ${sessions.find((s) => s.id === cerrando)!.cashier_name}`}
+                                    descripcion="Cuenta el efectivo del cajón y escríbelo. El corte dirá que la cerró Administración y por qué."
+                                    etiqueta="Cerrar caja"
+                                    enviando={enviando}
+                                    onCancelar={() => setCerrando(null)}
+                                    onConfirmar={(m) => cerrarAjena(sessions.find((s) => s.id === cerrando)!, m)}
+                                >
+                                    <div style={{ maxWidth: 220 }}>
+                                        <Text size="xsmall">Efectivo contado</Text>
+                                        <Input type="number" min="0" step="0.01" value={contado} onChange={(e) => setContado(e.target.value)} />
+                                    </div>
+                                </CuadroDeMotivo>
+                            </Table.Cell>
+                        </Table.Row>
+                    )}
                     {sessions.length === 0 && !loading && (
                         <Table.Row>
                             {/* @ts-ignore */}

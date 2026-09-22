@@ -72,7 +72,9 @@ const ALWAYS_PERSONAL_KEYS = [
  * condiciones comerciales. Redactarlas todas destruiría auditoría útil sin
  * ganar privacidad, así que se redactan sólo donde el contexto lo amerita.
  */
-const CLINICAL_CONTEXT_KEYS = ["notes", "notas", "instructions", "indicaciones", "content", "contenido"]
+// `findings`/`procedures` y `nota_de_atencion`: lo que el médico revisó e hizo.
+// El `motivo` de un ajuste NO está: es lo que el auditor tiene que poder leer.
+const CLINICAL_CONTEXT_KEYS = ["notes", "notas", "instructions", "indicaciones", "content", "contenido", "findings", "procedures", "nota_de_atencion"]
 
 /** Rutas cuyo cuerpo puede contener información clínica. */
 const CLINICAL_ROUTES = ["/admin/medical-orders", "/admin/medical-customers", "/admin/clinical-notes", "/admin/documents/nota"]

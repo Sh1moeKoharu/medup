@@ -2,6 +2,7 @@ import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ReceiptPercent } from "@medusajs/icons";
 import { Button, Container, Heading, Input, Text, Textarea } from "@medusajs/ui";
 import { useEffect, useState } from "react";
+import { CampoDeLogo } from "../../lib/campo-de-logo";
 
 /**
  * Contenido del ticket de venta.
@@ -20,9 +21,10 @@ type Config = {
     telefono: string;
     rfc: string;
     pie: string;
+    logo_url: string;
 };
 
-const VACIA: Config = { nombre: "", direccion: "", telefono: "", rfc: "", pie: "" };
+const VACIA: Config = { nombre: "", direccion: "", telefono: "", rfc: "", pie: "", logo_url: "" };
 
 const ReciboPage = () => {
     const [config, setConfig] = useState<Config>(VACIA);
@@ -100,10 +102,10 @@ const ReciboPage = () => {
     return (
         <Container className="p-6">
             <Heading level="h1" style={{ marginBottom: 8 }}>
-                Contenido del ticket
+                Datos de la clínica
             </Heading>
             <Text style={{ color: "var(--fg-muted)", marginBottom: 24 }}>
-                Lo que se imprime en el comprobante de venta. Aplica a todas las cajas.
+                Lo que se imprime en el ticket de venta y en la receta. Aplica a todas las cajas y a todos los médicos.
             </Text>
 
             {usandoNombreDeFabrica && (
@@ -142,6 +144,15 @@ const ReciboPage = () => {
                 "Opcional. Se imprime para que el paciente pueda solicitar su factura después. Ponerlo NO convierte el ticket en factura: el CFDI exige timbrado con un PAC.",
                 "Ej. XAXX010101000"
             )}
+
+            <div style={{ marginBottom: 20 }}>
+                <CampoDeLogo
+                    etiqueta="Logotipo de la clínica"
+                    ayuda="Sale en la receta y en la pantalla del médico. El ticket térmico no lo imprime."
+                    valor={config.logo_url}
+                    onChange={(url) => setConfig({ ...config, logo_url: url })}
+                />
+            </div>
 
             <div style={{ marginBottom: 20 }}>
                 <Text size="small" weight="plus" style={{ marginBottom: 4 }}>
@@ -186,7 +197,7 @@ const ReciboPage = () => {
 };
 
 export const config = defineRouteConfig({
-    label: "Ticket",
+    label: "Datos de la clínica",
     icon: ReceiptPercent,
 });
 

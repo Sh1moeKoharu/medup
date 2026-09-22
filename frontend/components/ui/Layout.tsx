@@ -25,12 +25,17 @@ import {
  * ⚠️ La franja superior de las dos variantes con desplazamiento también va en
  * `bg-canvas`. Es la que tapa el contenido bajo la barra de estado: si se queda
  * en blanco, aparece una banda clara sobre el lienzo al desplazar.
+ *
+ * ⚠️ `px-safe-offset-4` no genera CSS en web: en un teléfono o una ventana
+ * estrecha el contenido quedaba pegado a los bordes (desde `md` lo cubre
+ * `md:px-8`). `web:px-4` es el margen de ese caso; en nativo manda el de la
+ * zona segura.
  */
 export const Layout: React.FC<ViewProps> = ({ className, ...props }) => {
   return (
     <View
       className={clx(
-        'px-safe-offset-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6 flex-1 bg-canvas',
+        'px-safe-offset-4 web:px-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6 flex-1 bg-canvas',
         className,
       )}
       {...props}
@@ -45,7 +50,7 @@ export const LayoutWithScroll: React.FC<ScrollViewProps> = (props) => {
       <ScrollView
         {...props}
         className={clx('flex-1', props.className)}
-        contentContainerClassName={clx('px-safe-offset-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6', props.contentContainerClassName)}
+        contentContainerClassName={clx('px-safe-offset-4 web:px-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6', props.contentContainerClassName)}
       >
         {props.children}
       </ScrollView>
@@ -62,7 +67,7 @@ export const LayoutWithKeyboardAvoidingScroll: React.FC<KeyboardAwareScrollViewP
         bottomOffset={Platform.OS === 'android' ? 45 : 76}
         className={clx('flex-1', props.className)}
         contentContainerClassName={clx(
-          'px-safe-offset-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6 bg-canvas',
+          'px-safe-offset-4 web:px-4 md:px-8 lg:px-16 xl:px-32 pt-safe-offset-6 pb-6 bg-canvas',
           props.contentContainerClassName,
         )}
       >

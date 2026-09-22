@@ -1,4 +1,5 @@
 import { Container, Heading, Text, Table, Badge, Button, Input, Select } from "@medusajs/ui";
+import { clasificarAccion } from "../../../lib/acciones";
 import { ALL_ROLES, ROLES, ROLE_LABELS, normalizeRole, roleLabel } from "../../../lib/roles";
 import React, { useState, useEffect } from "react";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
@@ -164,8 +165,7 @@ const AuditLogsPage = () => {
                             <Table.Row>
                                 <Table.HeaderCell>Fecha / Hora</Table.HeaderCell>
                                 <Table.HeaderCell>Usuario / Email</Table.HeaderCell>
-                                <Table.HeaderCell>Acción</Table.HeaderCell>
-                                <Table.HeaderCell>Endpoint</Table.HeaderCell>
+                                <Table.HeaderCell>Qué hizo</Table.HeaderCell>
                                 <Table.HeaderCell>IP de origen</Table.HeaderCell>
                                 <Table.HeaderCell className="text-right">Detalle</Table.HeaderCell>
                             </Table.Row>
@@ -196,12 +196,17 @@ const AuditLogsPage = () => {
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <Badge color={getMethodColor(log.method)}>
-                                                {log.method}
-                                            </Badge>
-                                        </Table.Cell>
-                                        <Table.Cell className="max-w-[200px] truncate text-xs font-mono" title={log.endpoint}>
-                                            {log.endpoint}
+                                            {/* En palabras: la bitácora se lee, no se descifra. La
+                                                ruta queda debajo para quien audite de verdad. */}
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-sm">{clasificarAccion(log.method, log.endpoint).descripcion}</span>
+                                                {String(log.endpoint ?? "").startsWith("/") && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Badge size="2xsmall" color={getMethodColor(log.method)}>{log.method}</Badge>
+                                                        <span className="max-w-[260px] truncate font-mono text-xs text-ui-fg-muted" title={log.endpoint}>{log.endpoint}</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                         </Table.Cell>
                                         <Table.Cell className="text-xs text-ui-fg-subtle">
                                             {log.ip_address}
@@ -224,7 +229,7 @@ const AuditLogsPage = () => {
                                                 tipos, aunque renderiza un <td> que sí lo soporta.
                                                 Se pasa con cast para no perder la fusión de columnas. */}
                                             <Table.Cell
-                                                {...({ colSpan: 6 } as any)}
+                                                {...({ colSpan: 5 } as any)}
                                                 className="p-4 border-t border-ui-border-base"
                                             >
                                                 <div className="bg-ui-bg-base border border-ui-border-strong rounded-md p-4">

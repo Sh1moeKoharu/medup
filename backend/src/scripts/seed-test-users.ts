@@ -10,6 +10,7 @@ import {
   assertNotProduction,
 } from "../lib/test-users"
 import { CLAVE_NUMERO_EMPLEADO, numeroDeEmpleado } from "../lib/personal"
+import { CLAVE_PERFIL_PROFESIONAL, perfilCompleto, perfilDe } from "../lib/perfil-profesional"
 
 /**
  * Siembra un usuario por cada rol canónico, para pruebas.
@@ -57,7 +58,9 @@ export default async function seedTestUsers({ container }: ExecArgs) {
 
       const numeroActual = numeroDeEmpleado(existing)
 
-      if (currentRole === spec.role && numeroActual === spec.employee_number) {
+      const faltaPerfil = !!spec.perfil_profesional && !perfilCompleto(perfilDe(existing))
+
+      if (currentRole === spec.role && numeroActual === spec.employee_number && !faltaPerfil) {
         untouched.push(spec)
         console.log(`   = ${spec.username.padEnd(16)} ya existe (${spec.role}, Nº ${spec.employee_number})`)
         continue
@@ -71,6 +74,7 @@ export default async function seedTestUsers({ container }: ExecArgs) {
             ...((existing.metadata as Record<string, unknown>) ?? {}),
             role: spec.role,
             [CLAVE_NUMERO_EMPLEADO]: spec.employee_number,
+            ...(faltaPerfil ? { [CLAVE_PERFIL_PROFESIONAL]: spec.perfil_profesional } : {}),
           },
         },
       ])
@@ -105,7 +109,11 @@ export default async function seedTestUsers({ container }: ExecArgs) {
         email: aIdentificador(spec.username),
         first_name: spec.first_name,
         last_name: "Pruebas",
-        metadata: { role: spec.role, [CLAVE_NUMERO_EMPLEADO]: spec.employee_number },
+        metadata: {
+          role: spec.role,
+          [CLAVE_NUMERO_EMPLEADO]: spec.employee_number,
+          ...(spec.perfil_profesional ? { [CLAVE_PERFIL_PROFESIONAL]: spec.perfil_profesional } : {}),
+        },
       },
     ])
 

@@ -5,6 +5,7 @@ import { planificarFefo, aplicarFefo, PlanFefo } from "../../../../../lib/fefo";
 import { recordInventoryMovement } from "../../../../../lib/inventory-ledger";
 import { resolveRequestActor } from "../../../../../lib/require-role";
 import { almacenDeEnfermeria } from "../../../../../lib/almacenes";
+import { conCandado } from "../../../../../lib/candado";
 import { cargarALaCuenta } from "../../../../../lib/cuentas-de-paciente";
 
 /**
@@ -25,7 +26,15 @@ import { cargarALaCuenta } from "../../../../../lib/cuentas-de-paciente";
  *
  * Body: sin cuerpo.
  */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+/**
+ * Con candado por orden: dos clics seguidos sobre la misma orden descontaban el
+ * inventario dos veces (los dos pasaban «está pendiente» antes de que el primero
+ * la marcara). Ver lib/candado.ts.
+ */
+export const POST = (req: MedusaRequest, res: MedusaResponse) =>
+    conCandado(req.scope as any, `medical-order:${req.params.id}`, () => procesar(req, res));
+
+const procesar = async (req: MedusaRequest, res: MedusaResponse) => {
     try {
         const service: MedicalOrdersModuleService = req.scope.resolve(MEDICAL_ORDERS_MODULE);
         const orderId = req.params.id;

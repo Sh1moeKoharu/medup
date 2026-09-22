@@ -35,7 +35,7 @@
 const BASE = (process.env.ALTUS_API_URL || process.env.BASE || "http://localhost:9000").replace(/\/+$/, "")
 const PASS = process.env.SIGH_TEST_PASSWORD || "Sigh#Test2026"
 const OTRA_VEZ = process.argv.includes("otra-vez")
-const PERFILES = ["admin", "farmacia", "caja", "medico", "enfermeria", "auditoria"]
+const PERFILES = ["admin", "farmacia", "caja", "medico", "enfermeria", "auditoria", "almacen", "rrhh"]
 const MARCA = "altus_demo_actividad"
 const CORREO_INVITADO_POS = "noreply+pos-guest@agilo.com"
 
@@ -204,8 +204,11 @@ async function main() {
     const s = (await call(rol, "GET", "/admin/cash-sessions/current")).j?.session
     if (s) await call(rol, "POST", `/admin/cash-sessions/${s.id}/close`, { actual_closing_amount: 0, notes: "Cierre antes de sembrar la demostración" })
   }
-  const turnoPrevio = (await call("medico", "GET", "/admin/doctor-shifts/current")).j?.doctor_shift
-  if (turnoPrevio) await call("medico", "POST", `/admin/doctor-shifts/${turnoPrevio.id}/close`, {})
+  for (const rol of ["medico", "enfermeria"]) {
+    const turnoPrevio = (await call(rol, "GET", "/admin/doctor-shifts/current")).j?.doctor_shift
+    if (turnoPrevio) await call(rol, "POST", `/admin/doctor-shifts/${turnoPrevio.id}/close`, {})
+  }
+  const idDe = (usuario) => personal.find((u) => u.email === `${usuario}@sigh.local`)?.id
 
   const loteActivo = async (variante, almacen) =>
     ((await hacer("admin", "GET", `/admin/medical-batches?variant_id=${variante}&stock_location_id=${almacen}&status=active`, undefined, "leer lotes")).batches ?? [])
@@ -226,6 +229,19 @@ async function main() {
   await minimo(ibuprofeno, farmacia, 100, null, "Ibuprofeno en Farmacia: 100 (queda bajo mínimo)")
   await minimo(guantes, enfermeria, 5, 20, "Guantes en Enfermería: 5 / 20")
 
+  // ══ RH: esquemas de pago ══════════════════════════════════════════════════
+  bloque("RH y contabilidad")
+  const esquema = async (usuario, datos, descripcion) => {
+    const id = idDe(usuario)
+    if (!id) return
+    await hacer("rrhh", "POST", "/admin/staff-compensation", { user_id: id, ...datos }, `fijar el esquema de pago de ${usuario}`)
+    paso(descripcion)
+  }
+  await esquema("medico", { default_percent: 20, reglas: [{ label: "Noche y fin de semana", days: "0,6", start_time: "00:00", end_time: "23:59", percent: 30 }, { label: "Noche entre semana", days: "1,2,3,4,5", start_time: "20:00", end_time: "08:00", percent: 30 }] }, "médico: 20 % de lo cobrado de sus recetas; 30 % de noche y en fin de semana")
+  await esquema("enfermeria", { fixed_per_shift: 150, default_percent: 3 }, "Enfermería: $150 por turno y 3 % de lo que aplica")
+  await esquema("caja", { hourly_rate: 45, default_percent: 1 }, "Caja: $45 por hora en turno y 1 % de lo que cobra")
+  await esquema("almacen", { fixed_per_shift: 400 }, "Almacén: $400 por turno")
+
   // ══ Médico: abre su turno y receta ════════════════════════════════════════
   bloque("Médico")
   const turnoMedico = (await hacer("medico", "POST", "/admin/doctor-shifts", {}, "abrir el turno médico")).doctor_shift
@@ -233,33 +249,39 @@ async function main() {
   await hacer("medico", "GET", `/admin/medical-customers/${maria.id}`, undefined, "consultar el expediente de María")
   paso(`consulta el expediente de ${maria.nombre} (queda en la bitácora)`)
 
-  const receta = async (pac, area, renglones, notas) =>
-    (await hacer("medico", "POST", "/admin/medical-orders", {
+  // El médico envía siempre a Enfermería; las recetas de mostrador las emite
+  // Enfermería hacia Farmacia.
+  const receta = async (pac, area, renglones, notas, nota) =>
+    (await hacer(area === "pharmacy" ? "enfermeria" : "medico", "POST", "/admin/medical-orders", {
       customer_id: pac.id, customer_name: pac.nombre, recipient_area: area, notes: notas,
       items: renglones.map(([prod, cantidad, indicaciones]) => ({ variant_id: prod.id, product_title: prod.titulo, quantity: cantidad, instructions: indicaciones })),
+      ...(nota ? { nota_de_atencion: nota } : {}),
     }, `emitir la receta de ${pac.nombre}`)).medical_order
 
-  const ordenMaria = await receta(maria, "nursing", [[paracetamol, 2, "1 tableta cada 8 h por 3 días"]], "Cefalea tensional. Sin alergias conocidas.")
+  const ordenMaria = await receta(maria, "nursing", [[paracetamol, 2, "1 tableta cada 8 h por 3 días"]], "Sin alergias conocidas. Aplicar la primera dosis en consultorio.", {
+    findings: "Cefalea frontal de dos días, TA 120/80, sin fiebre ni datos de alarma neurológica.",
+    procedures: "Diagnóstico de cefalea tensional. Se indica paracetamol, hidratación y reposo.",
+  })
   paso(`receta a Enfermería: ${maria.nombre}`)
   const ordenRicardo = await receta(ricardo, "nursing", [[salina, 1, "Lavado de herida"]], "Curación de herida superficial en antebrazo.")
   paso(`receta a Enfermería: ${ricardo.nombre}`)
-  await receta(fernando, "nursing", [[paracetamol, 1, "Dosis única en consultorio"]], "Fiebre de 38.2 °C.")
+  const ordenFernando = await receta(fernando, "nursing", [[paracetamol, 1, "Dosis única en consultorio"]], "Fiebre de 38.2 °C.")
   paso(`receta a Enfermería que queda en la bandeja: ${fernando.nombre}`)
   const ordenJorge = await receta(jorge, "pharmacy", [[ibuprofeno, 1, "1 tableta cada 8 h con alimentos"]], "Lumbalgia mecánica.")
   paso(`receta de mostrador: ${jorge.nombre}`)
-  await receta(alejandra, "pharmacy", [[amoxicilina, 1, "1 cápsula cada 8 h por 7 días"]], "Faringoamigdalitis.")
+  const ordenAlejandra = await receta(alejandra, "pharmacy", [[amoxicilina, 2, "1 cápsula cada 8 h por 7 días"]], "Faringoamigdalitis.")
   paso(`receta de mostrador que queda pendiente: ${alejandra.nombre}`)
   const ordenPatricia = await receta(patricia, "pharmacy", [[omeprazol, 1, "1 cápsula en ayunas"]], "Gastritis.")
   await hacer("medico", "POST", `/admin/medical-orders/${ordenPatricia.id}/cancel`, { motivo: "La paciente ya tenía el medicamento en casa" }, "cancelar la receta de Patricia")
   paso(`receta cancelada con motivo: ${patricia.nombre}`)
 
-  // ══ Farmacia: recibe mercancía ════════════════════════════════════════════
+  // ══ Almacén: recibe mercancía ════════════════════════════════════════════
   // En una base recién sembrada el catálogo alcanza de sobra y esto no hace
   // nada. En una que ya se usó —pruebas, capturas, otro día de demostración—
   // Farmacia puede estar sin algo que el día necesita, y el primer traspaso
   // fallaría con 409. Se completa sólo lo que falta, como una entrega de
   // proveedor, y queda en el kardex como compra.
-  bloque("Farmacia recibe mercancía")
+  bloque("Almacén recibe mercancía")
   const sello = hoy().slice(2, 7).replace("-", "")
   const existencia = async (prod, almacen) =>
     ((await hacer("admin", "GET", `/admin/medical-batches?variant_id=${prod.id}&stock_location_id=${almacen.id}&status=active`, undefined, "leer existencias")).batches ?? [])
@@ -270,7 +292,7 @@ async function main() {
     const hay = await existencia(prod, farmacia)
     if (hay >= minimoDelDia) continue
     const entra = minimoDelDia - hay + 20
-    await hacer("farmacia", "POST", "/admin/medical-batches", {
+    await hacer("almacen", "POST", "/admin/medical-batches", {
       batch_number: `REP-${prod.titulo.slice(0, 4).toUpperCase()}-${sello}-${Date.now().toString().slice(-5)}`,
       expiration_date: en(365), variant_id: prod.id, stock_location_id: farmacia.id, quantity: entra, apply_margin: false,
     }, `reponer ${prod.titulo}`)
@@ -279,18 +301,21 @@ async function main() {
   }
   if (!repuesto) paso("había existencia suficiente para el día")
 
-  const compra = (await hacer("farmacia", "POST", "/admin/medical-batches", {
+  const compra = (await hacer("almacen", "POST", "/admin/medical-batches", {
     batch_number: `AMX-${sello}-${Date.now().toString().slice(-4)}`, expiration_date: en(540), variant_id: amoxicilina.id, stock_location_id: farmacia.id,
     purchase_quantity: 3, units_per_purchase: 12, purchase_unit: "caja", sale_unit: "cápsula",
     purchase_date: hoy(), unit_cost: 96, shelf_location: "B-2", apply_margin: false,
   }, "dar de alta la compra")).batch
   paso(`compra con factura: 3 cajas × 12 cápsulas de amoxicilina a $96, lote ${compra.batch_number}, estante B-2`)
 
-  // ══ Enfermería pide y Farmacia surte ══════════════════════════════════════
+  // ══ Enfermería pide y Almacén surte ═══════════════════════════════════════
   bloque("Traspasos")
-  const pedir = async (renglones, notas) =>
+  const turnoEnfermeria = (await hacer("enfermeria", "POST", "/admin/doctor-shifts", {}, "abrir el turno de Enfermería")).doctor_shift
+  paso("Enfermería abre su turno")
+  const pedir = async (renglones, notas, medicalOrderId) =>
     (await hacer("enfermeria", "POST", "/admin/requisitions", {
       items: renglones.map(([prod, cantidad]) => ({ variant_id: prod.id, product_title: prod.titulo, quantity: cantidad })), notes: notas,
+      ...(medicalOrderId ? { medical_order_id: medicalOrderId } : {}),
     }, "pedir a Farmacia")).requisition
 
   const reqCompleta = await pedir([[paracetamol, 20], [guantes, 10]], "Para el consultorio 1")
@@ -300,11 +325,13 @@ async function main() {
   const reqCancelada = await pedir([[metformina, 5]], "Pedido por error")
   await hacer("enfermeria", "POST", `/admin/requisitions/${reqCancelada.id}/cancel`, { motivo: "Se pidió por error" }, "cancelar la requisición")
   paso("Enfermería cancela una que pidió por error")
+  await pedir([[paracetamol, 1]], `Para aplicar la orden de ${fernando.nombre}`, ordenFernando.id)
+  paso(`Enfermería pide desde la bandeja lo de la orden de ${fernando.nombre}: queda en camino`)
 
-  await hacer("farmacia", "POST", `/admin/requisitions/${reqCompleta.id}/dispatch`, {}, "surtir la requisición completa")
-  paso("Farmacia surte la primera completa")
-  await hacer("farmacia", "POST", `/admin/requisitions/${reqParcial.id}/dispatch`, { items: [{ item_id: reqParcial.items[0].id, cantidad: 3 }] }, "surtir la requisición en parte")
-  paso("Farmacia surte la segunda en parte: 3 de 6")
+  await hacer("almacen", "POST", `/admin/requisitions/${reqCompleta.id}/dispatch`, {}, "surtir la requisición completa")
+  paso("Almacén surte la primera completa")
+  await hacer("almacen", "POST", `/admin/requisitions/${reqParcial.id}/dispatch`, { items: [{ item_id: reqParcial.items[0].id, cantidad: 3 }] }, "surtir la requisición en parte")
+  paso("Almacén surte la segunda en parte: 3 de 6")
   await hacer("enfermeria", "POST", `/admin/requisitions/${reqCompleta.id}/receive`, {}, "confirmar la recepción")
   paso("Enfermería confirma que llegó la primera")
 
@@ -313,15 +340,17 @@ async function main() {
 
   await hacer("farmacia", "POST", `/admin/medical-orders/${ordenJorge.id}/dispense`, undefined, "surtir la receta de Jorge")
   paso(`surte la receta de mostrador de ${jorge.nombre}`)
+  await hacer("farmacia", "POST", `/admin/medical-orders/${ordenAlejandra.id}/items`, { items: [{ variant_id: amoxicilina.id, quantity: 1 }], motivo: "La paciente sólo se lleva una caja; la otra la compra la próxima semana" }, "reducir la receta de Alejandra")
+  paso(`reduce la receta de ${alejandra.nombre} de 2 a 1, con motivo`)
 
   const loteOmep = await loteActivo(omeprazol.id, farmacia.id)
   if (loteOmep) {
-    await hacer("farmacia", "POST", `/admin/medical-batches/${loteOmep.id}/write-off`, { quantity: 2, reason: "Blíster dañado en el traslado", type: "exit_damage" }, "dar de baja por daño")
+    await hacer("almacen", "POST", `/admin/medical-batches/${loteOmep.id}/write-off`, { quantity: 2, reason: "Blíster dañado en el traslado", type: "exit_damage" }, "dar de baja por daño")
     paso(`baja por daño: 2 de ${omeprazol.titulo}`)
   }
   const loteMetf = await loteActivo(metformina.id, farmacia.id)
   if (loteMetf) {
-    await hacer("farmacia", "POST", `/admin/medical-batches/${loteMetf.id}/write-off`, { quantity: 1, reason: "Diferencia en el conteo de la mañana", type: "exit_adjustment" }, "ajustar inventario")
+    await hacer("almacen", "POST", `/admin/medical-batches/${loteMetf.id}/write-off`, { quantity: 1, reason: "Diferencia en el conteo de la mañana", type: "exit_adjustment" }, "ajustar inventario")
     paso(`ajuste de inventario: 1 de ${metformina.titulo}`)
   }
 
@@ -345,7 +374,16 @@ async function main() {
     paso("baja en su almacén: guantes contaminados")
   }
 
-  await hacer("medico", "POST", "/admin/clinical-notes", { customer_id: jorge.id, medical_order_id: ordenJorge.id, content: "Lumbalgia mecánica sin datos de alarma. Reposo relativo y calor local. Revalorar en una semana." }, "escribir la nota del médico")
+  // Nota de una atención de AYER capturada hoy: la fecha de la atención no es la de captura.
+  const ayer = new Date(Date.now() - 24 * 3600 * 1000)
+  const diaAyer = `${ayer.getFullYear()}-${String(ayer.getMonth() + 1).padStart(2, "0")}-${String(ayer.getDate()).padStart(2, "0")}`
+  await hacer("medico", "POST", "/admin/clinical-notes", {
+    customer_id: jorge.id,
+    medical_order_id: ordenJorge.id,
+    findings: "Dolor lumbar mecánico tras cargar peso, sin irradiación ni déficit neurológico.",
+    procedures: "Reposo relativo, calor local e ibuprofeno. Revalorar en una semana.",
+    attended_at: diaAyer,
+  }, "escribir la nota del médico")
   paso(`el médico deja la nota de ${jorge.nombre}`)
 
   // ══ Caja: dos turnos ══════════════════════════════════════════════════════
@@ -400,6 +438,18 @@ async function main() {
   bloque("Cierre")
   await hacer("medico", "POST", `/admin/doctor-shifts/${turnoMedico.id}/close`, {}, "cerrar el turno médico")
   paso("el médico cierra su turno: sus consultas cobradas ya cuentan para la comisión")
+  await hacer("enfermeria", "POST", `/admin/doctor-shifts/${turnoEnfermeria.id}/close`, {}, "cerrar el turno de Enfermería")
+  paso("Enfermería cierra su turno")
+  const ahoraLocal = new Date()
+  const diaHoy = `${ahoraLocal.getFullYear()}-${String(ahoraLocal.getMonth() + 1).padStart(2, "0")}-${String(ahoraLocal.getDate()).padStart(2, "0")}`
+  const idEnfermeria = idDe("enfermeria")
+  const previo = ((await hacer("rrhh", "GET", `/admin/payroll?desde=${diaHoy}&hasta=${diaHoy}&user_id=${idEnfermeria}`, undefined, "calcular la nómina de hoy")).nomina ?? [])[0]
+  if (idEnfermeria && previo && !previo.pagos.length && previo.desglose.total > 0) {
+    const pago = (await hacer("rrhh", "POST", "/admin/payroll/pay", { user_id: idEnfermeria, desde: diaHoy, hasta: diaHoy, reference: "Transferencia 000123" }, "pagar el día a Enfermería")).pago
+    paso(`RH paga el día a Enfermería: $${Number(pago.amount).toFixed(2)} (turno más comisión)`)
+  }
+  await hacer("rrhh", "GET", `/admin/reports/export?tipo=actividad&desde=${diaHoy}&hasta=${diaHoy}`, undefined, "consultar la actividad del día")
+  paso("RH consulta la actividad del personal del día")
   await hacer("auditoria", "GET", `/admin/documents/corte/${turno2.id}`, undefined, "consultar el corte")
   await hacer("auditoria", "GET", "/admin/inventory-movements?limit=50", undefined, "consultar el kardex")
   paso("Auditoría revisa el corte con faltante y el kardex")
@@ -407,7 +457,7 @@ async function main() {
   await hacer("admin", "POST", `/admin/stores/${tienda.id}`, { metadata: { ...(tienda.metadata ?? {}), [MARCA]: new Date().toISOString() } }, "dejar la marca de actividad sembrada")
 
   console.log("")
-  console.log(`   Listo: ${cuenta.pasos} acciones de los seis perfiles.`)
+  console.log(`   Listo: ${cuenta.pasos} acciones de los ocho perfiles.`)
   console.log("")
 }
 

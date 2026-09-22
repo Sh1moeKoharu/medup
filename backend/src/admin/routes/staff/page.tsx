@@ -5,6 +5,8 @@ import { ALL_ROLES, ROLES, ROLE_LABELS, normalizeRole, roleLabel } from "../../.
 import { aUsuario } from "../../../lib/usuarios";
 import { CLAVE_CORREO_AVISO, estaBloqueado, numeroDeEmpleado } from "../../../lib/personal";
 import { SinAcceso, esDenegado } from "../../lib/sin-acceso";
+import { CampoDeLogo } from "../../lib/campo-de-logo";
+import { perfilDe, type PerfilProfesional } from "../../../lib/perfil-profesional";
 
 const StaffPage = () => {
     const [users, setUsers] = useState<any[]>([]);
@@ -26,6 +28,12 @@ const StaffPage = () => {
     const [notificationEmail, setNotificationEmail] = useState("");
     // Vacio a proposito: el rol se ELIGE, no se hereda. Ver resetForm().
     const [role, setRole] = useState<string>("");
+    // Datos para la receta: sólo se piden (y se exigen) para un médico.
+    const [perfil, setPerfil] = useState<PerfilProfesional>({});
+    const campoPerfil = (clave: keyof PerfilProfesional) => ({
+        value: perfil[clave] ?? "",
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPerfil((p) => ({ ...p, [clave]: e.target.value })),
+    });
 
     // Removed useToast
 
@@ -65,6 +73,7 @@ const StaffPage = () => {
         setLastName("");
         setEmployeeNumber("");
         setNotificationEmail("");
+        setPerfil({});
         // ── EL ROL NO TIENE VALOR POR OMISIÓN ────────────────────────────
         //
         // Antes esto era `setRole(ROLES.CASHIER)`, y como handleOpenCreate()
@@ -101,6 +110,7 @@ const StaffPage = () => {
         setLastName(user.last_name || "");
         setEmployeeNumber(numeroDeEmpleado(user) ?? "");
         setNotificationEmail(String(user.metadata?.[CLAVE_CORREO_AVISO] ?? ""));
+        setPerfil(perfilDe(user));
         // Su rol ACTUAL, o vacío si no tiene ninguno reconocible. Antes caía en
         // ROLES.CASHIER, así que abrir a un usuario sin rol para corregirle el
         // apellido lo convertía en cajero de paso.
@@ -123,6 +133,12 @@ const StaffPage = () => {
             return;
         }
 
+        const esMedico = role === ROLES.DOCTOR;
+        if (esMedico && (!perfil.cedula_profesional?.trim() || !perfil.universidad?.trim())) {
+            alert("Para un médico, la cédula profesional y la universidad son obligatorias: salen en cada receta.");
+            return;
+        }
+
         setIsCreating(true);
 
         try {
@@ -138,6 +154,7 @@ const StaffPage = () => {
                         role,
                         employee_number: employeeNumber,
                         notification_email: notificationEmail,
+                        ...(esMedico || Object.keys(perfilDe(editingUser)).length ? { perfil_profesional: esMedico ? perfil : {} } : {}),
                     })
                 });
             } else {
@@ -149,6 +166,7 @@ const StaffPage = () => {
                         username: email, password, first_name: firstName, last_name: lastName, role,
                         employee_number: employeeNumber,
                         notification_email: notificationEmail,
+                        ...(esMedico ? { perfil_profesional: perfil } : {}),
                     })
                 });
             }
@@ -254,7 +272,7 @@ const StaffPage = () => {
                     backgroundColor: "rgba(0,0,0,0.5)", zIndex: 40,
                     display: "flex", justifyContent: "center", alignItems: "center"
                 }}>
-                    <Container style={{ width: "400px", padding: "24px", borderRadius: "12px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)" }}>
+                    <Container style={{ width: role === ROLES.DOCTOR ? "560px" : "400px", maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "24px", borderRadius: "12px", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)" }}>
                         <Heading level="h2" style={{ marginBottom: 16 }}>
                             {editingUser ? "Editar perfil" : "Nuevo acceso de personal"}
                         </Heading>
@@ -350,6 +368,54 @@ const StaffPage = () => {
                                     </Select.Content>
                                 </Select>
                             </div>
+                            {role === ROLES.DOCTOR && (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid var(--border-base)", paddingTop: 16 }}>
+                                    <div>
+                                        <Text weight="plus">Datos para la receta</Text>
+                                        <Text size="xsmall" className="text-ui-fg-subtle">
+                                            Salen impresos en cada receta y en la pantalla de inicio del médico. Cédula y universidad son obligatorias.
+                                        </Text>
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        <div>
+                                            <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Cédula profesional</Text>
+                                            <Input {...campoPerfil("cedula_profesional")} inputMode="numeric" placeholder="Ej. 12345678" />
+                                        </div>
+                                        <div>
+                                            <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Especialidad</Text>
+                                            <Input {...campoPerfil("especialidad")} placeholder="Ej. Medicina general" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Universidad</Text>
+                                        <Input {...campoPerfil("universidad")} placeholder="La que expidió el título" />
+                                    </div>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        <div>
+                                            <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Cédula de especialidad</Text>
+                                            <Input {...campoPerfil("cedula_especialidad")} inputMode="numeric" placeholder="Opcional" />
+                                        </div>
+                                        <div>
+                                            <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Teléfono del consultorio</Text>
+                                            <Input {...campoPerfil("telefono")} placeholder="Opcional" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Consultorio</Text>
+                                        <Input {...campoPerfil("consultorio_nombre")} placeholder="Opcional: si no es la clínica" />
+                                    </div>
+                                    <div>
+                                        <Text size="small" weight="plus" style={{ marginBottom: 4 }}>Domicilio del consultorio</Text>
+                                        <Input {...campoPerfil("consultorio_direccion")} placeholder="Opcional" />
+                                    </div>
+                                    <CampoDeLogo
+                                        etiqueta="Logotipo del médico"
+                                        ayuda="Opcional. Sale en la receta junto al de la clínica."
+                                        valor={perfil.logo_url ?? ""}
+                                        onChange={(url) => setPerfil((p) => ({ ...p, logo_url: url }))}
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
                             <Button variant="secondary" onClick={() => setShowModal(false)} disabled={isCreating}>Cancelar</Button>
@@ -386,6 +452,8 @@ const StaffPage = () => {
                             [ROLES.AUDITOR]: "purple",
                             [ROLES.PHARMACY]: "green",
                             [ROLES.ADMIN]: "grey",
+                            [ROLES.WAREHOUSE]: "orange",
+                            [ROLES.HR]: "blue",
                         };
                         const badgeColor = canonicalRole ? BADGE_COLORS[canonicalRole] : "grey";
                         

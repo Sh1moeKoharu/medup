@@ -30,10 +30,10 @@ export type AjustesImpresion = {
 };
 
 export const AJUSTES_POR_OMISION: AjustesImpresion = {
-  // Apagado por omisión: un equipo sin impresora que intentara imprimir en cada
-  // venta abriría el diálogo del navegador una y otra vez. Se enciende en la
-  // caja que sí tiene impresora.
-  automatico: false,
+  // Encendido por omisión desde que la clínica lo pidió: «Completar orden» abre
+  // la impresión del recibo directamente, sin pasar por un diálogo con botones.
+  // En un equipo sin impresora se apaga aquí y vuelve el diálogo.
+  automatico: true,
 };
 
 export async function leerAjustesImpresion(): Promise<AjustesImpresion> {

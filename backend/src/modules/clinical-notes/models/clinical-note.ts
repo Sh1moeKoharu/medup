@@ -20,6 +20,12 @@ export const ClinicalNote = model.define("clinical_note", {
     author_role: model.enum(["doctor", "nurse", "admin"]).default("doctor"),
     /** Orden médica de la misma consulta, si la hubo. */
     medical_order_id: model.text().nullable(),
-    /** Lo que se escribió. Nunca vacío. */
+    /** Lo que se escribió. Nunca vacío. Con estructura, es la composición de lo de abajo. */
     content: model.text(),
+    /** Qué revisó: exploración, signos, hallazgos. */
+    findings: model.text().nullable(),
+    /** Qué hizo: procedimiento, tratamiento, indicaciones dadas en consulta. */
+    procedures: model.text().nullable(),
+    /** Cuándo se atendió. Si falta, cuenta la fecha de captura (`created_at`). */
+    attended_at: model.dateTime().nullable(),
 });

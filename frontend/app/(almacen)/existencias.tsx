@@ -5,6 +5,8 @@ import { SearchInput } from '@/components/SearchInput';
 import { Button } from '@/components/ui/Button';
 import { LayoutWithScroll } from '@/components/ui/Layout';
 import { Text } from '@/components/ui/Text';
+import { ROLES_GESTION_ALMACEN } from '@/constants/acceso';
+import { useTieneRol } from '@/hooks/useRol';
 import { contieneTexto } from '@/utils/buscar';
 import { clx } from '@/utils/clx';
 import * as React from 'react';
@@ -62,6 +64,7 @@ const Presentacion: React.FC<{ e: ExistenciaDeVariante; almacenId: string; polit
   const [abierta, setAbierta] = React.useState(false);
   const lotes = useLotes({ variant_id: e.variant_id, stock_location_id: almacenId }, abierta);
   const bajoMinimo = !!politica?.below_min;
+  const gestiona = useTieneRol(ROLES_GESTION_ALMACEN);
 
   return (
     <View className={clx('rounded-2xl border bg-white', bajoMinimo ? 'border-error-300' : 'border-gray-200')}>
@@ -107,7 +110,13 @@ const Presentacion: React.FC<{ e: ExistenciaDeVariante; almacenId: string; polit
                 ))
             )}
           </View>
-          <MinimoYMaximo variantId={e.variant_id} almacenId={almacenId} politica={politica} />
+          {gestiona ? (
+            <MinimoYMaximo variantId={e.variant_id} almacenId={almacenId} politica={politica} />
+          ) : politica ? (
+            <Text className="text-sm text-gray-500">
+              Mínimo {politica.min_quantity}{politica.max_quantity != null ? ` · máximo ${politica.max_quantity}` : ''}. Los fija Almacén.
+            </Text>
+          ) : null}
         </View>
       )}
     </View>
@@ -117,6 +126,7 @@ const Presentacion: React.FC<{ e: ExistenciaDeVariante; almacenId: string; polit
 export default function ExistenciasScreen() {
   const [almacenId, setAlmacenId] = useAlmacenInicial('pharmacy');
   const [busqueda, setBusqueda] = React.useState('');
+  const gestionaAlmacen = useTieneRol(ROLES_GESTION_ALMACEN);
   const existencias = useExistencias(almacenId);
   const politicas = usePoliticasDeStock(almacenId);
 
@@ -139,7 +149,11 @@ export default function ExistenciasScreen() {
   return (
     <LayoutWithScroll contentContainerClassName="pb-10">
       <Text className="mb-1 mt-8 text-4xl">Existencias</Text>
-      <Text className="mb-4 text-gray-400">Lo que hay en cada almacén, en unidades de venta. Abre una presentación para ver sus lotes y fijar su mínimo.</Text>
+      <Text className="mb-4 text-gray-400">
+        {gestionaAlmacen
+          ? 'Lo que hay en cada almacén, en unidades de venta. Abre una presentación para ver sus lotes y fijar su mínimo.'
+          : 'Lo que hay en cada almacén, en unidades de venta. Abre una presentación para ver sus lotes, su caducidad y su estante.'}
+      </Text>
 
       <SelectorDeAlmacen valor={almacenId} onChange={setAlmacenId} />
       <SearchInput value={busqueda} onChangeText={setBusqueda} placeholder="Buscar medicamento…" className="my-3" />

@@ -36,14 +36,14 @@ export default async function checkStockLevelsJob(container: MedusaContainer) {
 
         const destinatarios = await destinatariosPorRol(
             container,
-            [ROLES.ADMIN, ROLES.PHARMACY],
+            [ROLES.ADMIN, ROLES.WAREHOUSE],
             process.env.ALERTAS_EMAIL
         );
 
         if (!destinatarios.length) {
             logger.error(
                 `[DESABASTO] Hay ${bajoMinimo.length} presentación(es) bajo mínimo, pero ninguna ` +
-                    `cuenta de Administración o Farmacia tiene correo de aviso y ALERTAS_EMAIL no ` +
+                    `cuenta de Administración o Almacén tiene correo de aviso y ALERTAS_EMAIL no ` +
                     `está configurada: NO se envió ningún aviso. Pon un correo de aviso en ` +
                     `Ajustes → Personal.`
             );

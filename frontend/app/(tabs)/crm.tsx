@@ -1,3 +1,4 @@
+import { contactoDePaciente } from '@/utils/paciente';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import {
@@ -129,8 +130,7 @@ const CustomerDetails = ({
                         );
                     })()}
 
-                    <Text className="text-lg text-gray-600 mb-1">{customer.email}</Text>
-                    {customer.phone && <Text className="text-lg text-gray-600 mt-1">{customer.phone}</Text>}
+                    {!!contactoDePaciente(customer) && <Text className="text-lg text-gray-600 mb-1">{contactoDePaciente(customer)}</Text>}
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
@@ -260,8 +260,7 @@ export default function CRMScreen() {
                                     </View>
                                 )}
                             </View>
-                            <Text className="text-gray-500">{item.email}</Text>
-                            {item.phone && <Text className="text-gray-500">{item.phone}</Text>}
+                            {!!contactoDePaciente(item) && <Text className="text-gray-500">{contactoDePaciente(item)}</Text>}
                         </View>
                         <View className="items-end">
                             <Text className="font-medium text-info-500 bg-info-200 px-3 py-1 rounded-full overflow-hidden">Detalles &rarr;</Text>
@@ -291,7 +290,7 @@ export default function CRMScreen() {
             <SearchInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Buscar pacientes por nombre o correo..."
+                placeholder="Buscar pacientes por nombre o teléfono..."
                 className="mb-4"
             />
 

@@ -12,7 +12,7 @@ sudo apt update
 sudo apt install -y git curl build-essential
 sudo apt install -y nodejs npm postgresql postgresql-contrib redis-server
 sudo npm install -g npm@10
-timedatectl set-timezone America/Mexico_City
+timedatectl set-timezone America/Tijuana
 ```
 
 La zona horaria no es cosmética: los cortes de caja por turno y los jobs de
@@ -97,7 +97,8 @@ Genera la contraseña en el servidor y la muestra **una sola vez**.
 > repara una cuenta existente que se haya quedado sin rol, así que es también
 > la vía de recuperación si alguien queda fuera.
 
-Ensayo, los seis roles con contraseña pública:
+Ensayo, los ocho roles con contraseña pública (`admin`, `farmacia`, `caja`, `medico`,
+`enfermeria`, `auditoria`, `almacen` y `rrhh`; el médico de prueba trae cédula y universidad):
 
 ```
 SIGH_ALLOW_TEST_SEED=1 npm run seed
@@ -365,6 +366,32 @@ los aceptaría.
 No hay migración ni script de puesta al día para esta fase: sólo compilar el
 punto de venta y encender `PANEL_SOLO_ADMINISTRACION`.
 
+### Los 30 cambios de la clínica (septiembre 2026)
+
+Lo que cambia para quien opera, y lo que hay que hacer al desplegar:
+
+- **Dos perfiles nuevos: Almacén (`warehouse`) y RH y contabilidad (`hr`).** Almacén da de alta
+  lotes y compras, surte requisiciones, fija mínimos, da de baja y destruye, y ve costos. **Farmacia
+  deja de hacer todo eso**: surte recetas y consulta existencias, sin costos. En un servidor con
+  personal real, reasigna a Almacén (Ajustes → Personal) a quien lleva el inventario **antes** de
+  reiniciar, o se quedará sin poder dar de alta lotes.
+- **Médicos: cédula profesional y universidad obligatorias** al darlos de alta o editarlos. Una
+  cuenta de médico existente sin ellas no se puede guardar hasta completarlas. Salen en la receta,
+  que ahora es media carta, y en la pantalla de inicio del médico.
+- **Logotipos** (de la clínica en «Datos de la clínica», del médico en su cuenta) se suben por
+  `/admin/uploads` y viven en `static/`: debe ser el enlace persistente de
+  `link-persistent-dirs.sh`, o se pierden al actualizar.
+- **Una sola caja abierta** en toda la clínica.
+- **Nómina**: el panel «Honorarios y nómina» define el esquema de cada persona (fijo por turno, por
+  hora, porcentaje con reglas por horario) y registra pagos con recibo. Los porcentajes de médico
+  que ya existían se copian solos al migrar.
+- **Reportes** para Excel e impresión en el punto de venta de Auditoría, RH y Almacén, y en el
+  panel («Reportes»). Cada exportación queda en la bitácora.
+- **Zona horaria**: los reportes por día, la nómina por horario y la fecha de las notas cuentan en
+  `ALTUS_ZONA_HORARIA`, que por omisión es `America/Tijuana` (la clínica). No hace falta ponerla
+  en `/etc/altus/backend.env` salvo que la clínica cambie de ciudad; sí conviene que el servidor
+  esté en la misma zona (`timedatectl set-timezone America/Tijuana`, paso 1).
+
 ### Endurecimiento (fase 8)
 
 **Lo aplicado en consulta ya no sale dos veces.** El día simulado enseñó en el
@@ -393,7 +420,7 @@ empresariales que los respaldan.
 ### Demostración completa, desde una base vacía
 
 Para un servidor de **demostración**: borra la base, créala de nuevo y deja
-todas las pantallas de los seis perfiles con contenido.
+todas las pantallas de los ocho perfiles con contenido.
 
 ```
 sudo systemctl stop altus
@@ -408,7 +435,7 @@ SIGH_ALLOW_TEST_SEED=1 npm run seed:demo
 `seed:demo` hace dos cosas, en orden:
 
 1. **Estructura**, sin servidor: tienda en pesos, región México, canal
-   «Mostrador», los dos almacenes, las seis cuentas de prueba, el catálogo con
+   «Mostrador», los dos almacenes, las ocho cuentas de prueba, el catálogo con
    lotes de caducidades escalonadas (uno ya en cuarentena), los pacientes con
    expediente y los convenios. Sustituye al asistente del punto de venta y a
    los seeds sueltos.
@@ -417,7 +444,10 @@ SIGH_ALLOW_TEST_SEED=1 npm run seed:demo
    requisiciones completa, parcial, recibida y cancelada, compra con costo,
    bajas por daño y por ajuste, notas de atención, cuentas de paciente cobradas,
    ventas en efectivo, tarjeta y transferencia, dos cortes (uno cuadrado y otro
-   con faltante de $20) y un turno médico con su comisión.
+   con faltante de $20), un turno médico con su comisión, la nota de atención
+   con fecha, una receta reducida por Farmacia con motivo, una requisición pedida
+   desde la bandeja, esquemas de pago (médico con porcentaje nocturno, Enfermería,
+   Caja y Almacén) y un pago de nómina a Enfermería con su recibo. Son 53 acciones.
 
 La actividad va por la API y no directo a la base porque la bitácora, el
 kardex y la cuenta del paciente los escriben las rutas: así cada registro queda
@@ -429,7 +459,7 @@ estructura y dice que falta `npm run seed:actividad`.
   hacia atrás. El filtro «Ayer» de la bitácora sale vacío el primer día.
 - Se puede repetir. La estructura busca antes de crear, y la actividad deja una
   marca en la tienda y no se repite salvo con `npm run seed:actividad -- otra-vez`.
-- ⚠️ Crea las seis cuentas con la contraseña pública de pruebas, una de ellas de
+- ⚠️ Crea las ocho cuentas con la contraseña pública de pruebas, una de ellas de
   administrador. **Nunca sobre datos reales**; para quitarlas después,
   `limpiar-datos-prueba.ts`.
 
@@ -564,7 +594,12 @@ grep -q '^PANEL_SOLO_ADMINISTRACION=' /etc/altus/backend.env || echo 'PANEL_SOLO
 
 # 3 · Migraciones (fases 0 a 6: número de empleado en la bitácora, almacén en
 #     lote y movimiento, políticas de existencia, requisiciones, destinatario y
-#     cuenta en la orden médica, notas de atención, turnos y comisiones).
+#     cuenta en la orden médica, notas de atención, turnos y comisiones; y los
+#     30 cambios de la clínica: una sola caja abierta, nota de atención con
+#     fecha, ajustes de receta con motivo, requisición ligada a la orden,
+#     esquemas de pago, reglas por horario y pagos de nómina).
+#     La de «una sola caja» no crea su índice si al migrar hay más de una caja
+#     abierta: ciérralas antes (el aviso de la migración trae la sentencia).
 #     Todas añaden columnas o tablas; ninguna borra. Después, el paso 2g.
 npx medusa db:migrate
 
@@ -592,6 +627,89 @@ systemctl status altus --no-pager | head -5
 ls -l ~/altus/backend/.medusa/server/static     # debe ser un enlace
 curl localhost:9000/health
 ```
+
+### Cuando el servidor no tiene el repositorio: actualizar con el paquete
+
+El servidor de la clínica se montó copiando archivos, no clonando, así que el
+`git pull` del paso 1 no aplica. En su lugar va el paquete
+`altus-subir.tar.gz`, que trae `backend/`, `frontend/` y `pruebas-ui/` sin
+`node_modules`, sin lo compilado y **sin ningún `.env`**: la configuración del
+servidor vive en `/etc/altus/backend.env` y no se toca.
+
+El paquete llega al servidor como se pueda: `scp`, una memoria USB, o la
+transferencia de archivos de AnyDesk, que es como se atiende este servidor.
+
+#### La forma corta: `actualizar.sh`
+
+Todo lo de abajo, en orden y con las comprobaciones previas, lo hace el guion
+que viene en el propio paquete. Se atiende por AnyDesk, tecleando en el
+teclado del servidor, así que son dos líneas en vez de veinte:
+
+```
+mkdir -p /tmp/altus-nuevo && tar -xzf ~/Escritorio/altus-subir.tar.gz -C /tmp/altus-nuevo
+sudo bash /tmp/altus-nuevo/backend/deploy/actualizar.sh
+```
+
+Pregunta antes de tocar nada, se detiene si hay más de una caja abierta, deja
+copia de la versión anterior, y al terminar dice qué falta hacer en el panel y
+cómo volver atrás. Si algo falla a media actualización, lo dice y da las tres
+órdenes para dejar el servidor como estaba.
+
+Antes de cambiarlo, el ensayo en seco (servidor de mentira, no toca nada):
+
+```
+bash backend/deploy/ensayo-actualizar.sh
+```
+
+#### La forma larga, a mano
+
+Por si hay que hacerlo paso a paso, o entender qué hace el guion. En el
+servidor, en este orden:
+
+```
+# 1 · Respaldo ANTES de tocar nada. Deja el .gpg en /var/backups/altus.
+sudo bash /home/altus/altus/backend/deploy/respaldar.sh
+
+# 2 · Detener el backend mientras se sustituyen los archivos
+sudo systemctl stop altus
+
+# 3 · Guardar la versión que corre, por si hay que volver
+cp -a ~/altus ~/altus-$(date +%F-%H%M)
+
+# 4 · Desempacar aparte y sincronizar. Con --delete se van los archivos que
+#     ya no existen en el código: dejarlos puede resucitar una ruta retirada,
+#     porque Medusa registra lo que encuentra en src/api.
+rm -rf /tmp/altus-nuevo && mkdir -p /tmp/altus-nuevo
+tar -xzf ~/altus-subir.tar.gz -C /tmp/altus-nuevo
+rsync -a --delete \
+  --exclude node_modules --exclude .medusa --exclude static \
+  --exclude .env --exclude .backups --exclude reports \
+  /tmp/altus-nuevo/backend/ ~/altus/backend/
+rsync -a --delete \
+  --exclude node_modules --exclude .expo --exclude dist --exclude .env \
+  /tmp/altus-nuevo/frontend/ ~/altus/frontend/
+rsync -a --delete --exclude node_modules /tmp/altus-nuevo/pruebas-ui/ ~/altus/pruebas-ui/
+
+# 5 · Dependencias, migraciones y compilado (pasos 3 a 5 de arriba)
+cd ~/altus/backend && npm ci
+npx medusa db:migrate
+npm run build
+cd .medusa/server && npm ci --omit=dev
+
+# 6 · La unidad de systemd, por si cambió, y arrancar
+sudo cp ~/altus/backend/deploy/altus.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl start altus
+sleep 5 && curl -s localhost:9000/health
+
+# 7 · El punto de venta (la IP del servidor va horneada; ver la sección 8)
+cd ~/altus/frontend && npm ci && npm run build:web
+sudo cp -r dist/* /var/www/altus-pos/ && sudo chown -R www-data:www-data /var/www/altus-pos
+```
+
+Para volver atrás: `sudo systemctl stop altus`, mover la carpeta del paso 3 de
+vuelta a `~/altus`, `npm run build` y arrancar. Los datos no se tocan: las
+migraciones de esta entrega sólo añaden columnas, tablas e índices; ninguna
+borra ni cambia lo que ya había.
 
 ### Acceso desde otros equipos de la red
 
@@ -745,11 +863,11 @@ cd ~/altus/backend
 node pruebas/verificar-api.mjs
 BASE=http://192.168.1.114 node pruebas/verificar-api.mjs   # contra otro servidor
 node pruebas/verificar-cadenas.mjs                          # ni texto en inglés ni mayúscula inglesa
-npm run test:unit                                          # 196 pruebas, incluidos el contraste del tema y los scripts del panel
+npm run test:unit                                          # 250 pruebas, incluidos el contraste del tema y los scripts del panel
 (cd ../frontend && node scripts/verificar-tokens.mjs)       # contraste del punto de venta
 ```
 
-213 comprobaciones de extremo a extremo: la matriz de permisos de los 6 roles contra
+327 comprobaciones de extremo a extremo: la matriz de permisos de los 8 roles contra
 `lib/api-policy.ts`, que una ruta no declarada queda cerrada, que el expediente clínico sólo lo
 lee quien atiende, el ciclo completo de dispensación (descuento, 409 por falta de existencia,
 cancelación y asiento en el kardex), el alta y baja de personal, los cimientos (quién obtiene
@@ -759,7 +877,7 @@ automático que fija el precio, mínimos con aviso de desabasto), y las requisic
 pide y quién surte, 409 sin existencia, surtido parcial, kardex cuadrado en los dos almacenes, baja
 con motivo y aviso, destrucción con motivo), y el circuito clínico (orden a Enfermería, ajuste,
 aplicación con descuento y carga a la cuenta del paciente, nota de atención redactada en bitácora,
-receta, nota y corte impresos), y la caja (turno por cajero, 409 sin turno, referencia de
+receta, nota y corte impresos), y la caja (una sola caja abierta en la clínica; sólo quien la abrió o Administración con motivo la cierran; 409 sin turno, referencia de
 terminal obligatoria y en el ticket, corte impreso y reimpreso, estadísticas por periodo), y la auditoría (filtros reales y paginación,
 lecturas sensibles registradas, exportación de caducidades por almacén), y cuentas y honorarios
 (bloqueo reversible que invalida el token, cambio de contraseña, turno médico, comisión y reporte
@@ -767,7 +885,10 @@ de pagos que cuenta sólo lo cobrado), y los perfiles y el cierre del panel (só
 obtiene la cookie del panel y los otros cinco reciben 403 con el motivo; Farmacia alcanza con su
 token todo lo de su interfaz —existencias, kardex, caducidades y CSV, mínimos, bandeja de
 mostrador, requisiciones— y ya no abre turno de caja; Auditoría lee bitácora, kardex, caducidades,
-cortes y estadísticas, y no escribe nada). La sección 13 **exige la guardia del panel
+cortes y estadísticas, y no escribe nada), y los 30 cambios de la clínica (secciones 14 a 18: Almacén y RH, reportes
+exportables por perfil, receta del médico con cédula en media carta y nota de atención que
+Enfermería no ve, existencias por área y ajustes con motivo, candado contra el doble descuento, y
+nómina con esquemas por horario y pago que no se repite). La sección 13 **exige la guardia del panel
 encendida**; `PANEL_CERRADO=1` en el entorno de la prueba la exige además en la sección 6.
 Necesita los dos almacenes de `preparar-almacenes.ts confirm`.
 

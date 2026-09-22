@@ -1,10 +1,12 @@
 import { GuardaDeRol } from '@/components/GuardaDeRol';
-import { ROLES_ALMACEN } from '@/constants/acceso';
+import { ROLES_ALMACEN, ROLES_GESTION_ALMACEN, ROLES_SURTE_RECETAS } from '@/constants/acceso';
+import { useTieneRol } from '@/hooks/useRol';
 import { Tabs } from 'expo-router';
 import { color } from '@/theme/tokens';
 import { useWindowDimensions } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
+import { Archive } from '@/components/icons/archive';
 import { ClipboardList } from '@/components/icons/clipboard-list';
 import { Clock } from '@/components/icons/clock';
 import { Package } from '@/components/icons/package';
@@ -33,6 +35,11 @@ export const unstable_settings = {
 export default function AlmacenTabLayout() {
   const { width } = useWindowDimensions();
   const esTelefono = width < 768;
+  // Farmacia y Almacén comparten grupo, pero no trabajo: Farmacia surte
+  // recetas y consulta; Almacén da de alta, traspasa y da de baja. Una
+  // pestaña que sólo respondería «prohibido» no se enseña.
+  const gestiona = useTieneRol(ROLES_GESTION_ALMACEN);
+  const surte = useTieneRol(ROLES_SURTE_RECETAS);
 
   return (
     <GuardaDeRol permitidos={ROLES_ALMACEN}>
@@ -58,6 +65,7 @@ export default function AlmacenTabLayout() {
         <Tabs.Screen
           name="recetas"
           options={{
+            href: surte ? undefined : null,
             title: 'Recetas',
             tabBarIcon: ({ color }) => <ClipboardList size={20} color={color} />,
           }}
@@ -65,6 +73,7 @@ export default function AlmacenTabLayout() {
         <Tabs.Screen
           name="traspasos"
           options={{
+            href: gestiona ? undefined : null,
             title: 'Traspasos',
             tabBarIcon: ({ color }) => <Truck size={20} color={color} />,
           }}
@@ -72,6 +81,7 @@ export default function AlmacenTabLayout() {
         <Tabs.Screen
           name="lotes"
           options={{
+            href: gestiona ? undefined : null,
             title: 'Lotes',
             tabBarIcon: ({ color }) => <PackageOpen size={20} color={color} />,
           }}
@@ -88,6 +98,14 @@ export default function AlmacenTabLayout() {
           options={{
             title: 'Caducidad',
             tabBarIcon: ({ color }) => <TriangleAlert size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="reportes"
+          options={{
+            href: gestiona ? undefined : null,
+            title: 'Reportes',
+            tabBarIcon: ({ color }) => <Archive size={20} color={color} />,
           }}
         />
         <Tabs.Screen

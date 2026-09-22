@@ -120,6 +120,8 @@ export const LECTURAS_SENSIBLES: RegExp[] = [
   /^\/admin\/medical-customers(\/|\?|$)/,
   /^\/admin\/clinical-notes(\/|\?|$)/,
   /^\/admin\/documents\/nota\//,
+  // Un reporte exportado es una copia de los datos que sale del sistema.
+  /^\/admin\/reports\/export(\/|\?|$)/,
 ]
 
 export function esLecturaSensible(method: string, url: string): boolean {

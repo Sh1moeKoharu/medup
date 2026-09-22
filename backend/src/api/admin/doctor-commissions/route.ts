@@ -41,8 +41,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         if (!medico) {
             return res.status(404).json({ error: "El médico no existe." });
         }
+        // Sigue siendo la ruta de la comisión MÉDICA (el reporte de honorarios la
+        // lee); el esquema completo de cualquier perfil está en /admin/staff-compensation.
         if (normalizeRole((medico.metadata as any)?.role) !== ROLES.DOCTOR) {
-            return res.status(400).json({ error: "La comisión es para cuentas con rol de Médico." });
+            return res.status(400).json({ error: "Esta comisión es de médicos. Para otros perfiles usa el esquema de pago (/admin/staff-compensation)." });
         }
         const nombre = [medico.first_name, medico.last_name].filter(Boolean).join(" ") || medico.email;
 
@@ -50,6 +52,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         const comision = existente
             ? await service.updateDoctorCommissions({ id: existente.id, percent: Number(percent), doctor_name: nombre, notes: notes ?? existente.notes ?? null })
             : await service.createDoctorCommissions({ doctor_id, doctor_name: nombre, percent: Number(percent), notes: notes ?? null });
+
+        // El esquema de pago lleva el mismo porcentaje base: las dos vistas no discrepan.
+        const [esquema] = await service.listStaffCompensations({ user_id: doctor_id });
+        if (esquema) {
+            await service.updateStaffCompensations({ id: esquema.id, default_percent: Number(percent) });
+        } else {
+            await service.createStaffCompensations({ user_id: doctor_id, user_name: nombre, role: ROLES.DOCTOR, default_percent: Number(percent) });
+        }
 
         res.json({ doctor_commission: comision, created: !existente });
     } catch (error: any) {

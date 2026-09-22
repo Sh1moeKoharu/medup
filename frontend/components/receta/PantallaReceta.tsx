@@ -1,5 +1,5 @@
 import { useCrearOrdenMedica } from '@/api/hooks/medical-orders';
-import { useImprimirDocumento } from '@/api/hooks/clinica';
+import { useExistenciasPorArea, useImprimirDocumento, type ExistenciaPorArea } from '@/api/hooks/clinica';
 import { NotaDeAtencion } from '@/components/clinica/NotaDeAtencion';
 import { ChevronDown } from '@/components/icons/chevron-down';
 import { CheckCircle } from '@/components/icons/check-circle';
@@ -22,6 +22,17 @@ import * as React from 'react';
 import { Pressable, ScrollView, TextInput, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { color } from '@/theme/tokens';
+import { ROLES } from '@/constants/roles';
+import { useTieneRol } from '@/hooks/useRol';
+import { clx } from '@/utils/clx';
+
+/** Lo mínimo para que una indicación diga algo. Espejo de lib/receta.ts del servidor. */
+const LARGO_MINIMO_INDICACIONES = 3;
+const LARGO_MINIMO_NOTA = 5;
+const hoyComoDia = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /**
  * La receta en construcción: paciente, medicamentos con posología y notas.
@@ -83,8 +94,11 @@ const PacienteBadge: React.FC = () => {
 
 // ── Renglón ─────────────────────────────────────────────────────────────────
 
-const Renglon: React.FC<{ renglon: RenglonReceta }> = ({ renglon }) => {
+const Renglon: React.FC<{ renglon: RenglonReceta; exigirIndicaciones: boolean; existencia?: ExistenciaPorArea }> = ({ renglon, exigirIndicaciones, existencia }) => {
   const receta = useReceta();
+  const faltan = exigirIndicaciones && renglon.instructions.trim().length < LARGO_MINIMO_INDICACIONES;
+  const disponible = existencia ? existencia.nursing + existencia.pharmacy : undefined;
+  const excede = disponible !== undefined && renglon.quantity > disponible;
 
   return (
     <View className="gap-3 bg-white py-5">
@@ -93,9 +107,16 @@ const Renglon: React.FC<{ renglon: RenglonReceta }> = ({ renglon }) => {
           <Text className="text-base">{renglon.product_title}</Text>
           <QuantityPicker
             quantity={renglon.quantity}
-            onQuantityChange={(q) => receta.cambiarCantidad(renglon.id, q)}
+            onQuantityChange={(q) => receta.cambiarCantidad(renglon.id, disponible !== undefined ? Math.min(q, Math.max(1, disponible)) : q)}
             className="self-start"
           />
+          {existencia && (
+            <Text className={clx('text-xs', excede ? 'text-error-500' : 'text-gray-500')}>
+              {excede
+                ? `Sólo hay ${disponible} entre Enfermería y Farmacia`
+                : `Enfermería ${existencia.nursing} · Farmacia ${existencia.pharmacy}`}
+            </Text>
+          )}
         </View>
         <Pressable
           onPress={() => receta.quitar(renglon.id)}
@@ -108,16 +129,65 @@ const Renglon: React.FC<{ renglon: RenglonReceta }> = ({ renglon }) => {
       <TextInput
         value={renglon.instructions}
         onChangeText={(t) => receta.cambiarIndicaciones(renglon.id, t)}
-        placeholder="Indicaciones: p. ej. 1 tableta cada 8 h por 5 días"
+        placeholder={exigirIndicaciones ? 'Indicaciones (obligatorias): p. ej. 1 tableta cada 8 h por 5 días' : 'Indicaciones: p. ej. 1 tableta cada 8 h por 5 días'}
         placeholderTextColor={color.textoTerciario}
         multiline
-        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base"
+        accessibilityLabel={`Indicaciones de ${renglon.product_title}`}
+        className={clx('w-full rounded-xl border bg-gray-50 px-4 py-3 text-base', faltan ? 'border-error-300' : 'border-gray-200')}
       />
+      {faltan && <Text className="text-xs text-error-500">Escribe cómo y cada cuánto se toma o se aplica.</Text>}
     </View>
   );
 };
 
 const Separador: React.FC = () => <View className="h-hairline bg-gray-200" />;
+
+/**
+ * La nota de atención de la consulta, dentro de la receta: qué revisó el
+ * médico, qué hizo y cuándo. Va al expediente, no a Enfermería. Es opcional,
+ * pero si se empieza hay que llenar las dos partes.
+ */
+const CamposNotaDeAtencion: React.FC = () => {
+  const { nota, cambiarNota } = useReceta();
+  const campo = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base';
+  return (
+    <View className="mt-4 gap-2 rounded-2xl border border-gray-200 bg-white p-4">
+      <View>
+        <Text className="text-lg">Nota de atención</Text>
+        <Text className="text-sm text-gray-400">Para el expediente. Enfermería no la ve.</Text>
+      </View>
+      <Text className="text-xs text-gray-500">Fecha de la atención</Text>
+      <TextInput
+        value={nota.fecha}
+        onChangeText={(fecha) => cambiarNota({ fecha })}
+        placeholder={`${hoyComoDia()} (hoy)`}
+        placeholderTextColor={color.textoTerciario}
+        accessibilityLabel="Fecha de la atención"
+        className={campo}
+      />
+      <Text className="text-xs text-gray-500">Qué revisó</Text>
+      <TextInput
+        value={nota.revision}
+        onChangeText={(revision) => cambiarNota({ revision })}
+        placeholder="Motivo de consulta, exploración, signos vitales, hallazgos…"
+        placeholderTextColor={color.textoTerciario}
+        multiline
+        accessibilityLabel="Qué revisó"
+        className={clx(campo, 'min-h-[72px]')}
+      />
+      <Text className="text-xs text-gray-500">Qué hizo</Text>
+      <TextInput
+        value={nota.hecho}
+        onChangeText={(hecho) => cambiarNota({ hecho })}
+        placeholder="Diagnóstico, procedimiento, tratamiento, recomendaciones…"
+        placeholderTextColor={color.textoTerciario}
+        multiline
+        accessibilityLabel="Qué hizo"
+        className={clx(campo, 'min-h-[72px]')}
+      />
+    </View>
+  );
+};
 
 // ── Pantalla ────────────────────────────────────────────────────────────────
 
@@ -126,18 +196,35 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
   const crear = useCrearOrdenMedica();
   const imprimir = useImprimirDocumento();
   const [confirmando, setConfirmando] = React.useState(false);
-  const [emitida, setEmitida] = React.useState<{ id: string; pacienteId: string; paciente: string; renglones: number; destinatario: 'nursing' | 'pharmacy' } | null>(null);
-  const aEnfermeria = receta.destinatario !== 'pharmacy';
+  const [emitida, setEmitida] = React.useState<{ id: string; pacienteId: string; paciente: string; renglones: number; destinatario: 'nursing' | 'pharmacy'; notaId: string | null } | null>(null);
+  // El médico siempre envía a Enfermería y sus medicamentos llevan indicaciones
+  // obligatorias (lo pidió la clínica). Enfermería, que también emite, conserva
+  // la opción de mandar al mostrador.
+  const esMedico = useTieneRol([ROLES.DOCTOR]);
+  const destinatario = esMedico ? 'nursing' : receta.destinatario;
+  const aEnfermeria = destinatario !== 'pharmacy';
 
+  const existencias = useExistenciasPorArea(esMedico ? receta.renglones.map((r) => r.variant_id) : []);
   const renderItem = React.useCallback<ListRenderItem<RenglonReceta>>(
-    ({ item }) => <Renglon renglon={item} />,
-    [],
+    ({ item }) => <Renglon renglon={item} exigirIndicaciones={esMedico} existencia={existencias.data?.[item.variant_id]} />,
+    [esMedico, existencias.data],
   );
   const keyExtractor = React.useCallback((r: RenglonReceta) => r.id, []);
 
   const paddingSidebar = isSidebar ? 'px-4 md:px-4 lg:px-4 xl:px-4' : '';
   const faltaPaciente = !receta.paciente;
   const sinRenglones = receta.renglones.length === 0;
+  const faltanIndicaciones = esMedico && receta.renglones.some((r) => r.instructions.trim().length < LARGO_MINIMO_INDICACIONES);
+  const excedeExistencia =
+    esMedico &&
+    receta.renglones.some((r) => {
+      const e = existencias.data?.[r.variant_id];
+      return !!e && r.quantity > e.nursing + e.pharmacy;
+    });
+  const { revision, hecho, fecha } = receta.nota;
+  const notaEmpezada = esMedico && (revision.trim() !== '' || hecho.trim() !== '');
+  const notaIncompleta = notaEmpezada && (revision.trim().length < LARGO_MINIMO_NOTA || hecho.trim().length < LARGO_MINIMO_NOTA);
+  const fechaInvalida = esMedico && fecha.trim() !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(fecha.trim());
 
   const emitir = () => {
     if (!receta.paciente) return;
@@ -147,18 +234,21 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
         customer_id: paciente.id,
         customer_name: nombreDe(paciente),
         notes: receta.notas.trim() || undefined,
-        recipient_area: receta.destinatario,
+        recipient_area: destinatario,
         items: receta.renglones.map((r) => ({
           variant_id: r.variant_id,
           product_title: r.product_title,
           quantity: r.quantity,
           instructions: r.instructions.trim() || undefined,
         })),
+        ...(notaEmpezada
+          ? { nota_de_atencion: { findings: revision.trim(), procedures: hecho.trim(), attended_at: fecha.trim() || undefined } }
+          : {}),
       },
       {
         onSuccess: (orden) => {
           setConfirmando(false);
-          setEmitida({ id: orden.id, pacienteId: paciente.id, paciente: nombreDe(paciente), renglones: orden.items.length, destinatario: receta.destinatario });
+          setEmitida({ id: orden.id, pacienteId: paciente.id, paciente: nombreDe(paciente), renglones: orden.items.length, destinatario, notaId: orden.nota_de_atencion_id });
           receta.vaciar();
           Toast.show({ type: 'success', text1: aEnfermeria ? 'Orden enviada a Enfermería' : 'Receta enviada a Farmacia', text2: nombreDe(paciente) });
         },
@@ -195,8 +285,18 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
               Nueva receta
             </Button>
           </View>
-          {/* La nota de la consulta se escribe aquí mismo, sin cambiar de pantalla. */}
-          <NotaDeAtencion customerId={emitida.pacienteId} medicalOrderId={emitida.id} contexto={emitida.paciente} />
+          {emitida.notaId ? (
+            <View className="gap-2 rounded-2xl border border-gray-200 bg-white p-4">
+              <Text className="text-lg">Nota de atención guardada</Text>
+              <Text className="text-sm text-gray-400">Quedó en el expediente de {emitida.paciente}, con la fecha de la atención.</Text>
+              <Button variant="outline" className="self-start px-4" onPress={() => imprimir.mutate({ tipo: 'nota', id: emitida.notaId! })} isPending={imprimir.isPending}>
+                Imprimir nota
+              </Button>
+            </View>
+          ) : (
+            // Sin nota en la receta, se puede escribir aquí mismo.
+            <NotaDeAtencion customerId={emitida.pacienteId} medicalOrderId={emitida.id} contexto={emitida.paciente} />
+          )}
         </ScrollView>
       </Layout>
     );
@@ -227,6 +327,7 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
 
         <FlashList
           data={receta.renglones}
+          extraData={existencias.data}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           ItemSeparatorComponent={Separador}
@@ -235,7 +336,12 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
           ListFooterComponent={
             <View className="mt-4 gap-2">
               {/* A quién va. Decide la bandeja y el almacén; la cuenta del
-                  paciente sólo se carga cuando la aplica Enfermería. */}
+                  paciente sólo se carga cuando la aplica Enfermería. El médico
+                  no elige: lo suyo va siempre a Enfermería. */}
+              {esMedico ? (
+                <Text className="text-sm text-gray-400">Va a la Bandeja de Enfermería</Text>
+              ) : (
+              <>
               <Text className="text-sm text-gray-400">Va a</Text>
               <View className="flex-row gap-2">
                 {([
@@ -253,15 +359,18 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
                   </Pressable>
                 ))}
               </View>
+              </>
+              )}
               <Text className="mt-2 text-sm text-gray-400">{aEnfermeria ? 'Notas para Enfermería' : 'Notas para Farmacia'}</Text>
               <TextInput
                 value={receta.notas}
                 onChangeText={receta.cambiarNotas}
-                placeholder="Alergias, observaciones, diagnóstico…"
+                placeholder={aEnfermeria ? 'Lo que Enfermería debe saber al aplicar: alergias, vía, cuidados…' : 'Alergias, observaciones…'}
                 placeholderTextColor={color.textoTerciario}
                 multiline
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base"
               />
+              {esMedico && <CamposNotaDeAtencion />}
             </View>
           }
         />
@@ -271,6 +380,17 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
           {faltaPaciente && (
             <InfoBanner variant="ghost" colorScheme="info" className="mb-3">
               Seleccione al paciente para poder emitir la receta.
+            </InfoBanner>
+          )}
+          {!faltaPaciente && (excedeExistencia || faltanIndicaciones || notaIncompleta || fechaInvalida) && (
+            <InfoBanner variant="ghost" colorScheme="warning" className="mb-3">
+              {excedeExistencia
+                ? 'Hay medicamentos recetados por encima de lo que existe. Ajusta la cantidad.'
+                : faltanIndicaciones
+                ? 'Cada medicamento necesita sus indicaciones.'
+                : fechaInvalida
+                  ? 'Escribe la fecha de la atención como 2026-09-14, o déjala vacía para hoy.'
+                  : 'En la nota de atención, escribe qué revisaste y qué hiciste (o deja las dos vacías).'}
             </InfoBanner>
           )}
           <View className="flex-row gap-2 pb-6">
@@ -285,7 +405,7 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
             </Button>
             <Button
               className="flex-1"
-              disabled={faltaPaciente || sinRenglones}
+              disabled={faltaPaciente || sinRenglones || excedeExistencia || faltanIndicaciones || notaIncompleta || fechaInvalida}
               isPending={crear.isPending}
               onPress={() => setConfirmando(true)}
             >

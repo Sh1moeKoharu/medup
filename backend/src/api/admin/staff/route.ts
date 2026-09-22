@@ -10,6 +10,7 @@ import {
     revisarNumeroDeEmpleado,
 } from "../../../lib/personal";
 import { quienTieneElNumero } from "../../../lib/personal-servidor";
+import { CLAVE_PERFIL_PROFESIONAL, normalizarPerfil, revisarPerfil } from "../../../lib/perfil-profesional";
 
 /**
  * Alta y consulta de personal.
@@ -42,6 +43,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     role,
     employee_number,
     notification_email,
+    perfil_profesional,
   } = req.body as any;
 
   const tecleado: string = (username ?? email ?? "").trim();
@@ -78,6 +80,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     if (problema) {
       return res.status(400).json({ message: problema });
     }
+  }
+
+  // Datos para la receta: obligatorios para un médico (ver lib/perfil-profesional.ts).
+  const perfil = normalizarPerfil(perfil_profesional);
+  const problemaPerfil = revisarPerfil(perfil, canonicalRole);
+  if (problemaPerfil) {
+    return res.status(400).json({ message: problemaPerfil });
   }
 
   const correoAviso = String(notification_email ?? "").trim().toLowerCase() || null;
@@ -142,6 +151,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           role: canonicalRole,
           ...(numeroEmpleado ? { [CLAVE_NUMERO_EMPLEADO]: numeroEmpleado } : {}),
           ...(correoAviso ? { [CLAVE_CORREO_AVISO]: correoAviso } : {}),
+          ...(Object.keys(perfil).length ? { [CLAVE_PERFIL_PROFESIONAL]: perfil } : {}),
         },
       },
     ]);

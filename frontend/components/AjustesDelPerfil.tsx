@@ -1,4 +1,5 @@
 import { Antenna } from '@/components/icons/antenna';
+import { MiTurno } from '@/components/MiTurno';
 import { Button } from '@/components/ui/Button';
 import { LayoutWithScroll } from '@/components/ui/Layout';
 import { Prompt } from '@/components/ui/Prompt';
@@ -18,7 +19,7 @@ import React from 'react';
  * quedan como están: el guardián de diseño vigila que sigan idénticas entre
  * sí y no conviene moverlas de paso.
  */
-export const AjustesDelPerfil: React.FC<{ nota?: string }> = ({ nota }) => {
+export const AjustesDelPerfil: React.FC<{ nota?: string; conTurno?: boolean }> = ({ nota, conTurno }) => {
   const queryClient = useQueryClient();
   const auth = useAuthCtx();
   const settings = useSettings();
@@ -31,6 +32,7 @@ export const AjustesDelPerfil: React.FC<{ nota?: string }> = ({ nota }) => {
       <LayoutWithScroll>
         <Text className="mt-8 mb-6 text-4xl">Ajustes</Text>
         {nota ? <Text className="mb-6 text-gray-400">{nota}</Text> : null}
+        {conTurno ? <MiTurno /> : null}
         <Text className="mb-4 text-2xl">Canal de ventas</Text>
         <Button
           onPress={() => router.push('/settings/sales-channel')}

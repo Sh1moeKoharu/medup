@@ -33,7 +33,9 @@ const CustomerInformation: React.FC<{
         .filter(Boolean)
         .join(', ')
     : undefined;
-  const isPosDefaultCustomer = !customerEmail || customerEmail === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL;
+  // Por el correo fijo del invitado, no por la falta de correo: los pacientes
+  // ya no llevan correo y un paciente real se tomaría por venta de mostrador.
+  const isPosDefaultCustomer = !order.customer || customerEmail === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL;
 
   if (isPosDefaultCustomer) {
     return (

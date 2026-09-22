@@ -1,0 +1,14 @@
+{
+  "name": "altus-pruebas-ui",
+  "private": true,
+  "description": "Recorre el punto de venta y el panel en un navegador real y comprueba que cada cosa hace lo que dice.",
+  "type": "module",
+  "scripts": {
+    "validar": "node validar-ui.mjs",
+    "validar:pos": "node validar-ui.mjs pos",
+    "validar:panel": "node validar-ui.mjs panel"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

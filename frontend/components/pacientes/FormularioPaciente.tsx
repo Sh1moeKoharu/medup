@@ -17,12 +17,16 @@ import { z } from 'zod/v4';
  * escribir en /admin/customers (ver backend/src/lib/api-policy.ts).
  */
 
-const esquema = z.object({
-  email: z.email('Ingresa un correo válido').min(3, 'El correo es requerido'),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  phone: z.string().optional(),
+/**
+ * Sin correo: los pacientes no lo llevan (lo pidió la clínica). Nombre y
+ * apellidos son obligatorios porque salen en la receta y en la cuenta.
+ */
+export const esquemaPaciente = z.object({
+  first_name: z.string().trim().min(2, 'El nombre es requerido'),
+  last_name: z.string().trim().min(2, 'Los apellidos son requeridos'),
+  phone: z.string().trim().optional(),
 });
+const esquema = esquemaPaciente;
 
 export const FormularioPaciente: React.FC<{
   visible: boolean;
@@ -45,7 +49,6 @@ export const FormularioPaciente: React.FC<{
       <Form
         schema={esquema}
         defaultValues={{
-          email: customer?.email ?? '',
           first_name: customer?.first_name ?? '',
           last_name: customer?.last_name ?? '',
           phone: customer?.phone ?? '',
@@ -73,9 +76,8 @@ export const FormularioPaciente: React.FC<{
           });
         }}
       >
-        <TextField name="email" placeholder="Correo electrónico" autoComplete="off" autoCapitalize="none" inputMode="email" />
         <TextField name="first_name" placeholder="Nombre" autoComplete="off" autoCapitalize="words" />
-        <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="none" />
+        <TextField name="last_name" placeholder="Apellidos" autoComplete="off" autoCapitalize="words" />
         <TextField name="phone" placeholder="Número de teléfono" autoComplete="off" autoCapitalize="none" inputMode="tel" />
         <FormButton>{editando ? 'Guardar cambios' : 'Crear paciente'}</FormButton>
       </Form>

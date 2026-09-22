@@ -24,6 +24,7 @@ import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import React from 'react';
 import { Image, View, TextInput, TouchableOpacity } from 'react-native';
+import Toast from 'react-native-toast-message';
 
 type PaymentMethod = 'cash' | 'card' | 'transfer';
 
@@ -88,19 +89,22 @@ export default function CheckoutScreen() {
   const [errorRecibo, setErrorRecibo] = React.useState('');
   const { ajustes: ajustesImpresion } = useAjustesImpresion();
 
-  const handleImprimir = async () => {
+  const handleImprimir = async (): Promise<boolean> => {
     setErrorRecibo('');
     try {
       const { data } = await recibo.refetch();
       if (!data) {
         setErrorRecibo('No se pudo obtener el recibo. Puedes reimprimirlo desde Órdenes.');
-        return;
+        return false;
       }
       if (!imprimirRecibo(data)) {
         setErrorRecibo('Este dispositivo no puede imprimir. Usa la caja con impresora.');
+        return false;
       }
+      return true;
     } catch {
       setErrorRecibo('No se pudo obtener el recibo. Puedes reimprimirlo desde Órdenes.');
+      return false;
     }
   };
   const [cashReceived, setCashReceived] = React.useState('');
@@ -132,15 +136,24 @@ export default function CheckoutScreen() {
   // los datos aún no han llegado.
   const ventaConfirmada = !!draftOrder.data && draftOrder.data.status !== 'draft';
 
-  React.useEffect(() => {
-    if (!ajustesImpresion.automatico) return;
-    if (!ventaConfirmada) return;
-    if (yaImpreso.current) return;
+  // «Completar orden» abre la impresión del recibo directamente (lo pidió la
+  // clínica: nada de un diálogo con un botón de imprimir). Sólo cuando la
+  // venta se completó AQUÍ: volver a abrir el cobro de una venta ya cerrada
+  // no debe reimprimirla. Si imprimió, aviso y a vender otra vez; si no pudo,
+  // queda el diálogo con el error y las otras salidas.
+  const completadaAqui = completeOrder.isSuccess;
+  const imprimeDirecto = ajustesImpresion.automatico && completadaAqui;
 
+  React.useEffect(() => {
+    if (!imprimeDirecto || !ventaConfirmada || yaImpreso.current) return;
     yaImpreso.current = true;
-    handleImprimir();
+    handleImprimir().then((impreso) => {
+      if (!impreso) return;
+      Toast.show({ type: 'success', text1: 'Venta registrada', text2: 'Puedes reimprimir el recibo desde Órdenes.' });
+      router.replace('/(tabs)/products');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ajustesImpresion.automatico, ventaConfirmada]);
+  }, [imprimeDirecto, ventaConfirmada]);
 
   const renderItem = React.useCallback<ListRenderItem<AdminOrderLineItem>>(
     ({ item }) => <DraftOrderItem item={item} />,
@@ -206,7 +219,9 @@ export default function CheckoutScreen() {
     .filter(Boolean)
     .join(' ');
   const customerPhone = draftOrder.data.customer?.phone;
-  const isPosDefaultCustomer = !customerEmail || customerEmail === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL;
+  // Por el correo fijo del invitado, no por la falta de correo: los pacientes
+  // ya no llevan correo y un paciente real se tomaría por venta de mostrador.
+  const isPosDefaultCustomer = !draftOrder.data.customer || customerEmail === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL;
 
   return (
     <>
@@ -457,7 +472,7 @@ export default function CheckoutScreen() {
       </Layout>
 
       <Dialog
-        visible={!isDraftOrder && pathName === `/checkout/${draftOrderId}`}
+        visible={!isDraftOrder && pathName === `/checkout/${draftOrderId}` && (!imprimeDirecto || !!errorRecibo)}
         showCloseButton={false}
         dismissOnOverlayPress={false}
         onRequestClose={(event) => {

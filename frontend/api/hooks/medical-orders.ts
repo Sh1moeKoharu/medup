@@ -32,8 +32,22 @@ export interface OrdenMedica {
   /** La cuenta del paciente a la que se cargó el consumo, si Enfermería la aplicó. */
   draft_order_id?: string | null;
   items: RenglonOrdenMedica[];
+  /** Quién quitó o cambió qué, cuánto había, cuánto quedó y por qué. */
+  ajustes?: AjusteDeOrden[];
   created_at: string;
   updated_at: string;
+}
+
+export interface AjusteDeOrden {
+  id: string;
+  variant_id: string;
+  product_title: string | null;
+  quantity_before: number;
+  quantity_after: number;
+  reason: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  created_at: string;
 }
 
 export interface NuevaOrdenMedica {
@@ -47,6 +61,8 @@ export interface NuevaOrdenMedica {
     quantity: number;
     instructions?: string;
   }>;
+  /** La nota de la consulta, guardada con la receta en el mismo envío. */
+  nota_de_atencion?: { findings: string; procedures: string; attended_at?: string };
 }
 
 // ──────────────────────────────────────────────────
@@ -81,11 +97,11 @@ export const useCrearOrdenMedica = () => {
   return useMutation({
     mutationKey: ['medical-orders', 'create'],
     mutationFn: async (datos: NuevaOrdenMedica) => {
-      const response = await sdk.client.fetch<{ medical_order: OrdenMedica }>('/admin/medical-orders', {
+      const response = await sdk.client.fetch<{ medical_order: OrdenMedica; clinical_note?: { id: string } | null }>('/admin/medical-orders', {
         method: 'POST',
         body: datos,
       });
-      return response.medical_order;
+      return { ...response.medical_order, nota_de_atencion_id: response.clinical_note?.id ?? null };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['medical-orders'] });

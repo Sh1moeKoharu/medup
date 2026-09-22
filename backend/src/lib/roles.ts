@@ -16,7 +16,10 @@
 export const ROLES = {
   /** Administrador General: acceso total, configuración, gestión de usuarios. */
   ADMIN: "admin",
-  /** Farmacia: inventario, surtido de órdenes, entradas. No borra históricos. */
+  /**
+   * Farmacia: surte recetas y consulta existencias. Desde la etapa de roles
+   * nuevos ya no da de alta lotes ni traspasa: eso es de Almacén.
+   */
   PHARMACY: "pharmacy",
   /** Caja / Recepción: cobros, tickets, corte de caja. No toca inventario. */
   CASHIER: "cashier",
@@ -26,6 +29,10 @@ export const ROLES = {
   NURSE: "nurse",
   /** Auditor / Dirección: reportes y bitácora. SOLO LECTURA. */
   AUDITOR: "auditor",
+  /** Almacén: compras y lotes, requisiciones, conteos, bajas y costos. */
+  WAREHOUSE: "warehouse",
+  /** RH y contabilidad: nómina, comisiones y actividad. Sin datos clínicos. */
+  HR: "hr",
 } as const
 
 export type Role = (typeof ROLES)[keyof typeof ROLES]
@@ -44,8 +51,9 @@ export const READ_ONLY_ROLES: Role[] = [ROLES.AUDITOR]
  */
 export const ROLES_ALLOWED_TO_SEE_COST: Role[] = [
   ROLES.ADMIN,
-  ROLES.PHARMACY,
+  ROLES.WAREHOUSE,
   ROLES.AUDITOR,
+  ROLES.HR,
 ]
 
 /**
@@ -85,6 +93,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   [ROLES.DOCTOR]: "Médico",
   [ROLES.NURSE]: "Enfermería",
   [ROLES.AUDITOR]: "Auditor / Dirección",
+  [ROLES.WAREHOUSE]: "Almacén",
+  [ROLES.HR]: "RH y contabilidad",
 }
 
 /**
@@ -109,6 +119,13 @@ const LEGACY_ROLE_ALIASES: Record<string, Role> = {
   farmacia: ROLES.PHARMACY,
   farmaceutico: ROLES.PHARMACY,
   administrador: ROLES.ADMIN,
+  almacen: ROLES.WAREHOUSE,
+  almacenista: ROLES.WAREHOUSE,
+  rh: ROLES.HR,
+  rrhh: ROLES.HR,
+  "recursos humanos": ROLES.HR,
+  contabilidad: ROLES.HR,
+  contador: ROLES.HR,
 }
 
 /**

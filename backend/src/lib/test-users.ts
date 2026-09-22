@@ -1,4 +1,5 @@
 import { ALL_ROLES, Role, ROLES } from "./roles"
+import type { PerfilProfesional } from "./perfil-profesional"
 
 /**
  * Catálogo de cuentas de prueba del SIGH — FUENTE ÚNICA.
@@ -59,6 +60,8 @@ export type TestUserSpec = {
   first_name: string
   /** Qué se espera poder probar con esta cuenta. */
   purpose: string
+  /** Datos para la receta (sólo el médico). Ver lib/perfil-profesional.ts. */
+  perfil_profesional?: PerfilProfesional
 }
 
 /**
@@ -97,6 +100,13 @@ export const TEST_USERS: TestUserSpec[] = [
     employee_number: "0004",
     first_name: "Médico",
     purpose: "Emitir órdenes médicas. No debe ver precios de compra.",
+    // Datos inventados con forma real: la receta de prueba sale completa.
+    perfil_profesional: {
+      cedula_profesional: "12345678",
+      universidad: "Universidad Nacional Autónoma de México",
+      especialidad: "Medicina general",
+      telefono: "55 1234 5678",
+    },
   },
   {
     role: ROLES.NURSE,
@@ -111,6 +121,20 @@ export const TEST_USERS: TestUserSpec[] = [
     employee_number: "0006",
     first_name: "Auditoría",
     purpose: "Solo lectura: reportes y bitácora. Toda escritura debe dar 403.",
+  },
+  {
+    role: ROLES.WAREHOUSE,
+    username: "almacen",
+    employee_number: "0007",
+    first_name: "Almacén",
+    purpose: "Compras y lotes, surtir requisiciones, conteos, bajas. Ve costos.",
+  },
+  {
+    role: ROLES.HR,
+    username: "rrhh",
+    employee_number: "0008",
+    first_name: "RH",
+    purpose: "Nómina, comisiones y actividad del personal. Sin datos clínicos.",
   },
 ]
 

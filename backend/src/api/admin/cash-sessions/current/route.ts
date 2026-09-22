@@ -4,9 +4,10 @@ import { resolveRequestActor } from "../../../../lib/require-role";
 
 /**
  * GET /admin/cash-sessions/current
- * El turno abierto de QUIEN pregunta (status = "open", cashier_id = yo).
- * Los turnos son por cajero; el de otra caja no es "el actual" de ésta.
- * Si no hay, retorna null
+ * El turno abierto de QUIEN pregunta (status = "open", cashier_id = yo), o
+ * null. Si la caja la tiene abierta otra persona, lo dice en
+ * `otra_caja_abierta`: la clínica trabaja con una sola caja a la vez, y la
+ * pantalla debe explicar por qué no se puede abrir en lugar de dejar intentar.
  */
 export async function GET(
     req: MedusaRequest,
@@ -30,12 +31,16 @@ export async function GET(
                 "sales_channel_id",
                 "status",
             ],
-            filters: { status: "open", cashier_id: actor.id },
+            filters: { status: "open" },
         });
 
-        const session = sessions && sessions.length > 0 ? sessions[0] : null;
+        const session = (sessions ?? []).find((s: any) => s.cashier_id === actor.id) ?? null;
+        const otra = session ? null : (sessions ?? [])[0] ?? null;
 
-        res.json({ session });
+        res.json({
+            session,
+            otra_caja_abierta: otra ? { cashier_name: otra.cashier_name, opened_at: otra.opened_at } : null,
+        });
     } catch (error: any) {
         res.status(400).json({ message: error.message });
     }

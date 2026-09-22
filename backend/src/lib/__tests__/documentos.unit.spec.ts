@@ -19,12 +19,12 @@ describe("receta", () => {
     rol_prescriptor: "Médico",
     destinatario: "nursing",
     renglones: [{ product_title: "Paracetamol 500 mg", quantity: 2, instructions: "1 cada 8 h" }],
-    notas: "Alergia a penicilina",
+    perfil: { cedula_profesional: "12345678", universidad: "UNAM", especialidad: "Medicina general" },
   }
 
   it("lleva folio, paciente, prescriptor y renglones", () => {
     const html = htmlReceta(base)!
-    expect(html).toContain("mo_1")
+    expect(html).toContain("MO_1")
     expect(html).toContain("Ana Torres")
     expect(html).toContain("Dr. Pérez")
     expect(html).toContain("Paracetamol 500 mg")
@@ -41,8 +41,22 @@ describe("receta", () => {
     expect(htmlReceta({ ...base, renglones: [] })).toBeNull()
   })
 
+  it("va en media carta, con cédula y universidad del médico (punto 9 y 15)", () => {
+    const html = htmlReceta(base)!
+    expect(html).toContain("size: 5.5in 8.5in")
+    expect(html).toContain("Cédula profesional 12345678")
+    expect(html).toContain("UNAM")
+    expect(html).toContain("Céd. prof. 12345678")
+  })
+
+  it("lleva los logotipos de la clínica y del médico si existen", () => {
+    const html = htmlReceta({ ...base, membrete: { ...membrete, logo_url: "/static/clinica.png" }, perfil: { ...base.perfil, logo_url: "/static/medico.png" } })!
+    expect(html).toContain('src="/static/clinica.png"')
+    expect(html).toContain('src="/static/medico.png"')
+  })
+
   it("escapa el HTML del contenido", () => {
-    const html = htmlReceta({ ...base, notas: "<script>alert(1)</script>" })!
+    const html = htmlReceta({ ...base, paciente: "<script>alert(1)</script>" })!
     expect(html).not.toContain("<script>")
     expect(html).toContain("&lt;script&gt;")
   })
