@@ -6,6 +6,7 @@ import { useWindowDimensions } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { ClipboardList } from '@/components/icons/clipboard-list';
+import { IconoDeBandeja } from '@/components/clinica/IconoDeBandeja';
 import { FilePen } from '@/components/icons/file-pen';
 import { Package } from '@/components/icons/package';
 import { Settings } from '@/components/icons/settings';
@@ -66,7 +67,8 @@ export default function NurseTabLayout() {
         name="bandeja"
         options={{
           title: 'Bandeja',
-          tabBarIcon: ({ color }) => <ClipboardList size={20} color={color} />,
+          // Con el número de pendientes encima: se ve desde cualquier pestaña.
+          tabBarIcon: ({ color }) => <IconoDeBandeja size={20} color={color} />,
         }}
       />
 

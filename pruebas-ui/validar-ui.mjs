@@ -356,6 +356,22 @@ const validarEnfermeria = async (datos) => {
 
   check("Enfermería entra a la Bandeja (punto 17)", await hay(page, "Órdenes que el médico dirigió a consulta"))
 
+  // Lo que la bandeja enseña sin abrir nada: el aviso único del sonido, el
+  // contador en la pestaña y la existencia de cada orden en su tarjeta.
+  const preguntaSonido = await hay(page, "¿Avisar con sonido?")
+  check("al primer ingreso pregunta una sola vez si avisar con sonido", preguntaSonido)
+  if (preguntaSonido) await clic(page, "Sí, activar", 1500)
+  check("y deja cambiarlo desde la propia bandeja", await hay(page, "Alerta con sonido activada"))
+  await page.reload({ waitUntil: "commit" })
+  await page.waitForTimeout(6000)
+  check("la pregunta del sonido no se repite tras recargar", !(await hay(page, "¿Avisar con sonido?")))
+  check("recargar devuelve a la Bandeja, no a Productos", await hay(page, "Órdenes que el médico dirigió a consulta"))
+  const contador = await page.getByLabel(/\d+ pendientes/).filter({ visible: true }).count()
+  check("la pestaña Bandeja lleva el número de pendientes encima", contador > 0)
+  const conExistencia =
+    (await hay(page, "Todo en Enfermería")) || (await hay(page, "en Enfermería")) || (await hay(page, "Consultando existencia")) || (await hay(page, "Sin lectura de existencia"))
+  check("cada orden dice si hay existencia sin tener que abrirla", conExistencia)
+
   await pestana(page, "Pacientes", 3500)
   check("los pacientes con orden pendiente salen marcados (punto 16)", await hay(page, "Orden pendiente"))
   await pestana(page, "Bandeja", 3000)
@@ -420,6 +436,11 @@ const validarEnfermeria = async (datos) => {
   } else {
     check("hay una orden de María para aplicar", false)
   }
+
+  // Su almacén: puede dar de alta lo que llegó sin requisición, sin ver costos.
+  await pestana(page, "Almacén", 3500)
+  check("Enfermería puede dar de alta lo que llegó a su almacén", await hay(page, "Dar de alta lo que llegó"))
+  check("y no se le piden costos", !(await hay(page, "Costo por unidad de compra")))
 
   // La nota del médico no le llega a Enfermería.
   await pestana(page, "Pacientes", 3500)

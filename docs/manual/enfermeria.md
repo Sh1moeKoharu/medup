@@ -61,9 +61,21 @@ Escribe tu **usuario** (`enfermeria`, o el que te dieron, sin arroba) y tu contr
 ### 3.2 Aterrizas en la Bandeja
 
 La **Bandeja** lista las órdenes que el médico emitió, la más reciente primero: paciente, hora,
-médico, cuántos renglones y unidades.
+médico, cuántos renglones y unidades. Debajo, cada tarjeta dice si hay existencia para
+aplicarla: **Todo en Enfermería**, o **Faltan N renglones en Enfermería** en rojo. No hace falta
+abrirla para saberlo.
 
 ![Bandeja con las órdenes pendientes de Jorge Villanueva y María Ramírez](img/enfermeria/02-bandeja.png)
+
+**La Bandeja se actualiza sola.** No hay que recargar: cuando el médico emite una orden, aparece
+arriba en menos de un minuto, marcada como **Nueva** hasta que la abres, y sale un aviso en la
+esquina con el nombre del paciente. El número de órdenes pendientes va también encima de la
+pestaña **Bandeja**, así que se ve desde cualquier otra pantalla.
+
+**El sonido se pregunta una sola vez.** La primera vez que entras, la Bandeja pregunta
+**¿Avisar con sonido?**. Con **Sí, activar**, cada orden nueva suena además de aparecer. La
+respuesta se guarda en ese equipo y se cambia cuando quieras desde la propia Bandeja, en la línea
+**Alerta con sonido activada · Desactivar**.
 
 ### 3.3 Revisar al paciente
 
@@ -159,7 +171,15 @@ Cuando Almacén surte, el estado cambia a **Surtida · confirma que llegó** y a
 llegó**: al pulsarlo, la existencia entra a tu almacén con el mismo lote. Si se surtió menos de lo
 pedido, lo verás en la fracción (por ejemplo «6/10»).
 
-### 4.2 Dar de baja
+### 4.2 Dar de alta lo que llegó
+
+Lo que pides a Farmacia entra solo al **confirmar que llegó**. Pero no todo entra así: una compra
+directa, una donación o la carga inicial no tienen requisición. Para eso está **Dar de alta lo
+que llegó**: busca el medicamento, elígelo, y captura número de lote, caducidad y cuántas unidades
+de compra trae y cuántas de venta hay en cada una. Entra siempre a tu almacén; no se te pide el
+costo, que es de Almacén.
+
+### 4.3 Dar de baja
 
 **Dar de baja** lista los lotes con existencia en Enfermería, el que caduca antes primero. Toca el
 lote, escribe cuántas unidades y el **motivo**, y pulsa **Dar de baja**.
@@ -220,6 +240,8 @@ pide **Confirmar salida**; las órdenes de la bandeja no se pierden (siguen pend
 | «Surtida · confirma que llegó» y no te llegó nada | Se marcó surtida antes de entregar | No confirmes hasta tenerlo; habla con Almacén |
 | No ves la nota del médico | Es a propósito: a Enfermería sólo le llega la receta | Lo que debas saber va en las notas para Enfermería |
 | «Cuenta bloqueada» al entrar | Administración bloqueó tu cuenta | Habla con Administración |
+| Llegó una orden y no sonó | Contestaste **Sin sonido**, o el navegador aún no había recibido ningún toque | En la Bandeja, **Activar**; si sigue sin sonar, toca cualquier parte de la pantalla una vez |
+| «Consultando existencia…» que no cambia, o «Sin lectura de existencia» | No se pudo leer la existencia del almacén | Espera un momento; si sigue, revisa el almacén antes de aplicar y avisa a Administración |
 
 ---
 

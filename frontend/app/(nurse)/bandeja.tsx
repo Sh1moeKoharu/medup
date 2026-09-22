@@ -1,7 +1,8 @@
 import { useProducts } from '@/api/hooks/products';
-import { useAjustarOrden, useAplicarOrden, useBandeja, useExistenciasPorArea, useImprimirDocumento, type ResultadoDeAplicar } from '@/api/hooks/clinica';
+import { useAjustarOrden, useAplicarOrden, useBandeja, useExistenciasPorArea, useImprimirDocumento, type ExistenciaPorArea, type ResultadoDeAplicar } from '@/api/hooks/clinica';
 import { useCrearRequisicion, useRequisiciones } from '@/api/hooks/requisiciones';
-import { ExistenciaDelRenglon, HistorialDeAjustes, MotivoDeAjuste } from '@/components/clinica/Ajustes';
+import { ExistenciaDelRenglon, HistorialDeAjustes, MotivoDeAjuste, ResumenDeExistencia, type EstadoDeExistencia } from '@/components/clinica/Ajustes';
+import { useAvisoDeBandeja } from '@/hooks/useAvisoDeBandeja';
 import { Trash2 } from '@/components/icons/trash-2';
 import Toast from 'react-native-toast-message';
 import type { OrdenMedica } from '@/api/hooks/medical-orders';
@@ -27,6 +28,14 @@ import { Pressable, TextInput, View } from 'react-native';
  * (una gasa más, una ampolleta menos) y APLICARLA: sale de su almacén y se
  * carga a la cuenta del paciente, que Caja cobra. Después, la nota de
  * atención y la impresión de la receta.
+ *
+ * ── LO QUE SE VE SIN ABRIR NADA ─────────────────────────────────────────────
+ * La bandeja se actualiza sola, avisa cuando llega una orden (en pantalla y,
+ * si se aceptó, con sonido), marca la recién llegada como «Nueva» hasta que se
+ * abre, y en cada tarjeta cerrada dice si hay existencia para aplicarla. La
+ * existencia de TODAS las órdenes se consulta de una vez desde la pantalla, no
+ * orden por orden al abrirlas: seis órdenes eran seis consultas y seis huecos
+ * mudos mientras cargaban.
  */
 
 const fechaCorta = (iso: string) => {
@@ -48,7 +57,16 @@ const Boton: React.FC<{ onPress: () => void; label: string; children: React.Reac
  * aquí: si viviera aquí, desaparecería con la tarjeta justo cuando hay que
  * escribir la nota.
  */
-const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAplicada: (r: ResultadoDeAplicar) => void; onCerrar: () => void }> = ({ orden, resultado, onAplicada, onCerrar }) => {
+const Orden: React.FC<{
+  orden: OrdenMedica;
+  resultado?: ResultadoDeAplicar;
+  existencias?: Record<string, ExistenciaPorArea>;
+  estadoExistencia?: EstadoDeExistencia;
+  nueva?: boolean;
+  onAbrir?: () => void;
+  onAplicada: (r: ResultadoDeAplicar) => void;
+  onCerrar: () => void;
+}> = ({ orden, resultado, existencias, estadoExistencia = 'listo', nueva = false, onAbrir, onAplicada, onCerrar }) => {
   const [abierta, setAbierta] = React.useState(false);
   const [busqueda, setBusqueda] = React.useState('');
   const termino = useDebouncedValue(busqueda, 300);
@@ -59,7 +77,6 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
   const [confirmando, setConfirmando] = React.useState(false);
   // Quitar o reducir lo recetado pide motivo: se escribe aquí, bajo el renglón.
   const [porReducir, setPorReducir] = React.useState<{ variant_id: string; cantidad: number; antes: number; titulo: string | null } | null>(null);
-  const existencias = useExistenciasPorArea(abierta ? orden.items.map((i) => i.variant_id) : []);
   const requisiciones = useRequisiciones({ medical_order_id: orden.id }, { enabled: abierta });
   const pedir = useCrearRequisicion();
 
@@ -86,7 +103,7 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
   // Lo que falta en Enfermería para aplicar la orden completa (punto 21), y si
   // ya se pidió a Farmacia desde aquí (punto 22).
   const faltantes = orden.items
-    .map((i) => ({ i, e: existencias.data?.[i.variant_id] }))
+    .map((i) => ({ i, e: existencias?.[i.variant_id] }))
     .filter(({ i, e }) => e && e.nursing < i.quantity)
     .map(({ i, e }) => ({ variant_id: i.variant_id, product_title: i.product_title ?? undefined, quantity: i.quantity - e!.nursing, enFarmacia: e!.pharmacy }));
   const enCamino = (requisiciones.data ?? []).find((r) => r.status === 'pending' || r.status === 'dispatched');
@@ -132,17 +149,33 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
 
   return (
     <View className="gap-2 rounded-2xl border border-gray-200 bg-white p-4">
-      <Pressable onPress={() => setAbierta((a) => !a)} accessibilityRole="button" accessibilityLabel={`Orden de ${orden.customer_name ?? 'paciente'}`}>
+      <Pressable
+        onPress={() => {
+          setAbierta((a) => !a);
+          if (!abierta) onAbrir?.();
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`Orden de ${orden.customer_name ?? 'paciente'}`}
+      >
         <View className="flex-row items-start justify-between gap-3">
           <View className="flex-1">
             <Text className="text-lg">{orden.customer_name || orden.customer_id}</Text>
             <Text className="text-sm text-gray-400">
               {fechaCorta(orden.created_at)} · {orden.creator_name ?? 'médico'} · {orden.items.length} {orden.items.length === 1 ? 'renglón' : 'renglones'} · {unidades} u.
             </Text>
+            <View className="mt-1">
+              <ResumenDeExistencia items={orden.items} existencias={existencias} estado={estadoExistencia} />
+            </View>
           </View>
-          <View className="rounded-full bg-warning-200 px-3 py-1">
-            <Text className="text-xs text-warning-500">Pendiente</Text>
-          </View>
+          {nueva ? (
+            <View className="rounded-full bg-error-200 px-3 py-1">
+              <Text className="text-xs text-error-500">Nueva</Text>
+            </View>
+          ) : (
+            <View className="rounded-full bg-warning-200 px-3 py-1">
+              <Text className="text-xs text-warning-500">Pendiente</Text>
+            </View>
+          )}
         </View>
       </Pressable>
 
@@ -154,7 +187,7 @@ const Orden: React.FC<{ orden: OrdenMedica; resultado?: ResultadoDeAplicar; onAp
                 <View className="flex-1">
                   <Text>{i.product_title ?? i.variant_id}</Text>
                   {!!i.instructions && <Text className="text-sm text-gray-400">{i.instructions}</Text>}
-                  <ExistenciaDelRenglon existencia={existencias.data?.[i.variant_id]} necesita={i.quantity} />
+                  <ExistenciaDelRenglon existencia={existencias?.[i.variant_id]} necesita={i.quantity} estado={estadoExistencia} />
                 </View>
                 <Boton onPress={() => cambiar(i.variant_id, i.quantity - 1, i.product_title)} label="Una menos"><Minus size={16} /></Boton>
                 <Text className="w-8 text-center text-lg">{i.quantity}</Text>
@@ -267,10 +300,44 @@ export default function BandejaScreen() {
   const lista = (bandeja.data ?? []).filter((o) => !aplicadas[o.id]);
   const recientes = Object.values(aplicadas);
 
+  // Una sola consulta de existencia para toda la bandeja.
+  const variantes = React.useMemo(() => lista.flatMap((o) => o.items.map((i) => i.variant_id)), [lista]);
+  const existencias = useExistenciasPorArea(variantes);
+  const estadoExistencia: EstadoDeExistencia =
+    variantes.length === 0 ? 'listo' : existencias.isError ? 'error' : existencias.data ? 'listo' : 'cargando';
+
+  const aviso = useAvisoDeBandeja(bandeja.data, bandeja.isSuccess);
+
   return (
     <LayoutWithScroll contentContainerClassName="pb-10">
       <Text className="mb-1 mt-8 text-4xl">Bandeja</Text>
-      <Text className="mb-6 text-gray-400">Órdenes que el médico dirigió a consulta. Revisa dónde hay existencia, pide a Farmacia lo que falte y aplícala: sale de tu almacén y queda en la cuenta del paciente. Quitar o reducir lo recetado pide motivo.</Text>
+      <Text className="mb-2 text-gray-400">Órdenes que el médico dirigió a consulta. Se actualiza sola. Revisa dónde hay existencia, pide a Farmacia lo que falte y aplícala: sale de tu almacén y queda en la cuenta del paciente. Quitar o reducir lo recetado pide motivo.</Text>
+
+      {aviso.preferencia === 'si' || aviso.preferencia === 'no' ? (
+        <Pressable
+          onPress={() => aviso.decidir(aviso.preferencia !== 'si')}
+          accessibilityRole="button"
+          accessibilityLabel={aviso.preferencia === 'si' ? 'Desactivar el sonido de alerta' : 'Activar el sonido de alerta'}
+          className="mb-6 self-start"
+        >
+          <Text className="text-sm text-gray-400">
+            {aviso.preferencia === 'si' ? 'Alerta con sonido activada' : 'Alerta sin sonido'} ·{' '}
+            <Text className="text-sm text-info-500">{aviso.preferencia === 'si' ? 'Desactivar' : 'Activar'}</Text>
+          </Text>
+        </Pressable>
+      ) : (
+        <View className="mb-6" />
+      )}
+
+      <Prompt
+        visible={aviso.preferencia === null}
+        onClose={() => aviso.decidir(false)}
+        title="¿Avisar con sonido?"
+        description="Cuando llegue una orden nueva sonará una alerta corta, además de aparecer arriba marcada como «Nueva». Se pregunta una sola vez; se cambia desde aquí mismo."
+        submitText="Sí, activar"
+        cancelText="Sin sonido"
+        onSubmit={() => aviso.decidir(true)}
+      />
 
       {recientes.length > 0 && (
         <View className="mb-3 gap-3">
@@ -302,6 +369,10 @@ export default function BandejaScreen() {
             <Orden
               key={o.id}
               orden={o}
+              existencias={existencias.data}
+              estadoExistencia={estadoExistencia}
+              nueva={aviso.nuevas.has(o.id)}
+              onAbrir={() => aviso.marcarVista(o.id)}
               onAplicada={(r) => setAplicadas((a) => ({ ...a, [o.id]: { orden: o, resultado: r } }))}
               onCerrar={() => undefined}
             />

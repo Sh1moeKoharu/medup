@@ -1,5 +1,6 @@
 import { useProducts } from '@/api/hooks/products';
-import { Campo, CampoConEtiqueta } from '@/components/almacen/base';
+import { AltaDeLote } from '@/components/almacen/AltaDeLote';
+import { Campo, CampoConEtiqueta, nombreDeAlmacen } from '@/components/almacen/base';
 import {
   EstadoRequisicion,
   LoteDeAlmacen,
@@ -29,10 +30,18 @@ import Toast from 'react-native-toast-message';
 /**
  * El almacén de Enfermería, desde el punto de venta.
  *
- * Tres cosas, en el orden en que pasan en el día: pedir a Farmacia lo que
- * falta, ver en qué va cada pedido (y confirmar que llegó), y dar de baja lo
- * que se rompió o se contaminó, con su motivo. Todo lo que aquí se hace deja
- * asiento en el kardex de Enfermería; el traspaso también en el de Farmacia.
+ * Cuatro cosas, en el orden en que pasan en el día: pedir a Farmacia lo que
+ * falta, ver en qué va cada pedido (y confirmar que llegó), dar de alta lo que
+ * llegó por otra vía, y dar de baja lo que se rompió o se contaminó, con su
+ * motivo. Todo lo que aquí se hace deja asiento en el kardex de Enfermería; el
+ * traspaso también en el de Farmacia.
+ *
+ * ── EL ALTA ─────────────────────────────────────────────────────────────────
+ * Lo que entra por requisición se registra solo al confirmar que llegó. Pero
+ * no todo entra así: una compra directa, una donación o la carga inicial no
+ * tienen requisición, y hasta ahora no había forma de meterlas: ese material
+ * se usaba sin existir en el sistema. El servidor ya limitaba a Enfermería a
+ * su propio almacén; faltaba la pantalla. Sin costos: Enfermería no los ve.
  */
 
 const ETIQUETA: Record<EstadoRequisicion, { texto: string; fondo: string; tinta: string }> = {
@@ -327,6 +336,19 @@ export default function AlmacenScreen() {
       <Text className="mb-6 mt-8 text-4xl">Almacén de Enfermería</Text>
       <PedirAFarmacia />
       <MisRequisiciones />
+      {enfermeria ? (
+        <AltaDeLote
+          almacenFijo={{ id: enfermeria.id, nombre: nombreDeAlmacen(enfermeria) }}
+          conCosto={false}
+          titulo="Dar de alta lo que llegó"
+          descripcion="Lo que entra sin requisición: una compra directa, una donación o la carga inicial. Lo que pides a Farmacia se registra solo al confirmar que llegó."
+        />
+      ) : (
+        <View className="mb-8">
+          <Text className="text-2xl">Dar de alta lo que llegó</Text>
+          <Text className="text-sm text-gray-400">No hay almacén de Enfermería configurado.</Text>
+        </View>
+      )}
       <DarDeBaja almacenId={enfermeria?.id} />
     </LayoutWithScroll>
   );

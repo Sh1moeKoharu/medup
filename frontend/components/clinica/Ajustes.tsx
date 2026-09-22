@@ -64,8 +64,19 @@ export const MotivoDeAjuste: React.FC<{
 };
 
 /** «Enf. 12 · Farm. 40», con el faltante de Enfermería en rojo. */
-export const ExistenciaDelRenglon: React.FC<{ existencia?: ExistenciaPorArea; necesita?: number }> = ({ existencia, necesita }) => {
-  if (!existencia) return null;
+/** En qué va la consulta de existencia: para no dejar el renglón mudo mientras carga o si falla. */
+export type EstadoDeExistencia = 'cargando' | 'error' | 'listo';
+
+/**
+ * Nunca devuelve null. Antes, mientras la existencia cargaba —o si la consulta
+ * fallaba— el renglón se quedaba sin la línea y Enfermería aplicaba a ciegas
+ * sin saber que le faltaba un dato. Ahora el hueco dice qué pasa.
+ */
+export const ExistenciaDelRenglon: React.FC<{ existencia?: ExistenciaPorArea; necesita?: number; estado?: EstadoDeExistencia }> = ({ existencia, necesita, estado = 'listo' }) => {
+  if (!existencia) {
+    if (estado === 'cargando') return <Text className="text-xs text-gray-400">Consultando existencia…</Text>;
+    return <Text className="text-xs text-warning-500">Sin lectura de existencia · revisa el almacén antes de aplicar</Text>;
+  }
   const faltaEnEnfermeria = necesita !== undefined && existencia.nursing < necesita;
   return (
     <Text className="text-xs">
@@ -91,5 +102,26 @@ export const HistorialDeAjustes: React.FC<{ ajustes?: AjusteDeOrden[] }> = ({ aj
         </Text>
       ))}
     </View>
+  );
+};
+
+/**
+ * Una línea para la orden CERRADA: si se puede aplicar entera con lo que hay
+ * en Enfermería, o cuántos renglones no alcanzan. Antes había que abrir cada
+ * orden para saberlo, y con seis en la bandeja nadie lo hacía.
+ */
+export const ResumenDeExistencia: React.FC<{
+  items: { variant_id: string; quantity: number }[];
+  existencias?: Record<string, ExistenciaPorArea>;
+  estado: EstadoDeExistencia;
+}> = ({ items, existencias, estado }) => {
+  if (estado === 'cargando') return <Text className="text-xs text-gray-400">Consultando existencia…</Text>;
+  if (estado === 'error' || !existencias) return <Text className="text-xs text-warning-500">Sin lectura de existencia</Text>;
+  const faltan = items.filter((i) => (existencias[i.variant_id]?.nursing ?? 0) < i.quantity).length;
+  if (faltan === 0) return <Text className="text-xs text-success-500">Todo en Enfermería</Text>;
+  return (
+    <Text className="text-xs text-error-500">
+      {faltan === 1 ? 'Falta 1 renglón en Enfermería' : `Faltan ${faltan} renglones en Enfermería`}
+    </Text>
   );
 };

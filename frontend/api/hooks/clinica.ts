@@ -42,11 +42,24 @@ export interface CuentaPendiente {
   medical_orders: { id: string; creator_name: string | null; dispensed_by_name: string | null; dispensed_at: string | null }[];
 }
 
-/** Órdenes pendientes de un destinatario: la bandeja de Enfermería o de Farmacia. */
+/**
+ * Órdenes pendientes de un destinatario: la bandeja de Enfermería o de Farmacia.
+ *
+ * ── SE ACTUALIZA SOLA ───────────────────────────────────────────────────────
+ * Sin esto, una orden emitida por el médico no aparecía hasta que alguien
+ * recargaba la página, y en consultorio nadie recarga: la orden "no llegó" y
+ * la culpa se la lleva el sistema. Cada 15 s mientras la pestaña está a la
+ * vista, y al volver a ella. El mismo intervalo que usa la caja para saber si
+ * otra persona la tiene abierta.
+ */
+export const INTERVALO_BANDEJA_MS = 15_000;
+
 export const useBandeja = (destinatario: Destinatario) => {
   const sdk = useMedusaSdk();
   return useQuery({
     queryKey: ['medical-orders', { status: 'pending', recipient_area: destinatario }],
+    refetchInterval: INTERVALO_BANDEJA_MS,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const r = await sdk.client.fetch<{ medical_orders: OrdenMedica[] }>('/admin/medical-orders', {
         query: { status: 'pending', recipient_area: destinatario },
