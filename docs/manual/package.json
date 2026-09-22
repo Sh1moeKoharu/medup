@@ -1,0 +1,21 @@
+{
+  "name": "altus-manual",
+  "private": true,
+  "description": "Guiones que recorren el punto de venta y capturan las pantallas del manual de uso.",
+  "type": "module",
+  "scripts": {
+    "caja": "node capturar-caja.mjs",
+    "html": "for %p in (caja medico enfermeria farmacia almacen rh auditoria administracion) do node generar-html.mjs %p",
+    "medico": "node capturar-medico.mjs",
+    "enfermeria": "node capturar-enfermeria.mjs",
+    "farmacia": "node capturar-farmacia.mjs",
+    "auditoria": "node capturar-auditoria.mjs",
+    "administracion": "node capturar-administracion.mjs",
+    "almacen": "node capturar-almacen.mjs",
+    "rh": "node capturar-rh.mjs"
+  },
+  "devDependencies": {
+    "marked": "^18.0.12",
+    "playwright": "^1.50.0"
+  }
+}
