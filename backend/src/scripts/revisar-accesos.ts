@@ -37,18 +37,22 @@ import { panelCerradoAOtrosRoles } from "../lib/require-role"
 /** Espejo de `INICIO_POR_ROL` en frontend/constants/acceso.ts. */
 const INTERFAZ_POS: Record<Role, string> = {
   [ROLES.ADMIN]: "Caja (y entra a todas las demás)",
-  [ROLES.CASHIER]: "Caja",
-  [ROLES.PHARMACY]: "Almacén (existencias, recetas, traspasos)",
+  [ROLES.CASHIER]: "Caja (abre su turno)",
+  // Farmacia y Almacén comparten grupo de pantallas, pero no hacen lo mismo:
+  // Farmacia surte recetas de mostrador, Almacén lleva lotes, compras y costos.
+  [ROLES.PHARMACY]: "Almacén · surte recetas (no mueve inventario)",
+  [ROLES.WAREHOUSE]: "Almacén · lotes, compras, requisiciones y costos",
   [ROLES.DOCTOR]: "Médico",
-  [ROLES.NURSE]: "Enfermería",
+  [ROLES.NURSE]: "Enfermería (bandeja de pendientes)",
   [ROLES.AUDITOR]: "Auditoría (sólo lectura)",
+  [ROLES.HR]: "RH y contabilidad (nómina y reportes, nada clínico)",
 }
 
 /**
  * Espejo de `ROLES_CAJA`. Los únicos que pueden cobrar.
  *
  * Farmacia salió de aquí en la fase 7: tiene su propia interfaz de almacén y ya
- * no abre turno de caja.
+ * no abre turno de caja. Almacén y RH nunca han cobrado.
  */
 const PUEDE_COBRAR: Role[] = [ROLES.ADMIN, ROLES.CASHIER]
 
