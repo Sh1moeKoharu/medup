@@ -38,6 +38,8 @@ export interface CuentaPendiente {
   currency_code: string;
   total: number;
   created_at: string;
+  customer_id: string | null;
+  customer_name: string | null;
   items: { id: string; title: string; quantity: number; unit_price: number; variant_id: string | null }[];
   medical_orders: { id: string; creator_name: string | null; dispensed_by_name: string | null; dispensed_at: string | null }[];
 }
@@ -157,6 +159,27 @@ export const useImprimirDocumento = () => {
     },
     onSuccess: (titulo) => Toast.show({ type: 'success', text1: 'Enviado a la impresora', text2: titulo }),
     onError: (error) => showErrorToast(error),
+  });
+};
+
+/**
+ * Lo que Caja tiene por cobrar, y quién está todavía en consulta.
+ *
+ * Se refresca sola cada 15 s, igual que la bandeja de Enfermería: en cuanto
+ * Enfermería aplica una orden, la cuenta aparece aquí sin que nadie recargue.
+ * `esperando` son los pacientes con órdenes que Enfermería aún no aplica: se
+ * enseñan en gris para que Caja no busque una cuenta que todavía no existe.
+ */
+export const usePorCobrar = () => {
+  const sdk = useMedusaSdk();
+  return useQuery({
+    queryKey: ['patient-bills', 'todas'],
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const r = await sdk.client.fetch<{ bills: CuentaPendiente[]; esperando: PacienteConPendientes[] }>('/admin/patient-bills');
+      return { cuentas: r.bills, esperando: r.esperando ?? [] };
+    },
   });
 };
 

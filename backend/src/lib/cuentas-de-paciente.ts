@@ -28,6 +28,8 @@ import {
 
 export type RenglonDeConsumo = { variant_id: string; quantity: number }
 
+export const CLAVE_CONSUMO_EN_CONSULTA = "altus_consumido_en_consulta"
+
 export type CuentaPendiente = {
   id: string
   display_id: number | null
@@ -35,10 +37,23 @@ export type CuentaPendiente = {
   currency_code: string
   total: number
   created_at: string
+  customer_id: string | null
+  customer_name: string | null
+  /** Tiene algo que Enfermería aplicó en consulta: es una cuenta de paciente, no un carrito de mostrador. */
+  de_consulta: boolean
   items: { id: string; title: string; quantity: number; unit_price: number; variant_id: string | null }[]
 }
 
 function aCuenta(o: any): CuentaPendiente {
+  const items = (o.items ?? []).map((i: any) => ({
+    id: i.id,
+    title: i.title,
+    quantity: Number(i.quantity) || 0,
+    unit_price: Number(i.unit_price) || 0,
+    variant_id: i.variant_id ?? null,
+    consumo: !!i.metadata?.[CLAVE_CONSUMO_EN_CONSULTA],
+  }))
+  const nombre = [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(" ").trim()
   return {
     id: o.id,
     display_id: o.display_id ?? null,
@@ -46,14 +61,41 @@ function aCuenta(o: any): CuentaPendiente {
     currency_code: o.currency_code,
     total: Number(o.total) || 0,
     created_at: o.created_at,
-    items: (o.items ?? []).map((i: any) => ({
-      id: i.id,
-      title: i.title,
-      quantity: Number(i.quantity) || 0,
-      unit_price: Number(i.unit_price) || 0,
-      variant_id: i.variant_id ?? null,
-    })),
+    customer_id: o.customer_id ?? o.customer?.id ?? null,
+    customer_name: nombre || null,
+    de_consulta: !!o.metadata?.altus_cuenta_de_paciente || items.some((i: any) => i.consumo),
+    items: items.map(({ consumo: _c, ...i }: any) => i),
   }
+}
+
+/**
+ * TODAS las cuentas de paciente abiertas, la que más espera primero.
+ *
+ * ── PARA QUÉ ────────────────────────────────────────────────────────────────
+ * Caja tenía que saber de antemano qué paciente tenía cuenta, entrar a
+ * Pacientes, buscarlo, abrir su ficha y ahí encontrar «Cobrar cuenta»: tres
+ * pasos para llegar a la acción principal de su puesto. Esto alimenta una
+ * lista «Por cobrar» en la propia pantalla de Caja, con el botón en la fila.
+ *
+ * Se distinguen de los carritos de mostrador —que también son pedidos en
+ * borrador— por la marca de la cuenta o de sus renglones: sólo lo que
+ * Enfermería aplicó es una cuenta de paciente.
+ */
+export async function cuentasPendientesTodas(container: MedusaContainer): Promise<CuentaPendiente[]> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "order",
+    fields: ["id"],
+    filters: { status: OrderStatus.DRAFT, is_draft_order: true } as any,
+    pagination: { take: 200, order: { created_at: "ASC" } },
+  })
+  const ids = (data ?? []).map((o: any) => o.id)
+  if (!ids.length) return []
+
+  const cuentas = await Promise.all(ids.map((id: string) => cuentaPorId(container, id)))
+  return cuentas
+    .filter((c): c is CuentaPendiente => !!c && c.de_consulta)
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
 }
 
 /**
@@ -106,6 +148,13 @@ export async function cuentaPorId(container: MedusaContainer, orderId: string): 
           "summary.*",
           "total",
           "created_at",
+          // Para la lista «Por cobrar» de Caja: de quién es y si es de consulta.
+          "customer_id",
+          "customer.id",
+          "customer.first_name",
+          "customer.last_name",
+          "metadata",
+          "items.metadata",
         ],
       },
     })
@@ -141,7 +190,6 @@ async function regionYCanal(container: MedusaContainer): Promise<{ region_id: st
  * cuenta algo de mostrador (un agua, un cubrebocas), y eso sí debe salir de
  * Farmacia al cobrar.
  */
-export const CLAVE_CONSUMO_EN_CONSULTA = "altus_consumido_en_consulta"
 const MARCA_CONSUMO = { [CLAVE_CONSUMO_EN_CONSULTA]: true }
 
 /**

@@ -459,6 +459,19 @@ const validarCobroDeCuenta = async (datos) => {
   seccion("D · CAJA COBRA LA CONSULTA")
   const ctx = await nuevoContexto()
   const page = await entrarPos(ctx, "caja")
+
+  // La lista «Por cobrar» en la propia Caja, con el botón en la fila, y en
+  // gris quien todavía está esperando a Enfermería (la orden de Jorge quedó
+  // sin aplicar en la sección C por faltantes).
+  check("Caja aterriza con la lista «Por cobrar» a la vista", await hay(page, "Por cobrar"))
+  const cobrarEnFila = page.getByLabel(/^Cobrar la cuenta de /).filter({ visible: true })
+  check("la cuenta que Enfermería aplicó sale en la lista con su botón Cobrar", (await cobrarEnFila.count()) > 0)
+  check("quien sigue en consulta sale en gris como «Esperando a Enfermería»", await hay(page, "Esperando a Enfermería"))
+  const cajaAbierta = await hay(page, "Abierta por")
+  if (!cajaAbierta) {
+    check("con la caja cerrada el botón está apagado y dice por qué", await hay(page, "Abre la caja para cobrar"))
+  }
+
   await pestana(page, "Pacientes", 3500)
   await escribir(page, "Buscar pacientes por nombre o teléfono...", "María")
   await page.waitForTimeout(2500)

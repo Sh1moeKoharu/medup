@@ -64,7 +64,16 @@ Administración.
 
 ### 3.2 Aterrizas en la Caja
 
-Al entrar, el sistema te lleva directo a la pestaña **Caja**. En la clínica hay **una sola caja**: si
+Al entrar, el sistema te lleva directo a la pestaña **Caja**. Lo primero que verás ahí es la lista
+**Por cobrar**: cada paciente al que Enfermería ya aplicó su consulta, con el importe y un botón
+**Cobrar** en la misma fila. Debajo, en gris, quien está todavía en consulta aparece como
+**Esperando a Enfermería**: el médico ya emitió la orden, pero hasta que Enfermería la aplique no
+hay cuenta que cobrar — no la armes a mano desde el mostrador. La lista se actualiza sola.
+
+Con la caja cerrada la lista se ve igual, pero **Cobrar** está apagado y dice por qué: abre la
+caja primero.
+
+ En la clínica hay **una sola caja**: si
 otra persona dejó la suya abierta, lo verás en el aviso amarillo, con su nombre y la hora a la que
 la abrió, y **Abrir caja** estará apagado. Pide que la cierren con su corte; la pantalla se
 actualiza sola en cuanto la cierran.
@@ -267,6 +276,8 @@ Al confirmar, vuelves a la pantalla de entrada.
 | «Cuenta bloqueada» | Administración bloqueó tu cuenta | Habla con Administración; tu clave sigue siendo la misma |
 | Faltante o sobrante en el corte | El efectivo contado no coincide con el esperado | Recuenta; si persiste, anótalo en observaciones y cierra: queda registrado |
 | El ticket no sale | La impresora predeterminada del equipo no es la térmica | Ajustes → Impresión, sigue los pasos; prueba con «Imprimir ticket de prueba» |
+| Un paciente sale en gris como «Esperando a Enfermería» | El médico ya emitió, Enfermería aún no aplica | Espera; en cuanto apliquen, pasa a **Por cobrar** con su botón. No lo cobres desde el mostrador |
+| **Cobrar** apagado con «Abre la caja para cobrar» | No hay turno abierto a tu nombre | Fondo → Abrir caja; la lista se conserva |
 
 ---
 

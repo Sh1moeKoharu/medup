@@ -14,6 +14,7 @@ import { Check } from '@/components/icons/check';
 import { Plus } from '@/components/icons/plus';
 import { Minus } from '@/components/icons/minus';
 import { InfoBanner } from '@/components/InfoBanner';
+import { PorCobrar } from '@/components/caja/PorCobrar';
 import { formatearDinero } from '@/utils/dinero';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -203,7 +204,12 @@ const OpenSessionView: React.FC = () => {
 
   return (
     <Layout>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="flex-grow">
       <Text className="mt-8 mb-6 text-4xl">Caja</Text>
+
+      {/* Lo que hay por cobrar se ve aunque la caja esté cerrada: es lo
+          primero que hay que saber al llegar, y la razón para abrirla. */}
+      <PorCobrar puedeCobrar={false} soloSiHay />
 
       <View className="flex-1 items-center justify-center gap-4">
         <View className="h-20 w-20 items-center justify-center rounded-full bg-gray-50">
@@ -262,6 +268,7 @@ const OpenSessionView: React.FC = () => {
 
         <CortesAnteriores />
       </View>
+      </ScrollView>
     </Layout>
   );
 };
@@ -319,6 +326,9 @@ const ActiveSessionView: React.FC<{ sessionId: string }> = ({ sessionId }) => {
               Abierta por {session.cashier_name} · {formatDateTime(session.opened_at)}
             </Text>
           </View>
+
+          {/* La acción principal del puesto, en la misma fila que la cuenta. */}
+          <PorCobrar puedeCobrar />
 
           {/* ── Resumen Principal ── */}
           <View className="mb-4 flex-row gap-2">
