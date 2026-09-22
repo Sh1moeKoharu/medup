@@ -18,6 +18,7 @@
     "seed:patients": "medusa exec ./src/scripts/seed-customers.ts",
     "start": "medusa start",
     "dev": "medusa develop",
+    "dev:local": "cross-env REDIS_URL= medusa develop",
     "test:integration:http": "cross-env TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "cross-env TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:unit": "cross-env TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
