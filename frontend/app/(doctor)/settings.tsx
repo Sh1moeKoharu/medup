@@ -1,5 +1,6 @@
 import { useAbrirTurnoMedico, useCerrarTurnoMedico, useMiTurnoMedico } from '@/api/hooks/honorarios';
 import { Antenna } from '@/components/icons/antenna';
+import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
 import { Button } from '@/components/ui/Button';
 import { LayoutWithScroll } from '@/components/ui/Layout';
 import { Prompt } from '@/components/ui/Prompt';
@@ -27,7 +28,8 @@ export default function DoctorSettingsScreen() {
   return (
     <>
       <LayoutWithScroll>
-        <Text className="mt-8 mb-6 text-4xl">Ajustes</Text>
+        <Text className="mt-8 mb-2 text-4xl">Ajustes</Text>
+        <EncabezadoDeReceta compacto />
         <Text className="mb-4 text-2xl">Mi turno</Text>
         {turno.data ? (
           <>

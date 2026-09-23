@@ -20,10 +20,32 @@ const Logo: React.FC<{ url?: string | null; etiqueta: string }> = ({ url, etique
     <Image source={{ uri: url }} accessibilityLabel={etiqueta} resizeMode="contain" className="h-12 w-20" />
   ) : null;
 
-export const EncabezadoDeReceta: React.FC<{ className?: string }> = ({ className }) => {
+/**
+ * `compacto`: una sola línea —nombre · especialidad · cédulas— para las
+ * pestañas que no son la receta. El tester pidió ver quién está firmando en
+ * TODA la sesión, no sólo en el catálogo; el encabezado completo, con logos y
+ * clínica, ocuparía media pantalla en Pacientes o Ajustes.
+ */
+export const EncabezadoDeReceta: React.FC<{ className?: string; compacto?: boolean }> = ({ className, compacto = false }) => {
   const miPerfil = useMiPerfil();
   const datos = miPerfil.data;
   if (!datos) return null;
+
+  if (compacto) {
+    const p = datos.perfil_profesional ?? {};
+    const partes = [
+      datos.nombre,
+      p.especialidad || datos.rol_etiqueta,
+      p.cedula_profesional ? `Céd. prof. ${p.cedula_profesional}` : null,
+      p.cedula_especialidad ? `Céd. esp. ${p.cedula_especialidad}` : null,
+    ].filter(Boolean);
+    return (
+      <View className={clx('mb-4 flex-row flex-wrap items-center gap-x-2', className)}>
+        <Text className="text-sm text-gray-500">{partes.join(' · ')}</Text>
+        {!datos.perfil_completo && <Text className="text-sm text-warning-500">· falta la cédula o la universidad: pídelas a Administración</Text>}
+      </View>
+    );
+  }
 
   const p = datos.perfil_profesional ?? {};
   const clinica = datos.clinica;

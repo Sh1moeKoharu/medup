@@ -88,6 +88,8 @@ await page.locator("input").nth(0).fill(USUARIO)
 await page.locator("input").nth(1).fill(CLAVE)
 await paso("inicio-de-sesion")
 await clic("Entrar", 5000)
+// Aterriza en Pacientes; el catálogo es la segunda pestaña.
+await clic("Productos", 2500)
 await paso("catalogo-y-receta", 1500)
 
 // ── 2. Abrir el turno médico ────────────────────────────────────────────────
@@ -142,10 +144,10 @@ await paso("elegir-paciente")
 await page.getByText(/^Asignar a /).first().click()
 await page.waitForTimeout(2500)
 await paso("receta-lista-para-emitir")
-await page.getByText(/^Emitir receta/).first().click()
+await page.getByText(/^Ver y emitir/).first().click()
 await page.waitForTimeout(1200)
 await paso("confirmar-emision")
-await clic("Emitir", 4500)
+await clic("Enviar a Enfermería", 4500)
 await paso("orden-enviada-a-enfermeria")
 
 // ── 5. La receta impresa, en media carta ────────────────────────────────────

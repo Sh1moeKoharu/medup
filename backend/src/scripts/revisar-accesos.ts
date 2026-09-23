@@ -42,7 +42,7 @@ const INTERFAZ_POS: Record<Role, string> = {
   // Farmacia surte recetas de mostrador, Almacén lleva lotes, compras y costos.
   [ROLES.PHARMACY]: "Almacén · surte recetas (no mueve inventario)",
   [ROLES.WAREHOUSE]: "Almacén · lotes, compras, requisiciones y costos",
-  [ROLES.DOCTOR]: "Médico",
+  [ROLES.DOCTOR]: "Médico (entra a sus pacientes)",
   [ROLES.NURSE]: "Enfermería (bandeja de pendientes)",
   [ROLES.AUDITOR]: "Auditoría (sólo lectura)",
   [ROLES.HR]: "RH y contabilidad (nómina y reportes, nada clínico)",

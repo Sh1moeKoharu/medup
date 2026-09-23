@@ -10,6 +10,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "web:local": "node --max-old-space-size=4096 node_modules/expo/bin/cli start --web",
+    "serve:local": "node scripts/servir-pos.mjs dist 8081 http://localhost:9000",
     "build:web": "node scripts/sellar-version.js && expo export --platform web --output-dir dist",
     "postinstall": "node scripts/sellar-version.js",
     "lint": "expo lint",

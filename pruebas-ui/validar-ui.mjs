@@ -287,6 +287,13 @@ const validarMedico = async (datos) => {
   const ctx = await nuevoContexto()
   const page = await entrarPos(ctx, "medico")
 
+  // El médico entra a sus pacientes, con quien firma a la vista y el alta a mano.
+  check("el médico aterriza en Pacientes, no en el catálogo", await hay(page, "Buscar paciente por nombre..."))
+  check("quién firma se ve también fuera del catálogo (cédula en Pacientes)", await hay(page, "Céd. prof. 12345678"))
+  check("puede dar de alta un paciente desde su propia vista", (await page.getByText("Nuevo paciente", { exact: true }).filter({ visible: true }).count()) > 0)
+  check("y desde la ficha se arranca la receta con el paciente puesto", (await page.getByLabel(/^Nueva receta para /).count()) >= 0)
+
+  await pestana(page, "Productos", 3000)
   check("el encabezado de la receta trae la cédula (punto 13)", await hay(page, "Céd. prof. 12345678"))
   check("y la universidad", await hay(page, "Universidad Nacional Autónoma de México"))
 
@@ -311,9 +318,9 @@ const validarMedico = async (datos) => {
   await page.waitForTimeout(1000)
 
   // Sin indicaciones ni paciente no se emite: se comprueba pulsando.
-  await page.getByText(/^Emitir receta/).first().click({ force: true })
+  await page.getByText(/^Ver y emitir/).first().click({ force: true })
   await page.waitForTimeout(1200)
-  check("sin indicaciones no deja emitir (punto 8)", (await page.getByText("¿Emitir esta receta?", { exact: true }).count()) === 0)
+  check("sin indicaciones no deja emitir (punto 8)", (await page.getByText("Vista previa de la receta", { exact: true }).count()) === 0)
 
   await escribir(page, "Indicaciones (obligatorias): p. ej. 1 tableta cada 8 h por 5 días", "1 tableta cada 8 h por 5 días")
   await escribir(page, "Lo que Enfermería debe saber al aplicar: alergias, vía, cuidados…", "Sin alergias conocidas. Vía oral con agua.")
@@ -328,9 +335,10 @@ const validarMedico = async (datos) => {
   await page.waitForTimeout(1200)
   await page.getByText(/^Asignar a /).first().click({ force: true })
   await page.waitForTimeout(2500)
-  await page.getByText(/^Emitir receta/).first().click({ force: true })
-  await page.waitForTimeout(1200)
-  await clic(page, "Emitir", 5000)
+  await page.getByText(/^Ver y emitir/).first().click({ force: true })
+  await page.waitForTimeout(1500)
+  check("antes de enviar se ve la receta tal como saldrá, con la cédula y el paciente", (await hay(page, "Vista previa de la receta")) && (await hay(page, "Céd. prof. 12345678")) && (await hay(page, "Prescripción")))
+  await clic(page, "Enviar a Enfermería", 5000)
   check("con todo completo, la receta se emite a Enfermería (punto 7)", await hay(page, "Orden enviada a Enfermería"))
   check("y la nota de atención queda guardada (puntos 10 y 11)", await hay(page, "Nota de atención guardada"))
 

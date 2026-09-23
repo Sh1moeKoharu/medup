@@ -6,6 +6,10 @@ import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
 import { useNotasDeAtencion } from '@/api/hooks/clinica';
 import { useOrdenesMedicas } from '@/api/hooks/medical-orders';
 import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
+import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
+import { Button } from '@/components/ui/Button';
+import { useReceta } from '@/contexts/receta';
+import { router } from 'expo-router';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
@@ -83,7 +87,7 @@ const HistorialClinico = ({ customerId }: { customerId: string }) => {
     );
 };
 
-const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWithMedical; onClose: () => void; onEdit: () => void }) => {
+const CustomerDetails = ({ customer, onClose, onEdit, onNuevaReceta }: { customer: CustomerWithMedical; onClose: () => void; onEdit: () => void; onNuevaReceta: () => void }) => {
 
     return (
         <SafeAreaView className="flex-1 bg-canvas">
@@ -92,6 +96,11 @@ const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWith
                 <View className="mb-6 flex-row items-center justify-between">
                     <Text className="text-4xl text-black">Perfil del paciente</Text>
                     <View className="flex-row items-center gap-2">
+                        {/* La consulta empieza aquí: el paciente ya queda en la
+                            receta y se pasa al catálogo a armarla. */}
+                        <TouchableOpacity onPress={onNuevaReceta} className="rounded-full bg-black px-4 py-2" accessibilityLabel={`Nueva receta para ${[customer.first_name, customer.last_name].filter(Boolean).join(' ')}`}>
+                            <Text className="font-semibold text-white">Nueva receta</Text>
+                        </TouchableOpacity>
                         {/* Quien atiende corrige datos del paciente en consulta: un
                             teléfono, un apellido. Es el mismo formulario que usa Caja. */}
                         <TouchableOpacity onPress={onEdit} className="rounded-full bg-info-200 px-4 py-2">
@@ -153,6 +162,16 @@ export default function DoctorCRMScreen() {
   const busqueda = useDebouncedValue(searchQuery);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithMedical | null>(null);
     const [editando, setEditando] = useState(false);
+    // El alta vivía sólo dentro de «Seleccionar paciente» de la receta; quien
+    // buscaba en esta pestaña no la encontraba. Ahora está donde se busca.
+    const [creando, setCreando] = useState(false);
+    const receta = useReceta();
+
+    const nuevaRecetaPara = (c: CustomerWithMedical) => {
+        receta.asignarPaciente(c);
+        setSelectedCustomer(null);
+        router.push('/(doctor)/products');
+    };
     const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
 
     const customersQuery = useCustomers({
@@ -222,7 +241,13 @@ export default function DoctorCRMScreen() {
 
     return (
         <Layout>
-            <Text className="mt-8 mb-6 text-4xl">Pacientes</Text>
+            <View className="mt-8 mb-2 flex-row items-center justify-between">
+                <Text className="text-4xl">Pacientes</Text>
+                <Button variant="outline" onPress={() => setCreando(true)}>
+                    Nuevo paciente
+                </Button>
+            </View>
+            <EncabezadoDeReceta compacto />
 
             <SearchInput
                 value={searchQuery}
@@ -250,9 +275,25 @@ export default function DoctorCRMScreen() {
 
             <Modal visible={!!selectedCustomer} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setSelectedCustomer(null)}>
                 {selectedCustomer && (
-                    <CustomerDetails customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} onEdit={() => setEditando(true)} />
+                    <CustomerDetails
+                        customer={selectedCustomer}
+                        onClose={() => setSelectedCustomer(null)}
+                        onEdit={() => setEditando(true)}
+                        onNuevaReceta={() => nuevaRecetaPara(selectedCustomer)}
+                    />
                 )}
             </Modal>
+
+            {/* Se monta sólo mientras está abierto, para que arranque vacío. Al
+                guardar, el paciente nuevo se abre de inmediato: lo normal es que
+                la consulta siga con él. */}
+            {creando && (
+                <FormularioPaciente
+                    visible={creando}
+                    onClose={() => setCreando(false)}
+                    onSaved={(nuevo) => setSelectedCustomer({ ...nuevo, medical_customer: null })}
+                />
+            )}
 
             {editando && selectedCustomer && (
                 <FormularioPaciente

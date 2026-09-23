@@ -41,8 +41,8 @@ catálogo. Arriba, la barra de sesión: quién está trabajando, **Pausar** y **
 
 | Pestaña | Para qué sirve |
 |---|---|
+| **Pacientes** | Donde entras. Los que tienen orden pendiente, arriba. Buscar, dar de alta, abrir el **historial** y empezar la receta |
 | **Productos** | Tu encabezado de receta y el catálogo con existencias. Con «+» se añade a la receta |
-| **Pacientes** | El directorio. Buscar, abrir el **historial** y corregir datos |
 | **Mis recetas** | Lo que has emitido, con su estado y los ajustes que hizo Enfermería |
 | **Ajustes** | **Mi turno**, y los datos del equipo |
 
@@ -59,10 +59,14 @@ Escribe tu **usuario** (`medico`, o el que te dieron, sin arroba) y tu contrase�
 
 ### 3.2 Tu encabezado y el catálogo
 
-Arriba del catálogo está **tu encabezado de receta**, el mismo que sale impreso: la clínica y su
-logo, tu nombre, especialidad, **cédula profesional**, universidad y teléfono del consultorio. Son
-los datos que Administración capturó al darte de alta; si falta alguno, el encabezado lo avisa y hay
-que pedírselo a Administración.
+Al entrar aterrizas en **Pacientes**: quien tiene una orden pendiente aparece arriba. En todas las
+pestañas, bajo el título, va una línea con **quién firma**: tu nombre, especialidad y cédulas. Si
+falta la cédula o la universidad, esa línea lo dice.
+
+En **Productos**, arriba del catálogo, está **tu encabezado de receta** completo, el mismo que sale
+impreso: la clínica y su logo, tu nombre, especialidad, **cédula profesional**, universidad y
+teléfono del consultorio. Son los datos que Administración capturó al darte de alta; si falta
+alguno, el encabezado lo avisa y hay que pedírselo a Administración.
 
 Cada medicamento dice cuánto hay: **Enf. 73 · Farm. 35** es lo disponible en el almacén de
 Enfermería y en el de Farmacia (sin lotes caducados ni en cuarentena). La receta empieza vacía a la
@@ -86,7 +90,8 @@ al terminar la jornada, no entre pacientes.
 
 En **Pacientes** se busca por nombre, y cada tarjeta lleva a **Historial**. Cuando hay pacientes con
 una **receta pendiente**, aparecen arriba en su propia sección, con cuántas tienen; en la captura no
-había ninguna.
+había ninguna. Si el paciente no existe, **Nuevo paciente** —arriba a la derecha— lo da de alta con
+nombre, apellidos y teléfono, y abre su ficha de inmediato.
 
 ![Directorio de pacientes con el botón Historial en cada tarjeta](img/medico/05-pacientes.png)
 
@@ -95,8 +100,9 @@ atención** anteriores y las **recetas anteriores** con su estado.
 
 ![Perfil de María Ramírez con sus notas de atención anteriores](img/medico/06-ficha-de-paciente.png)
 
-**Editar** abre el formulario para corregir un teléfono o un apellido. Se guarda con «Guardar
-Cambios» o se cierra con la ✕ sin tocar nada.
+**Nueva receta** deja al paciente puesto en la receta y te lleva al catálogo a armarla: no hace
+falta volver a buscarlo. **Editar** abre el formulario para corregir un teléfono o un apellido. Se
+guarda con «Guardar Cambios» o se cierra con la ✕ sin tocar nada.
 
 ![Formulario de edición del paciente](img/medico/07-editar-paciente.png)
 
@@ -146,13 +152,15 @@ ahí mismo. Toca su nombre y confirma con **Asignar a …**.
 
 ![Búsqueda de paciente con María Ramírez elegida y el botón Asignar](img/medico/12-elegir-paciente.png)
 
-Con paciente, medicamentos con indicaciones y la nota completa, **Emitir receta (1)** se enciende. El
+Con paciente, medicamentos con indicaciones y la nota completa, **Ver y emitir (1)** se enciende. El
 número es cuántas unidades lleva.
 
 ![Receta completa lista para emitir](img/medico/13-receta-lista-para-emitir.png)
 
-Al pulsarlo, el sistema confirma que irá a la Bandeja de Enfermería y que el consumo pasará a la
-cuenta del paciente para que Caja lo cobre.
+Al pulsarlo aparece la **vista previa**: la receta tal como va a salir, con tu encabezado y cédula,
+el paciente, la fecha y cada medicamento con su indicación. Revísala; si algo está mal, **Corregir**
+vuelve sin perder nada. **Enviar a Enfermería** la manda a su Bandeja; el consumo pasará a la cuenta
+del paciente para que Caja lo cobre.
 
 ![Confirmación de emisión hacia la Bandeja de Enfermería](img/medico/14-confirmar-emision.png)
 
@@ -218,7 +226,8 @@ pide **Confirmar salida** y vacía la receta que tuvieras a medias.
 | «Sin existencia» en un producto | No hay en Enfermería ni en Farmacia | Receta otro, o avisa a Almacén para que surta |
 | El + de la cantidad no sube | Llegaste a lo que hay entre los dos almacenes | Receta lo disponible o un sustituto |
 | El encabezado dice que faltan datos | Administración no capturó tu cédula o universidad | Pídeselo a Administración |
-| No encuentras al paciente | No está dado de alta | «Nuevo paciente» en la misma búsqueda |
+| No encuentras al paciente | No está dado de alta | «Nuevo paciente», en Pacientes o en la misma búsqueda de la receta |
+| Viste un error en la vista previa | Todavía no se ha enviado nada | **Corregir**, arregla el renglón y vuelve a **Ver y emitir** |
 | «Pendiente en Enfermería» lleva mucho | Enfermería aún no la aplicó | Avisa a Enfermería; si ya no procede, cancélala |
 | Olvidaste abrir el turno | Tus horas no cuentan para la nómina | Ábrelo en cuanto lo notes |
 

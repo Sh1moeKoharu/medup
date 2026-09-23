@@ -37,7 +37,10 @@ export const INICIO_POR_ROL: Record<Role, string> = {
   // Farmacia ya no comparte la interfaz de Caja: lleva el almacén, surte las
   // recetas de mostrador y los traspasos a Enfermería. No cobra ni ve el corte.
   [ROLES.PHARMACY]: '/(almacen)/existencias',
-  [ROLES.DOCTOR]: '/(doctor)/products',
+  // El médico entra a sus pacientes, con los que tienen orden pendiente
+  // arriba: es su trabajo del día. El catálogo es "una tienda" hasta que hay
+  // un paciente elegido; desde la ficha, «Nueva receta» lleva a él.
+  [ROLES.DOCTOR]: '/(doctor)/crm',
   // Enfermería entra a su bandeja: lo pendiente de aplicar es su trabajo del día.
   [ROLES.NURSE]: '/(nurse)/bandeja',
   // Auditoría / Dirección es de SOLO LECTURA: no cobra, no dispensa y no

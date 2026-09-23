@@ -1,4 +1,5 @@
 import { HistorialDeAjustes } from '@/components/clinica/Ajustes';
+import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
 import { EstadoOrdenMedica, OrdenMedica, useCancelarOrdenMedica, useOrdenesMedicas } from '@/api/hooks/medical-orders';
 import { ClipboardList } from '@/components/icons/clipboard-list';
 import { InfoBanner } from '@/components/InfoBanner';
@@ -110,7 +111,8 @@ export function ListaRecetas() {
   return (
     <>
       <Layout className="pb-6">
-        <Text className="mt-8 mb-6 text-4xl">Mis recetas</Text>
+        <Text className="mt-8 mb-2 text-4xl">Mis recetas</Text>
+        <EncabezadoDeReceta compacto />
 
         {ordenes.isError ? (
           <View className="flex-1 items-center justify-center gap-2">

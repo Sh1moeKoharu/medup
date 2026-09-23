@@ -11,7 +11,8 @@ import { InfoBanner } from '@/components/InfoBanner';
 import { CartSkeleton } from '@/components/skeletons/CartSkeleton';
 import { Button } from '@/components/ui/Button';
 import { Layout } from '@/components/ui/Layout';
-import { Prompt } from '@/components/ui/Prompt';
+import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
+import { VistaPreviaDeReceta } from '@/components/receta/VistaPreviaDeReceta';
 import { QuantityPicker } from '@/components/ui/QuantityPicker';
 import { Text } from '@/components/ui/Text';
 import { RenglonReceta, useReceta } from '@/contexts/receta';
@@ -307,6 +308,7 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
     return (
       <Layout className={`pb-6 ${paddingSidebar}`}>
         <Text className="mt-8 mb-6 text-4xl">Receta</Text>
+        {!isSidebar && <EncabezadoDeReceta compacto />}
         <PacienteBadge />
         <View className="flex-1 items-center justify-center gap-1">
           <ClipboardList size={24} />
@@ -323,6 +325,9 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
     <>
       <Layout className={`flex-1 pb-6 ${paddingSidebar}`}>
         <Text className="mt-8 mb-6 text-4xl">Receta</Text>
+        {/* En pantalla ancha la receta va junto al catálogo, que ya lleva el
+            encabezado completo; en la pestaña propia, la línea compacta. */}
+        {!isSidebar && <EncabezadoDeReceta compacto />}
         <PacienteBadge />
 
         <FlashList
@@ -409,26 +414,24 @@ export function PantallaReceta({ isSidebar }: { isSidebar?: boolean }) {
               isPending={crear.isPending}
               onPress={() => setConfirmando(true)}
             >
-              Emitir receta ({receta.totalUnidades})
+              Ver y emitir ({receta.totalUnidades})
             </Button>
           </View>
         </View>
       </Layout>
 
-      <Prompt
-        onSubmit={emitir}
-        onClose={() => setConfirmando(false)}
-        title="¿Emitir esta receta?"
-        description={
-          aEnfermeria
-            ? `Se enviará a la Bandeja de Enfermería a nombre de ${receta.paciente ? nombreDe(receta.paciente) : 'el paciente'}. Enfermería la aplicará en consulta y el consumo pasará a la cuenta del paciente para que Caja lo cobre.`
-            : `Se enviará a la Bandeja de Farmacia a nombre de ${receta.paciente ? nombreDe(receta.paciente) : 'el paciente'}. Farmacia la surtirá y descontará el inventario al entregar. Una vez emitida sólo puede cancelarse, no editarse.`
-        }
-        submitText="Emitir"
-        cancelText="Revisar"
+      {/* Antes de enviar se ve la receta tal como saldrá, con el encabezado
+          y la cédula: corregir aquí no cuesta nada; ya emitida, sólo se
+          cancela. */}
+      <VistaPreviaDeReceta
         visible={confirmando}
-        showCloseButton={true}
-        dismissOnOverlayPress={true}
+        paciente={receta.paciente ? nombreDe(receta.paciente) : 'el paciente'}
+        renglones={receta.renglones}
+        notas={receta.notas}
+        aEnfermeria={aEnfermeria}
+        enviando={crear.isPending}
+        onEnviar={emitir}
+        onCorregir={() => setConfirmando(false)}
       />
     </>
   );
