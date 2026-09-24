@@ -1,0 +1,17 @@
+﻿Usuario,Nº empleado,Perfil,Entra a,Qué hace,Contraseña de prueba
+admin,0001,Administrador General,Panel de administración (/app),"Personal y roles, datos de la clínica, honorarios y nómina, reportes, almacenes, alta de productos, bitácora",Sigh#Test2026
+caja,0003,Caja / Recepción,Punto de venta · pestaña Caja,"Abre y cierra su turno, cobra en mostrador, cobra la consulta, da de alta pacientes, corte de caja",Sigh#Test2026
+medico,0004,Médico,Punto de venta · pestaña Pacientes,"Entra a sus pacientes y da de alta; emite recetas (siempre a Enfermería) con indicaciones obligatorias, las ve antes de enviarlas, nota de atención con fecha, imprime en media carta",Sigh#Test2026
+enfermeria,0005,Enfermería,Punto de venta · pestaña Bandeja,"Aplica las órdenes del médico, ve existencias por almacén, pide faltantes a Farmacia, ajusta con motivo, su almacén",Sigh#Test2026
+farmacia,0002,Farmacia,Punto de venta · pestaña Existencias,Surte las recetas de mostrador y consulta existencias. No mueve inventario ni ve costos,Sigh#Test2026
+almacen,0007,Almacén,Punto de venta · pestaña Existencias,"Lotes y compras, surte requisiciones, mínimos y máximos, conteos, bajas, costos y reportes de inventario",Sigh#Test2026
+auditoria,0006,Auditor / Dirección,Punto de venta · pestaña Bitácora,"Sólo lectura: bitácora, reportes, kardex, caducidades y cortes de caja",Sigh#Test2026
+rrhh,0008,RH y contabilidad,Punto de venta · pestaña Reportes,"Actividad del personal, nómina y pagos con recibo, cortes de caja. Nada clínico",Sigh#Test2026
+
+"El usuario se escribe SIN arroba: «caja», no «caja@sigh.local»."
+"La contraseña Sigh#Test2026 es PÚBLICA: está en el código, en los manuales y en las pruebas. Sirve para probar y para enseñar el sistema, nunca para operar la clínica."
+"En el servidor de la clínica, cada cuenta lleva su propia contraseña, puesta por Administración al crearla. Nadie puede leerla después, ni Administración: si alguien la olvida, se reemplaza (Personal → Contraseña), no se recupera."
+"Las cuentas reales se crean en el panel: Personal → Alta de personal (usuario, contraseña, nombre, número de empleado y rol)."
+"El número de empleado es único y no se reutiliza: identifica a la persona en la bitácora, en el corte de caja y en la nómina."
+Cada persona tiene UN rol. Si cambia de puesto se le edita el rol; no se le crea una segunda cuenta.
+Sólo Administración entra al panel. Los demás perfiles trabajan en el punto de venta.
