@@ -1,4 +1,4 @@
-import { componerContenido, fechaDeAtencion, filtroDeLectura, puedeLeerNota, revisarNota } from "../notas-clinicas"
+import { componerContenido, fechaDeAtencion, filtroDeLectura, puedeCorregirNota, puedeLeerNota, revisarNota, revisionDe } from "../notas-clinicas"
 import { normalizarPerfil, perfilCompleto, revisarPerfil } from "../perfil-profesional"
 import { revisarRenglonesDeReceta } from "../receta"
 import { ROLES } from "../roles"
@@ -78,5 +78,34 @@ describe("nota de atención", () => {
     expect(puedeLeerNota(ROLES.CASHIER, { author_role: "doctor" })).toBe(false)
     expect(filtroDeLectura(ROLES.NURSE)).toEqual({ author_role: "nurse" })
     expect(filtroDeLectura(ROLES.DOCTOR)).toEqual({})
+  })
+})
+
+describe("corregir la nota sin borrar", () => {
+  const nota = { author_id: "user_medico", content: "Revisión: faringe\n\nLo que se hizo: antipirético", findings: "faringe", procedures: "antipirético", attended_at: "2026-09-20T18:00:00.000Z", created_at: "2026-09-20T18:05:00.000Z", author_name: "Médico Pruebas" }
+
+  it("la corrige quien la escribió, o Administración; nadie más", () => {
+    expect(puedeCorregirNota({ id: "user_medico", role: ROLES.DOCTOR }, nota)).toBe(true)
+    expect(puedeCorregirNota({ id: "user_admin", role: ROLES.ADMIN }, nota)).toBe(true)
+    expect(puedeCorregirNota({ id: "user_otro", role: ROLES.DOCTOR }, nota)).toBe(false)
+    expect(puedeCorregirNota({ id: "user_enf", role: ROLES.NURSE }, nota)).toBe(false)
+    expect(puedeCorregirNota(null, nota)).toBe(false)
+  })
+
+  it("la versión anterior conserva texto, partes, fecha y quién la escribió", () => {
+    expect(revisionDe(nota)).toEqual({
+      content: nota.content,
+      findings: "faringe",
+      procedures: "antipirético",
+      attended_at: "2026-09-20T18:00:00.000Z",
+      written_at: "2026-09-20T18:05:00.000Z",
+      written_by: "Médico Pruebas",
+    })
+  })
+
+  it("si ya había sido corregida, la versión que se guarda es la de esa corrección", () => {
+    const r = revisionDe({ ...nota, edited_at: "2026-09-21T09:00:00.000Z", edited_by_name: "Administrador" })
+    expect(r.written_at).toBe("2026-09-21T09:00:00.000Z")
+    expect(r.written_by).toBe("Administrador")
   })
 })

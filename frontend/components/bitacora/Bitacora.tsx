@@ -72,6 +72,7 @@ export function describir(asiento: AsientoBitacora): string {
     [/^\/admin\/receipt-config/, 'Cambió la configuración del ticket'],
     [/^\/admin\/b2b-agreements/, 'Modificó un convenio'],
     [/^\/admin\/medical-customers/, 'Consultó un expediente clínico'],
+    [/^\/admin\/clinical-notes\/[^/]+$/, method === 'GET' ? 'Consultó una nota de atención' : 'Corrigió una nota de atención'],
     [/^\/admin\/clinical-notes/, method === 'GET' ? 'Consultó notas de atención' : 'Escribió una nota de atención'],
     [/^\/admin\/documents\/nota/, 'Imprimió una nota de atención'],
     [/^\/admin\/requisitions\/[^/]+\/dispatch$/, 'Surtió una requisición'],

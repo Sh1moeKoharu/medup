@@ -1,4 +1,5 @@
 import { useEscribirNota, useImprimirDocumento, useNotasDeAtencion } from '@/api/hooks/clinica';
+import { TarjetaDeNota } from '@/components/clinica/TarjetaDeNota';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
 import { color } from '@/theme/tokens';
@@ -49,20 +50,7 @@ export const NotaDeAtencion: React.FC<{
       </View>
 
       {lista.map((n) => (
-        <View key={n.id} className="gap-1 rounded-xl bg-gray-50 p-3">
-          <Text className="text-xs text-gray-400">
-            {n.author_name ?? 'Sin autor'} · {new Date(n.created_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-          </Text>
-          <Text>{n.content}</Text>
-          <Button
-            variant="outline"
-            className="mt-1 self-start px-4 py-2"
-            onPress={() => imprimir.mutate({ tipo: 'nota', id: n.id })}
-            isPending={imprimir.isPending}
-          >
-            Imprimir
-          </Button>
-        </View>
+        <TarjetaDeNota key={n.id} nota={n} conImprimir />
       ))}
 
       <TextInput

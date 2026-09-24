@@ -60,6 +60,7 @@ function reglas(method: string): Regla[] {
     [/^\/admin\/receipt-config/, "Cambió la configuración del ticket", "otra"],
     [/^\/admin\/b2b-agreements/, "Modificó un convenio", "otra"],
     [/^\/admin\/medical-customers/, "Actualizó un expediente clínico", "paciente"],
+    [/^\/admin\/clinical-notes\/[^/]+$/, "Corrigió una nota de atención", "nota"],
     [/^\/admin\/clinical-notes/, "Escribió una nota de atención", "nota"],
     [/^\/admin\/requisitions\/[^/]+\/dispatch$/, "Surtió una requisición", "requisicion"],
     [/^\/admin\/requisitions\/[^/]+\/receive$/, "Recibió una requisición", "requisicion"],

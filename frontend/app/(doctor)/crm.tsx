@@ -4,6 +4,7 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers, useMedicalCustomers } from '@/api/hooks/customers';
 import { useNotasDeAtencion } from '@/api/hooks/clinica';
+import { TarjetaDeNota } from '@/components/clinica/TarjetaDeNota';
 import { useOrdenesMedicas } from '@/api/hooks/medical-orders';
 import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
 import { EncabezadoDeReceta } from '@/components/receta/EncabezadoDeReceta';
@@ -52,10 +53,7 @@ const HistorialClinico = ({ customerId }: { customerId: string }) => {
             ) : (
                 <View className="mb-6 gap-2">
                     {listaNotas.slice(0, 10).map((n) => (
-                        <View key={n.id} className="rounded-2xl border border-gray-200 bg-white p-4">
-                            <Text className="text-xs text-gray-400">{fechaCorta(n.created_at)} · {n.author_name ?? 'quien atendió'}</Text>
-                            <Text className="mt-1 text-gray-800">{n.content}</Text>
-                        </View>
+                        <TarjetaDeNota key={n.id} nota={n} />
                     ))}
                     {listaNotas.length > 10 && <Text className="text-sm text-gray-400">Se muestran las 10 más recientes de {listaNotas.length}.</Text>}
                 </View>

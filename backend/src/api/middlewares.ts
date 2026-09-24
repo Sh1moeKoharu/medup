@@ -22,6 +22,7 @@ import { API_POLICIES, findOverlappingPolicies } from "../lib/api-policy";
 import { redactForAudit } from "../lib/audit-redaction";
 import { GENESIS, calcularHuella, enFila } from "../lib/audit-chain";
 import { requireTurnoAbierto } from "../lib/turno";
+import { requireSinPendientesDeEnfermeria } from "../lib/cobro-de-cuentas";
 import { esLecturaSensible } from "../lib/bitacora";
 import { rejectBlockedLogin } from "../lib/bloqueo";
 
@@ -246,10 +247,19 @@ export default defineMiddlewares({
 
         // ── Cobrar exige turno de caja abierto (ver lib/turno.ts). Es la
         //    ruta con la que el punto de venta convierte el carrito en venta.
+        //    Y antes que el turno: nada se cobra mientras Enfermería tenga
+        //    algo sin aplicar al paciente (ver lib/cobro-de-cuentas.ts).
         {
             matcher: "/admin/draft-orders/:id/convert-to-order",
             methods: ["POST"],
-            middlewares: [requireTurnoAbierto()],
+            middlewares: [requireSinPendientesDeEnfermeria(), requireTurnoAbierto()],
+        },
+        // ── El ticket de un pedido en borrador tampoco sale mientras tanto.
+        //    Los ya cobrados se reimprimen sin condición.
+        {
+            matcher: "/admin/receipts/:orderId",
+            methods: ["GET"],
+            middlewares: [requireSinPendientesDeEnfermeria()],
         },
 
         // ── Aplicar en consulta es acto de Enfermería; ajustar renglones, de

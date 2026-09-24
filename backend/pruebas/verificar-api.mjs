@@ -693,6 +693,14 @@ async function circuitoClinico() {
   check("aplicar sin existencia en Enfermería devuelve 409", sinStock.code === 409, `HTTP ${sinStock.code}`)
   check("y la orden sigue pendiente", (await call("medico", "GET", `/admin/medical-orders/${oid}`)).j?.medical_order?.status === "pending")
 
+  // ── Mientras Enfermería no aplique, Caja no cobra ni imprime: regla del servidor ──
+  const regionC = (await call("admin", "GET", "/admin/regions?limit=1")).j?.regions?.[0]?.id
+  const carritoMostrador = (await call("caja", "POST", "/admin/draft-orders", { region_id: regionC, sales_channel_id: canal, customer_id: paciente.id, items: [{ variant_id: variante, quantity: 1 }] })).j?.draft_order
+  const cobroPrematuro = await call("caja", "POST", `/admin/draft-orders/${carritoMostrador?.id}/convert-to-order`)
+  check("con una orden sin aplicar, cobrar al paciente devuelve 409 aunque sea un carrito de mostrador", cobroPrematuro.code === 409 && cobroPrematuro.j?.type === "esperando_enfermeria", `HTTP ${cobroPrematuro.code} ${cobroPrematuro.j?.message ?? ""}`)
+  check("y el ticket tampoco sale", (await call("caja", "GET", `/admin/receipts/${carritoMostrador?.id}`)).code === 409)
+  if (carritoMostrador?.id) await call("admin", "DELETE", `/admin/draft-orders/${carritoMostrador.id}`)
+
   // ── Con existencia (alta directa en Enfermería): aplica, descuenta, carga a la cuenta ──
   const lote = await call("enfermeria", "POST", "/admin/medical-batches", {
     batch_number: `CONS-${sello}`, expiration_date: en(200), variant_id: variante, stock_location_id: enfermeria.id, quantity: 10, apply_margin: false,
@@ -738,6 +746,15 @@ async function circuitoClinico() {
   check("Caja no lee notas de atención", (await call("caja", "GET", `/admin/clinical-notes?customer_id=${paciente.id}`)).code === 403)
   check("Caja tampoco las escribe", (await call("caja", "POST", "/admin/clinical-notes", { customer_id: paciente.id, content: "Intento de caja" })).code === 403)
   check("el médico sí las lee", ((await call("medico", "GET", `/admin/clinical-notes?medical_order_id=${oid}`)).j?.clinical_notes ?? []).some((n) => n.id === nid))
+  // Corregir sin borrar: la versión anterior queda en `revisions`.
+  const correccion = await call("enfermeria", "PUT", `/admin/clinical-notes/${nid}`, { content: "Se aplicó en consultorio sin reacción adversa. Se vigiló quince minutos." })
+  check(
+    "quien escribió la nota la corrige, y la versión anterior queda guardada con su autor",
+    correccion.code === 200 && correccion.j?.clinical_note?.revisions?.length === 1 && correccion.j?.clinical_note?.revisions?.[0]?.content === "Se aplicó en consultorio sin reacción adversa." && !!correccion.j?.clinical_note?.edited_by_name,
+    JSON.stringify(correccion.j).slice(0, 200)
+  )
+  check("otra persona no la corrige", (await call("medico", "PUT", `/admin/clinical-notes/${nid}`, { content: "Intento ajeno a la nota" })).code === 403)
+  check("una corrección vacía se rechaza", (await call("enfermeria", "PUT", `/admin/clinical-notes/${nid}`, { content: " " })).code === 400)
   const bit = (await call("admin", "GET", "/admin/audit-logs")).j?.audit_logs ?? []
   const asientoNota = bit.find((a) => a.endpoint === "/admin/clinical-notes" && a.method === "POST")
   check("el contenido de la nota queda redactado en la bitácora", !!asientoNota && JSON.stringify(asientoNota.payload ?? {}).includes("[REDACTADO]") && !JSON.stringify(asientoNota.payload ?? {}).includes("reacción adversa"))
@@ -780,9 +797,13 @@ async function caja() {
   // Un carrito de mostrador, como lo arma el punto de venta.
   const region = (await call("admin", "GET", "/admin/regions?limit=1")).j?.regions?.[0]
   const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]
-  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
-  const producto = (await call("admin", "GET", "/admin/products?limit=1&status[]=published&fields=id,*variants")).j?.products?.[0]
-  const variante = producto?.variants?.[0]?.id
+  // Un paciente SIN órdenes pendientes en Enfermería: con ellas, cobrar se niega (sección 9).
+  const enConsulta = new Set(((await call("enfermeria", "GET", "/admin/medical-orders?status=pending&recipient_area=nursing")).j?.medical_orders ?? []).map((o) => o.customer_id))
+  const paciente = ((await call("admin", "GET", "/admin/customers?limit=50")).j?.customers ?? []).find((c) => !enConsulta.has(c.id))
+  // Una presentación CON precio en la moneda de la región: sin él, Medusa no
+  // arma el pedido (falla al calcular el precio) y la sección no prueba nada.
+  const productos = (await call("admin", "GET", "/admin/products?limit=50&status[]=published&fields=id,*variants,*variants.prices")).j?.products ?? []
+  const variante = productos.flatMap((p) => p.variants ?? []).find((v) => (v.prices ?? []).some((pr) => pr.currency_code === region?.currency_code && Number(pr.amount) > 0))?.id
   if (!region || !canal || !paciente || !variante) {
     check("hay región, canal, paciente y producto publicado para cobrar", false)
     return

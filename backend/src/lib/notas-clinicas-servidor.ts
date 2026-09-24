@@ -1,7 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
 import { CLINICAL_NOTES_MODULE } from "../modules/clinical-notes"
-import { componerContenido, fechaDeAtencion, revisarNota, type NotaEstructurada } from "./notas-clinicas"
+import { componerContenido, fechaDeAtencion, puedeCorregirNota, revisarNota, revisionDe, type NotaEstructurada, type Revision } from "./notas-clinicas"
 import type { RequestActor } from "./require-role"
 import { isMedicalOrderCreatorRole } from "./roles"
 
@@ -52,6 +52,51 @@ export async function escribirNota(
     findings: estructurada ? String(datos.findings ?? "").trim() : null,
     procedures: estructurada ? String(datos.procedures ?? "").trim() : null,
     attended_at: fecha,
+  })
+  return { nota }
+}
+
+/**
+ * Corrige una nota: valida igual que al escribir, guarda la versión anterior
+ * en `revisions` y anota quién corrigió. Si la nota tenía estructura (qué
+ * revisó / qué hizo), la conserva: no se puede dejar sin una de las dos.
+ */
+export async function corregirNota(
+  container: MedusaContainer,
+  actor: RequestActor | null,
+  id: string,
+  datos: NotaEstructurada & { attended_at?: unknown }
+): Promise<{ nota?: any; status?: number; error?: string }> {
+  if (!actor) {
+    return { status: 401, error: "No se pudo identificar quién corrige. Vuelve a iniciar sesión." }
+  }
+  const service: any = container.resolve(CLINICAL_NOTES_MODULE)
+  const [actual] = await service.listClinicalNotes({ id })
+  if (!actual) return { status: 404, error: "Nota de atención no encontrada." }
+  if (!puedeCorregirNota({ id: actor.id, role: actor.role }, actual)) {
+    return { status: 403, error: "Una nota la corrige quien la escribió, o Administración." }
+  }
+
+  const estructurada = actual.findings != null || actual.procedures != null
+  const nuevos: NotaEstructurada = estructurada
+    ? { findings: datos.findings ?? actual.findings, procedures: datos.procedures ?? actual.procedures }
+    : { content: datos.content ?? actual.content }
+  const problema = revisarNota(nuevos)
+  if (problema) return { status: 400, error: problema }
+  const { fecha, error } = fechaDeAtencion(datos.attended_at === undefined ? actual.attended_at : datos.attended_at)
+  if (error) return { status: 400, error }
+
+  const revisiones: Revision[] = [revisionDe(actual), ...((actual.revisions as Revision[] | null) ?? [])]
+  const nota = await service.updateClinicalNotes({
+    id,
+    content: componerContenido(nuevos),
+    findings: estructurada ? String(nuevos.findings ?? "").trim() : null,
+    procedures: estructurada ? String(nuevos.procedures ?? "").trim() : null,
+    attended_at: fecha,
+    revisions: revisiones,
+    edited_at: new Date(),
+    edited_by_id: actor.id,
+    edited_by_name: actor.name,
   })
   return { nota }
 }

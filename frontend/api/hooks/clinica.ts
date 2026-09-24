@@ -14,6 +14,16 @@ import type { OrdenMedica } from './medical-orders';
 
 export type Destinatario = 'nursing' | 'pharmacy';
 
+/** Una versión anterior de la nota: corregir no borra lo escrito. */
+export interface RevisionDeNota {
+  content: string;
+  findings: string | null;
+  procedures: string | null;
+  attended_at: string | null;
+  written_at: string | null;
+  written_by: string | null;
+}
+
 export interface NotaDeAtencion {
   id: string;
   customer_id: string;
@@ -29,6 +39,10 @@ export interface NotaDeAtencion {
   /** Fecha de la atención; si falta, la de captura. */
   attended_at?: string | null;
   created_at: string;
+  /** Correcciones, la más reciente primero, y quién hizo la última. */
+  revisions?: RevisionDeNota[] | null;
+  edited_at?: string | null;
+  edited_by_name?: string | null;
 }
 
 export interface CuentaPendiente {
@@ -142,6 +156,21 @@ export const useEscribirNota = () => {
   });
 };
 
+/** Corrige una nota propia (o cualquiera, siendo Administración): el servidor guarda la versión anterior. */
+export const useCorregirNota = () => {
+  const sdk = useMedusaSdk();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: ['clinical-notes', 'update'],
+    mutationFn: async ({ id, ...datos }: { id: string; content?: string; findings?: string; procedures?: string; attended_at?: string | null }) => {
+      const r = await sdk.client.fetch<{ clinical_note: NotaDeAtencion }>(`/admin/clinical-notes/${id}`, { method: 'PUT', body: datos });
+      return r.clinical_note;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clinical-notes'] }),
+    onError: (error) => showErrorToast(error),
+  });
+};
+
 export type TipoDocumento = 'receta' | 'nota' | 'corte';
 
 /** Pide un documento al servidor y lo manda a la impresora. */
@@ -197,6 +226,7 @@ export const useCuentasPendientes = (customerId?: string) => {
 };
 
 export interface MiPerfil {
+  id: string;
   nombre: string;
   rol: string | null;
   rol_etiqueta: string | null;

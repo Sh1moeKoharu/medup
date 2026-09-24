@@ -145,6 +145,11 @@ notas para Enfermería. La leen el médico, Administración y Auditoría.
 
 ![Nota de atención con fecha, qué revisó y qué hizo](img/medico/11-nota-de-atencion.png)
 
+**Corregir una nota.** En el historial del paciente (Pacientes → ficha) cada nota tuya lleva
+**Corregir**: se cambia lo que haga falta —qué revisó, qué hizo o la fecha— y se guarda. La versión
+anterior no se borra: queda bajo **Versión anterior**, con quién la escribió y cuándo, y la nota
+dice quién la corrigió. Sólo corriges las tuyas.
+
 ### 3.8 El paciente y emitir
 
 Pulsa **Seleccionar paciente**. Se busca por nombre; si no existe, **Nuevo paciente** lo da de alta

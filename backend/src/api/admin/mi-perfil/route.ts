@@ -24,6 +24,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const perfil = perfilDe(yo);
 
     res.json({
+        id: actor.id,
         nombre: actor.name,
         rol: actor.role,
         rol_etiqueta: actor.role ? ROLE_LABELS[actor.role] : null,

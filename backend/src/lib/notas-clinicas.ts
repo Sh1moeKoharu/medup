@@ -77,3 +77,51 @@ export function puedeLeerNota(rol: Role | null, nota: { author_role?: string | n
 export function filtroDeLectura(rol: Role | null): Record<string, unknown> {
   return rol === ROLES.NURSE ? { author_role: ROLES.NURSE } : {}
 }
+
+/**
+ * ── CORREGIR SIN BORRAR ─────────────────────────────────────────────────────
+ * Una nota de atención es expediente: se puede corregir —un dato mal
+ * capturado, un hallazgo que faltó— pero lo escrito no desaparece. Cada
+ * corrección guarda la versión anterior en `revisions`, y la nota dice quién
+ * la corrigió y cuándo. La corrige quien la escribió; Administración también,
+ * porque es quien resuelve cuando el autor ya no está.
+ */
+export type Revision = {
+  content: string
+  findings: string | null
+  procedures: string | null
+  attended_at: string | null
+  written_at: string | null
+  written_by: string | null
+}
+
+export function puedeCorregirNota(actor: { id: string; role: Role | null } | null, nota: { author_id: string }): boolean {
+  if (!actor) return false
+  return actor.role === ROLES.ADMIN || actor.id === nota.author_id
+}
+
+/** La versión que se va a sustituir, tal como queda en el historial. */
+export function revisionDe(nota: {
+  content: string
+  findings?: string | null
+  procedures?: string | null
+  attended_at?: Date | string | null
+  created_at?: Date | string | null
+  edited_at?: Date | string | null
+  author_name?: string | null
+  edited_by_name?: string | null
+}): Revision {
+  const iso = (v: Date | string | null | undefined) => {
+    if (!v) return null
+    const d = new Date(v)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+  return {
+    content: nota.content,
+    findings: nota.findings ?? null,
+    procedures: nota.procedures ?? null,
+    attended_at: iso(nota.attended_at),
+    written_at: iso(nota.edited_at ?? nota.created_at),
+    written_by: nota.edited_by_name ?? nota.author_name ?? null,
+  }
+}

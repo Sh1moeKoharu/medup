@@ -278,6 +278,7 @@ Al confirmar, vuelves a la pantalla de entrada.
 | El ticket no sale | La impresora predeterminada del equipo no es la térmica | Ajustes → Impresión, sigue los pasos; prueba con «Imprimir ticket de prueba» |
 | Un paciente sale en gris como «Esperando a Enfermería» | El médico ya emitió, Enfermería aún no aplica | Espera; en cuanto apliquen, pasa a **Por cobrar** con su botón. No lo cobres desde el mostrador |
 | **Cobrar** apagado con «Abre la caja para cobrar» | No hay turno abierto a tu nombre | Fondo → Abrir caja; la lista se conserva |
+| Al cobrar: «tiene una orden en Enfermería sin aplicar» | Armaste el carrito a su nombre desde el mostrador mientras sigue en consulta | Espera a que Enfermería aplique; el servidor no deja cobrar ni imprimir antes, para no descontar dos veces |
 
 ---
 

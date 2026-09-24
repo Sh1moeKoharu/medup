@@ -28,4 +28,9 @@ export const ClinicalNote = model.define("clinical_note", {
     procedures: model.text().nullable(),
     /** Cuándo se atendió. Si falta, cuenta la fecha de captura (`created_at`). */
     attended_at: model.dateTime().nullable(),
+    /** Versiones anteriores, la más reciente primero: corregir no borra lo escrito (ver lib/notas-clinicas.ts). */
+    revisions: model.json().nullable(),
+    edited_at: model.dateTime().nullable(),
+    edited_by_id: model.text().nullable(),
+    edited_by_name: model.text().nullable(),
 });
