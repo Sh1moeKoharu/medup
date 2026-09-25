@@ -181,6 +181,19 @@ mismo cobro desde Productos antes de completar.
 
 ![Cobro de la cuenta de consulta: 2 Paracetamol, total 90](img/caja/17-cobro-de-cuenta.png)
 
+### 3.7 bis · La consulta: un producto de precio variable
+
+La **Consulta** es un producto más, pero su precio lo pones tú al cobrar. Entra sola a la cuenta
+del paciente con lo primero que Enfermería aplica (una por visita), con el precio de referencia
+que Administración le puso en el panel, que puede ser cero. En el cobro, el renglón de la consulta
+trae un campo: escribe el importe y pulsa **Poner**. Si ya traía precio, **Cambiar precio** lo
+abre otra vez. Con la consulta en cero el botón de cobrar se apaga y el aviso dice qué falta; el
+servidor tampoco lo permite, así que no hay forma de cobrar una consulta en cero por descuido.
+
+Si la consulta se pagó aparte o no procede, **Quitar** la saca de la cuenta. Para una consulta sin
+medicamentos —el paciente sólo vio al médico— añade **Consulta** desde Productos al carrito, como
+cualquier producto, y ponle el precio en la fila.
+
 ### 3.8 Entradas y salidas de efectivo
 
 Cuando entra o sale dinero del cajón sin ser una venta —cambio de billetes, un retiro parcial,
@@ -278,6 +291,7 @@ Al confirmar, vuelves a la pantalla de entrada.
 | El ticket no sale | La impresora predeterminada del equipo no es la térmica | Ajustes → Impresión, sigue los pasos; prueba con «Imprimir ticket de prueba» |
 | Un paciente sale en gris como «Esperando a Enfermería» | El médico ya emitió, Enfermería aún no aplica | Espera; en cuanto apliquen, pasa a **Por cobrar** con su botón. No lo cobres desde el mostrador |
 | **Cobrar** apagado con «Abre la caja para cobrar» | No hay turno abierto a tu nombre | Fondo → Abrir caja; la lista se conserva |
+| «Falta poner el precio de: Consulta» | La consulta entró con precio de referencia cero | Escribe el importe en el renglón y pulsa **Poner** |
 | Al cobrar: «tiene una orden en Enfermería sin aplicar» | Armaste el carrito a su nombre desde el mostrador mientras sigue en consulta | Espera a que Enfermería aplique; el servidor no deja cobrar ni imprimir antes, para no descontar dos veces |
 
 ---

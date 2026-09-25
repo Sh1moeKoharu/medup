@@ -113,6 +113,13 @@ Comprobación (ninguna cuenta debe aparecer como "(sin rol)"):
 npx medusa exec ./src/scripts/migrate-roles.ts
 ```
 
+El producto **Consulta** (precio variable, Caja lo pone al cobrar) se da de alta una vez, con su
+precio de referencia; con `precio=0` Caja está obligada a escribirlo en cada cobro:
+
+```bash
+npx medusa exec ./src/scripts/preparar-consulta.ts confirm precio=350
+```
+
 ### Número de empleado y correo de aviso
 
 Cada cuenta lleva, además del rol, dos datos opcionales que se capturan en

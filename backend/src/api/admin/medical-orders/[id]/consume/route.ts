@@ -120,7 +120,9 @@ const procesar = async (req: MedusaRequest, res: MedusaResponse) => {
             cuenta = await cargarALaCuenta(
                 req.scope as any,
                 order.customer_id,
-                order.items.map((i: any) => ({ variant_id: i.variant_id, quantity: i.quantity }))
+                order.items.map((i: any) => ({ variant_id: i.variant_id, quantity: i.quantity })),
+                // La consulta entra a la cuenta con lo primero que se aplica (una por cuenta).
+                { medico: order.creator_name ?? null, medical_order_id: order.id }
             );
         } catch (e: any) {
             advertencia =

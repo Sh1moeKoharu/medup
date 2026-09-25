@@ -23,6 +23,7 @@ import { redactForAudit } from "../lib/audit-redaction";
 import { GENESIS, calcularHuella, enFila } from "../lib/audit-chain";
 import { requireTurnoAbierto } from "../lib/turno";
 import { requireSinPendientesDeEnfermeria } from "../lib/cobro-de-cuentas";
+import { requirePreciosPuestos } from "../lib/consulta";
 import { esLecturaSensible } from "../lib/bitacora";
 import { rejectBlockedLogin } from "../lib/bloqueo";
 
@@ -252,7 +253,9 @@ export default defineMiddlewares({
         {
             matcher: "/admin/draft-orders/:id/convert-to-order",
             methods: ["POST"],
-            middlewares: [requireSinPendientesDeEnfermeria(), requireTurnoAbierto()],
+            //    Y un renglón de precio variable (la consulta) en cero tampoco se
+            //    cobra: Caja pone el precio primero (ver lib/consulta.ts).
+            middlewares: [requireSinPendientesDeEnfermeria(), requirePreciosPuestos(), requireTurnoAbierto()],
         },
         // ── El ticket de un pedido en borrador tampoco sale mientras tanto.
         //    Los ya cobrados se reimprimen sin condición.

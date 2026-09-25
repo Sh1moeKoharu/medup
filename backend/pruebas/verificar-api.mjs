@@ -719,6 +719,10 @@ async function circuitoClinico() {
     JSON.stringify(cuenta).slice(0, 160)
   )
   check("y la orden guarda el enlace con la cuenta", aplicada.j?.medical_order?.draft_order_id === cuenta?.id)
+  // La CONSULTA entra a la cuenta con lo primero aplicado, una sola vez (lib/consulta.ts).
+  const cuentaConConsulta = (await call("admin", "GET", `/admin/draft-orders/${cuenta?.id}?fields=id,items.id,items.title,items.unit_price,items.quantity,items.metadata`)).j?.draft_order
+  const renglonesConsulta = (cuentaConConsulta?.items ?? []).filter((i) => i.metadata?.altus_consulta === true)
+  check("la cuenta lleva la consulta como renglón de precio variable", renglonesConsulta.length === 1 && renglonesConsulta[0].metadata?.altus_precio_variable === true && renglonesConsulta[0].metadata?.altus_medical_order_id === oid, JSON.stringify(renglonesConsulta.map((i) => [i.title, i.unit_price, i.metadata])).slice(0, 200))
 
   // Segunda orden: se SUMA a la misma cuenta abierta.
   const orden2 = await call("medico", "POST", "/admin/medical-orders", { customer_id: paciente.id, customer_name: "Verificación consulta", items: [{ variant_id: variante, quantity: 1, instructions: "Dosis única" }] })
@@ -727,6 +731,8 @@ async function circuitoClinico() {
   // importa es que sea la MISMA cuenta y que en total haya 3 + 1.
   const enCuenta = (aplicada2.j?.cuenta?.items ?? []).filter((i) => i.variant_id === variante).reduce((s, i) => s + i.quantity, 0)
   check("una segunda consulta se suma a la misma cuenta abierta", aplicada2.j?.cuenta?.id === cuenta?.id && enCuenta === 4, JSON.stringify(aplicada2.j?.cuenta?.items ?? aplicada2.j?.advertencia ?? aplicada2.j).slice(0, 160))
+  const cuentaTras2 = (await call("admin", "GET", `/admin/draft-orders/${cuenta?.id}?fields=id,items.id,items.metadata`)).j?.draft_order
+  check("y NO añade una segunda consulta a la misma cuenta", (cuentaTras2?.items ?? []).filter((i) => i.metadata?.altus_consulta === true).length === 1)
   // Los renglones cargados por los DOS caminos (cuenta nueva y cuenta ya
   // abierta) llevan la marca que impide descontarlos otra vez de Farmacia al
   // cobrar (ver lib/cuentas-de-paciente.ts y el suscriptor de ventas).
@@ -1000,7 +1006,9 @@ async function cuentasYHonorarios() {
   const locs = (await call("admin", "GET", "/admin/stock-locations?fields=id,name,metadata&limit=50")).j?.stock_locations ?? []
   const enfermeria = locs.find((l) => l.metadata?.altus_area === "nursing")
   const farmacia = locs.find((l) => l.metadata?.altus_area === "pharmacy")
-  const paciente = (await call("admin", "GET", "/admin/customers?limit=1")).j?.customers?.[0]
+  // Un paciente de verdad (no el invitado del mostrador) y sin órdenes pendientes en Enfermería.
+  const enConsultaHon = new Set(((await call("enfermeria", "GET", "/admin/medical-orders?status=pending&recipient_area=nursing")).j?.medical_orders ?? []).map((o) => o.customer_id))
+  const paciente = ((await call("admin", "GET", "/admin/customers?limit=50")).j?.customers ?? []).find((c) => !enConsultaHon.has(c.id) && !/pos-guest/.test(c.email ?? ""))
   const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]?.id
   const prod = await call("admin", "POST", "/admin/products", {
     title: `Verificación honorarios ${sello}`, status: "published", sales_channels: canal ? [{ id: canal }] : undefined,
@@ -1021,9 +1029,28 @@ async function cuentasYHonorarios() {
   // Caja cobra la cuenta.
   if (!(await call("caja", "GET", "/admin/cash-sessions/current")).j?.session) await call("caja", "POST", "/admin/cash-sessions", { opening_amount: 0 })
   const turnoCaja = (await call("caja", "GET", "/admin/cash-sessions/current")).j?.session
-  await call("caja", "POST", `/admin/cash-sessions/${turnoCaja?.id}/movements`, { type: "sale", payment_method: "cash", amount: 200, order_id: cuentaId })
+  // La consulta viene en cero (precio de referencia del producto de prueba): no se cobra así.
+  const cuentaHon = (await call("caja", "GET", `/admin/draft-orders/${cuentaId}`)).j?.draft_order
+  const lineaConsulta = (cuentaHon?.items ?? []).find((i) => i.metadata?.altus_consulta === true)
+  if (lineaConsulta && Number(lineaConsulta.unit_price) <= 0) {
+    const enCero = await call("caja", "POST", `/admin/draft-orders/${cuentaId}/convert-to-order`)
+    check("con la consulta en cero, cobrar devuelve 409 y dice qué falta", enCero.code === 409 && enCero.j?.type === "precio_pendiente" && /Consulta/.test(enCero.j?.message ?? ""), `HTTP ${enCero.code} ${enCero.j?.message ?? ""}`)
+  } else {
+    check("hay una consulta en la cuenta para ponerle precio", !!lineaConsulta, lineaConsulta ? `ya traía precio ${lineaConsulta.unit_price}` : "sin consulta: ¿corriste preparar-consulta.ts?")
+  }
+  if (lineaConsulta) {
+    // Caja pone el precio en el renglón, como lo hace el punto de venta.
+    await call("caja", "POST", `/admin/draft-orders/${cuentaId}/edit`, {})
+    const precio = await call("caja", "POST", `/admin/draft-orders/${cuentaId}/edit/items/item/${lineaConsulta.id}`, { quantity: 1, unit_price: 150 })
+    const confirmado = await call("caja", "POST", `/admin/draft-orders/${cuentaId}/edit/confirm`, {})
+    // Sin `fields`: con selección parcial el pedido devuelve los renglones sin los cambios de la edición.
+    const tras = (await call("caja", "GET", `/admin/draft-orders/${cuentaId}`)).j?.draft_order
+    const consultaTras = (tras?.items ?? []).find((i) => i.metadata?.altus_consulta === true)
+    check("Caja pone el precio de la consulta en el renglón", precio.code === 200 && confirmado.code === 200 && Number(consultaTras?.unit_price) === 150, `HTTP ${precio.code}/${confirmado.code} precio=${consultaTras?.unit_price}`)
+  }
+  await call("caja", "POST", `/admin/cash-sessions/${turnoCaja?.id}/movements`, { type: "sale", payment_method: "cash", amount: 350, order_id: cuentaId })
   const cobro = await call("caja", "POST", `/admin/draft-orders/${cuentaId}/convert-to-order`)
-  check("Caja cobra la cuenta de la consulta", cobro.code === 200, `HTTP ${cobro.code}`)
+  check("Caja cobra la cuenta de la consulta", cobro.code === 200, `HTTP ${cobro.code} ${cobro.j?.message ?? ""}`)
   // El suscriptor de ventas corre después de la respuesta.
   await new Promise((r) => setTimeout(r, 1500))
   const kFarm = (await call("admin", "GET", `/admin/inventory-movements?stock_location_id=${farmacia?.id}&variant_id=${variante}&type=exit_sale`)).j?.movements ?? []

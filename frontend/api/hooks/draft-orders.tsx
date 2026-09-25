@@ -267,7 +267,7 @@ class UpdateDraftOrderItemAborted extends Error {
 
 export const useUpdateDraftOrderItem = (
   options?: Omit<
-    UseMutationOptions<void, Error, { id: string; update: Pick<AdminUpdateDraftOrderItem, 'quantity'> }, unknown>,
+    UseMutationOptions<void, Error, { id: string; update: Partial<Pick<AdminUpdateDraftOrderItem, 'quantity' | 'unit_price'>> }, unknown>,
     'mutationKey' | 'mutationFn'
   >,
 ) => {
@@ -277,7 +277,9 @@ export const useUpdateDraftOrderItem = (
 
   return useMutation({
     mutationKey: ['draft-order', 'items', 'update'],
-    mutationFn: async (item: { id: string; update: Pick<AdminUpdateDraftOrderItem, 'quantity'> }) => {
+    // `unit_price`: sólo lo usa la consulta, el renglón de precio variable (utils/precio-variable.ts).
+    // Medusa exige `quantity` en cada actualización: quien cambia el precio manda también la cantidad actual.
+    mutationFn: async (item: { id: string; update: Partial<Pick<AdminUpdateDraftOrderItem, 'quantity' | 'unit_price'>> }) => {
       // Clear existing timeout for this item
       if (debounceTimeouts.has(item.id)) {
         clearTimeout(debounceTimeouts.get(item.id)!);
@@ -338,7 +340,7 @@ export const useUpdateDraftOrderItem = (
           await sdk.admin.draftOrder.beginEdit(draftOrderId);
 
           try {
-            await sdk.admin.draftOrder.updateItem(draftOrderId, item.id, item.update);
+            await sdk.admin.draftOrder.updateItem(draftOrderId, item.id, item.update as AdminUpdateDraftOrderItem);
             await sdk.admin.draftOrder.confirmEdit(draftOrderId);
           } catch (error) {
             await sdk.admin.draftOrder.cancelEdit(draftOrderId);
@@ -389,7 +391,8 @@ export const useUpdateDraftOrderItem = (
                   item.id === variables.id
                     ? {
                       ...item,
-                      ...variables.update,
+                      quantity: variables.update.quantity ?? item.quantity,
+                      unit_price: variables.update.unit_price ?? item.unit_price,
                     }
                     : item,
                 ),

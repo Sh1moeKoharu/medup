@@ -1,4 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework/types"
+import { HANDLE_CONSULTA, MARCAS_DE_CONSULTA, esConsulta, varianteDeConsulta } from "./consulta"
 import { ContainerRegistrationKeys, Modules, OrderStatus } from "@medusajs/framework/utils"
 import {
   addDraftOrderItemsWorkflow,
@@ -27,6 +28,9 @@ import {
  */
 
 export type RenglonDeConsumo = { variant_id: string; quantity: number }
+
+/** De qué consulta viene lo aplicado: para cargar la CONSULTA a la cuenta (una por cuenta). */
+export type DatosDeConsulta = { medico?: string | null; medical_order_id?: string | null }
 
 export const CLAVE_CONSUMO_EN_CONSULTA = "altus_consumido_en_consulta"
 
@@ -200,13 +204,73 @@ const MARCA_CONSUMO = { [CLAVE_CONSUMO_EN_CONSULTA]: true }
 export async function cargarALaCuenta(
   container: MedusaContainer,
   customerId: string,
-  renglones: RenglonDeConsumo[]
+  renglones: RenglonDeConsumo[],
+  consulta?: DatosDeConsulta
 ): Promise<CuentaPendiente> {
   const validos = renglones.filter((r) => r.variant_id && Number(r.quantity) > 0)
   if (!validos.length) {
     throw new Error("No hay renglones que cargar a la cuenta.")
   }
 
+  const cuenta = await cargarRenglones(container, customerId, validos)
+  if (consulta) {
+    await cargarConsultaSiFalta(container, cuenta, consulta)
+    return (await cuentaPorId(container, cuenta.id)) ?? cuenta
+  }
+  return cuenta
+}
+
+/**
+ * La CONSULTA entra a la cuenta con lo primero que Enfermería aplica, con el
+ * precio de referencia del producto (lib/consulta.ts); Caja pone el precio
+ * real al cobrar. Una por cuenta: una segunda orden de la misma visita no
+ * añade otra. Si el producto no está dado de alta, la cuenta sigue sin él y
+ * se avisa en el registro: la consulta no debe impedir cargar el medicamento.
+ */
+async function cargarConsultaSiFalta(container: MedusaContainer, cuenta: CuentaPendiente, consulta: DatosDeConsulta): Promise<void> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order", fields: ["id", "items.id", "items.metadata"], filters: { id: cuenta.id } })
+  const items: any[] = (data ?? [])[0]?.items ?? []
+  if (items.some((i) => esConsulta(i))) return
+
+  const variante = await varianteDeConsulta(container)
+  if (!variante) {
+    try {
+      const logger: any = container.resolve("logger")
+      logger.warn(`[CUENTA] No hay producto Consulta (handle «${HANDLE_CONSULTA}»): la cuenta ${cuenta.id} queda sin consulta. Ejecuta scripts/preparar-consulta.ts.`)
+    } catch {
+      // el aviso es opcional
+    }
+    return
+  }
+
+  await beginDraftOrderEditWorkflow(container).run({ input: { order_id: cuenta.id } })
+  try {
+    await addDraftOrderItemsWorkflow(container).run({
+      input: {
+        order_id: cuenta.id,
+        items: [
+          {
+            variant_id: variante.variant_id,
+            quantity: 1,
+            metadata: { ...MARCAS_DE_CONSULTA, altus_medico: consulta.medico ?? null, altus_medical_order_id: consulta.medical_order_id ?? null },
+          },
+        ],
+      },
+    })
+    await confirmDraftOrderEditWorkflow(container).run({ input: { order_id: cuenta.id, confirmed_by: "system" } })
+  } catch (e) {
+    try {
+      const { cancelDraftOrderEditWorkflow } = await import("@medusajs/medusa/core-flows")
+      await cancelDraftOrderEditWorkflow(container).run({ input: { order_id: cuenta.id } })
+    } catch {
+      // el error original es el que importa
+    }
+    throw e
+  }
+}
+
+async function cargarRenglones(container: MedusaContainer, customerId: string, validos: RenglonDeConsumo[]): Promise<CuentaPendiente> {
   const [abierta] = await cuentasPendientesDe(container, customerId)
 
   if (abierta) {

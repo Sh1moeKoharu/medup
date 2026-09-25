@@ -42,6 +42,8 @@ import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import * as z from 'zod/v4';
 import { color } from '@/theme/tokens';
 import { formatearDinero } from '@/utils/dinero';
+import { esPrecioVariable } from '@/utils/precio-variable';
+import { PrecioVariable } from '@/components/caja/PrecioVariable';
 
 interface TPromotionItem extends AdminPromotion {
   __type__: 'promotion';
@@ -144,9 +146,18 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
           />
         </View>
         <View className="ml-auto items-end justify-between">
-          <Text>
-            {formatearDinero(item.unit_price, draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code)}
-          </Text>
+          {esPrecioVariable(item) ? (
+            <PrecioVariable
+              precio={item.unit_price}
+              currencyCode={draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code}
+              guardando={updateDraftOrderItem.isPending}
+              onGuardar={(unit_price) => updateDraftOrderItem.mutate({ id: item.id, update: { quantity: item.quantity, unit_price } })}
+            />
+          ) : (
+            <Text>
+              {formatearDinero(item.unit_price, draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code)}
+            </Text>
+          )}
           <RemoveLineItemButton onPress={() => onRemove?.(item)} />
         </View>
       </View>

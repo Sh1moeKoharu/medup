@@ -7,6 +7,7 @@ import {
   useCompleteDraftOrder,
   useCurrentDraftOrder,
   useDraftOrderOrOrder,
+  useUpdateDraftOrderItem,
 } from '@/api/hooks/draft-orders';
 import { useCurrentCashSession, useAddCashMovement } from '@/api/hooks/cash-session';
 import { ShoppingCart } from '@/components/icons/shopping-cart';
@@ -19,6 +20,8 @@ import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { formatDate } from '@/utils/date';
 import { LOCALE_DINERO, MONEDA_POR_OMISION } from '@/utils/dinero';
+import { esPrecioVariable, renglonesSinPrecio } from '@/utils/precio-variable';
+import { PrecioVariable } from '@/components/caja/PrecioVariable';
 import { AdminOrderLineItem } from '@medusajs/types';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -37,7 +40,33 @@ const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
 const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
   const settings = useSettings();
   const draftOrder = useCurrentDraftOrder();
+  const updateItem = useUpdateDraftOrderItem();
   const thumbnail = item.thumbnail || item.product?.thumbnail || item.product?.images?.[0]?.url;
+  const moneda = draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code || MONEDA_POR_OMISION;
+
+  // La cuenta de consulta llega aquí directo desde «Por cobrar», sin pasar por
+  // el carrito: el precio de la consulta se pone (o se quita) en esta fila.
+  if (esPrecioVariable(item)) {
+    return (
+      <View className="flex-row gap-4 bg-white py-6">
+        <View className="h-[5.25rem] w-[5.25rem] items-center justify-center overflow-hidden rounded-xl bg-info-200">
+          <Text className="text-2xl text-info-500">Dr</Text>
+        </View>
+        <View className="flex-1 flex-col gap-1">
+          <Text>{item.product_title}</Text>
+          {!!(item.metadata as any)?.altus_medico && <Text className="text-sm text-gray-400">{String((item.metadata as any).altus_medico)}</Text>}
+          <Text className="text-sm text-gray-400">Precio variable: lo pone Caja</Text>
+        </View>
+        <PrecioVariable
+          precio={item.unit_price}
+          currencyCode={moneda}
+          guardando={updateItem.isPending}
+          onGuardar={(unit_price) => updateItem.mutate({ id: item.id, update: { quantity: item.quantity, unit_price } })}
+          onQuitar={() => updateItem.mutate({ id: item.id, update: { quantity: 0 } })}
+        />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-row gap-4 bg-white py-6">
@@ -161,6 +190,8 @@ export default function CheckoutScreen() {
   );
 
   const items = draftOrder.data?.items || [];
+  // El servidor tampoco cobra un precio variable en cero (lib/consulta.ts); aquí se avisa antes.
+  const sinPrecio = renglonesSinPrecio(items as any);
 
   if (draftOrder.isLoading || settings.isLoading) {
     return <CheckoutSkeleton />;
@@ -421,6 +452,11 @@ export default function CheckoutScreen() {
           </View>
         )}
 
+        {sinPrecio.length > 0 && (
+          <InfoBanner variant="ghost" colorScheme="error" className="mb-2">
+            Falta poner el precio de: {sinPrecio.join(', ')}. Escríbelo en el renglón para poder cobrar.
+          </InfoBanner>
+        )}
         <View className="pb-safe flex-row gap-2">
           <Button
             variant="outline"
@@ -457,6 +493,7 @@ export default function CheckoutScreen() {
             }}
             disabled={
               !isDraftOrder ||
+              sinPrecio.length > 0 ||
               !cashSession.data ||
               (paymentMethod === 'card' && !referenciaValida) ||
               (paymentMethod === 'cash' &&

@@ -4,6 +4,7 @@ import { recordInventoryMovement } from "../lib/inventory-ledger";
 import { planificarFefo, aplicarFefo } from "../lib/fefo";
 import { almacenDeFarmacia } from "../lib/almacenes";
 import { CLAVE_CONSUMO_EN_CONSULTA } from "../lib/cuentas-de-paciente";
+import { esPrecioVariable } from "../lib/consulta";
 
 /**
  * Descuento de lotes por FEFO cuando se cobra una venta.
@@ -62,6 +63,10 @@ export default async function fefoBatchDeductionSubscriber({
             // de Farmacia al cobrar la cuenta duplicaba la salida.
             if ((item as any)?.metadata?.[CLAVE_CONSUMO_EN_CONSULTA]) {
                 logger.info(`FEFO: ${item?.title ?? variantId} ya se aplicó en consulta; no se descuenta de Farmacia.`);
+                continue;
+            }
+            // La consulta es un servicio: no tiene lotes ni existencia.
+            if (esPrecioVariable(item as any)) {
                 continue;
             }
 
