@@ -1,18 +1,13 @@
 import { contactoDePaciente } from '@/utils/paciente';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
-import {
-    useCreateCustomer,
-    useCustomers,
-    useDeleteCustomer,
-    useMedicalCustomers,
-    useUpdateCustomer,
-} from '@/api/hooks/customers';
+import { useCustomers, useDeleteCustomer, useMedicalCustomers } from '@/api/hooks/customers';
 import { useAuthCtx } from '@/contexts/auth';
 import { ROLES, normalizeRole } from '@/constants/roles';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
+import { AseguranzasDelPaciente } from '@/components/pacientes/AseguranzasDelPaciente';
 import { useCuentasPendientes } from '@/api/hooks/clinica';
 import { abrirCuentaParaCobro } from '@/api/hooks/draft-orders';
 import { router } from 'expo-router';
@@ -114,6 +109,7 @@ const CustomerDetails = ({
 
                 <View className="mb-6 rounded-2xl border border-gray-200 p-6 bg-gray-50">
                     <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin nombre'}</Text>
+                    <AseguranzasDelPaciente customerId={customer.id} className="mb-2" />
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
@@ -134,7 +130,7 @@ const CustomerDetails = ({
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
-                        if (!medRecord?.medical_history && !medRecord?.insurance_policy) return null;
+                        if (!medRecord?.medical_history && !medRecord?.insurance_policy && !medRecord?.insurances?.length) return null;
                         return (
                             <View className="mt-4 p-3 bg-white rounded-xl border border-gray-200">
                                 <Text className="font-bold text-gray-800 mb-1">Expediente médico</Text>

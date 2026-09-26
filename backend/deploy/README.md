@@ -120,6 +120,13 @@ precio de referencia; con `precio=0` Caja está obligada a escribirlo en cada co
 npx medusa exec ./src/scripts/preparar-consulta.ts confirm precio=350
 ```
 
+Las **aseguranzas** descuentan sólo a productos de tipo Medicamento. Este guion crea los tipos y
+deja todo como Medicamento (la Consulta como Servicio); los insumos se cambian a mano en el panel:
+
+```bash
+npx medusa exec ./src/scripts/preparar-tipos-de-producto.ts confirm
+```
+
 ### Número de empleado y correo de aviso
 
 Cada cuenta lleva, además del rol, dos datos opcionales que se capturan en

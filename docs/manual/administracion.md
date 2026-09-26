@@ -330,6 +330,26 @@ plazo de pago. **Pacientes por empresa** los agrupa para revisar quién está cu
 
 ---
 
+## 10 bis. Aseguranzas
+
+En **Aseguranzas** (menú) se da de alta cada aseguradora con la que trabaja la clínica: nombre,
+**porcentaje de descuento sobre medicamentos** y, si aplica, vigencia. Eso es todo lo que hay que
+capturar; el sistema crea por detrás la promoción que hace la resta.
+
+Tres reglas que el sistema cumple solo y conviene saber:
+
+- El descuento se aplica **únicamente a productos de tipo Medicamento**. La consulta, los insumos y
+  cualquier servicio van íntegros. El tipo se ve y se cambia en la ficha del producto (Productos →
+  el producto → Tipo); el guion de instalación deja todo como Medicamento y la Consulta como
+  Servicio, así que los **insumos hay que marcarlos a mano** una vez.
+- Es **obligatorio y automático**: al cobrar, el servidor aplica la aseguranza del paciente aunque
+  Caja no haga nada. Con varias aseguranzas, Caja elige con cuál se cobra antes de continuar.
+- **No hay descuentos generales.** El punto de venta ya no acepta códigos de promoción; el único
+  descuento es la aseguranza del paciente. Las promociones del panel siguen ahí para Administración.
+
+A cada paciente se le marcan sus aseguranzas en su ficha (Clientes → el paciente → Expediente →
+Editar), con su número de póliza. Retirar una aseguranza no cambia los cobros anteriores.
+
 ## 11. La ficha del paciente
 
 Al abrir un paciente aparecen los **datos corporativos** —número de empleado, empresa, tipo de

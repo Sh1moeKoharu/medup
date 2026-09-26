@@ -44,6 +44,8 @@ export type Recibo = {
   moneda: string;
   subtotal: number;
   descuentos: number;
+  /** Si el descuento es de una aseguranza: cuál y cuánto (sólo medicamentos). */
+  aseguranza?: { name: string; discount_percent: number } | null;
   impuestos: number;
   total: number;
   metodo_pago: string | null;
@@ -171,7 +173,7 @@ export function construirHtmlRecibo(r: Recibo): string {
 
   <table>
     ${fila('Subtotal', r.subtotal)}
-    ${r.descuentos ? fila('Descuentos', -Math.abs(r.descuentos)) : ''}
+    ${r.descuentos ? fila(r.aseguranza ? `Aseguranza ${r.aseguranza.name} (${r.aseguranza.discount_percent}% medicamentos)` : 'Descuentos', -Math.abs(r.descuentos)) : ''}
     ${r.impuestos ? fila('Impuestos', r.impuestos) : ''}
     ${fila('TOTAL', r.total, true)}
   </table>

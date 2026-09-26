@@ -24,6 +24,7 @@ import { GENESIS, calcularHuella, enFila } from "../lib/audit-chain";
 import { requireTurnoAbierto } from "../lib/turno";
 import { requireSinPendientesDeEnfermeria } from "../lib/cobro-de-cuentas";
 import { requirePreciosPuestos } from "../lib/consulta";
+import { requireAseguranzaResuelta, requireSinDescuentosGenerales } from "../lib/aseguranzas";
 import { esLecturaSensible } from "../lib/bitacora";
 import { rejectBlockedLogin } from "../lib/bloqueo";
 
@@ -255,7 +256,16 @@ export default defineMiddlewares({
             methods: ["POST"],
             //    Y un renglón de precio variable (la consulta) en cero tampoco se
             //    cobra: Caja pone el precio primero (ver lib/consulta.ts).
-            middlewares: [requireSinPendientesDeEnfermeria(), requirePreciosPuestos(), requireTurnoAbierto()],
+            //    La aseguranza del paciente va puesta, y sin descuentos generales
+            //    (ver lib/aseguranzas.ts).
+            middlewares: [requireSinPendientesDeEnfermeria(), requirePreciosPuestos(), requireAseguranzaResuelta(), requireTurnoAbierto()],
+        },
+        // ── Por el punto de venta no entran códigos de promoción sueltos: el
+        //    único descuento es la aseguranza, y se aplica desde el cobro.
+        {
+            matcher: "/admin/draft-orders/:id/edit/promotions",
+            methods: ["POST"],
+            middlewares: [requireSinDescuentosGenerales()],
         },
         // ── El ticket de un pedido en borrador tampoco sale mientras tanto.
         //    Los ya cobrados se reimprimen sin condición.

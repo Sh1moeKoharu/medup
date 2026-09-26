@@ -3,7 +3,6 @@ import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { useCustomers } from '@/api/hooks/customers';
 import {
   DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL,
-  useAddPromotion,
   useCancelDraftOrder,
   useCurrentDraftOrder,
   useDraftOrderPromotions,
@@ -11,9 +10,6 @@ import {
   useUpdateDraftOrderCustomer,
   useUpdateDraftOrderItem,
 } from '@/api/hooks/draft-orders';
-import { Form } from '@/components/form/Form';
-import { FormButton } from '@/components/form/FormButton';
-import { TextField } from '@/components/form/TextField';
 import { ChevronDown } from '@/components/icons/chevron-down';
 import { ShoppingCart } from '@/components/icons/shopping-cart';
 import { Tag } from '@/components/icons/tag';
@@ -24,7 +20,6 @@ import { InfoBanner } from '@/components/InfoBanner';
 import { CartSkeleton } from '@/components/skeletons/CartSkeleton';
 import { SwipeableListItem } from '@/components/SwipeableListItem';
 import { Button } from '@/components/ui/Button';
-import { Dialog } from '@/components/ui/Dialog';
 import { Layout } from '@/components/ui/Layout';
 import { Prompt } from '@/components/ui/Prompt';
 import { QuantityPicker } from '@/components/ui/QuantityPicker';
@@ -39,7 +34,6 @@ import * as React from 'react';
 import { Image, Pressable, TouchableOpacity, View } from 'react-native';
 import Animated, { SequencedTransition, SlideOutLeft } from 'react-native-reanimated';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
-import * as z from 'zod/v4';
 import { color } from '@/theme/tokens';
 import { formatearDinero } from '@/utils/dinero';
 import { esPrecioVariable } from '@/utils/precio-variable';
@@ -49,10 +43,6 @@ interface TPromotionItem extends AdminPromotion {
   __type__: 'promotion';
   discount_amount: number;
 }
-
-const addPromotionFormSchema = z.object({
-  promotionCode: z.string().min(1, 'El código de promoción es requerido'),
-});
 
 type LineItemType =
   | { id: string; __type__: 'footer' }
@@ -296,75 +286,24 @@ const CustomerBadge: React.FC<{ customer: AdminDraftOrder['customer'] }> = ({ cu
   );
 };
 
-interface PromotionBadgeProps {
-  onAddPromotion: (code: string) => void;
-  isAddingPromotion: boolean;
-}
-
-const PromotionBadge: React.FC<PromotionBadgeProps> = ({ onAddPromotion, isAddingPromotion }) => {
-  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-
-  return (
-    <>
-      <Button
-        onPress={() => setIsDialogOpen(true)}
-        variant="outline"
-        icon={<Tag size={16} />}
-        className="mb-4 justify-between"
-      >
-        Añadir promoción
-      </Button>
-
-      <Dialog visible={isDialogOpen} onClose={() => setIsDialogOpen(false)} title="Añadir código de promoción">
-        <Form
-          schema={addPromotionFormSchema}
-          onSubmit={(data, form) => {
-            onAddPromotion(data.promotionCode);
-            form.reset();
-            setIsDialogOpen(false);
-          }}
-          className="gap-4"
-        >
-          <TextField
-            placeholder="Ingresar código de promoción"
-            name="promotionCode"
-            autoComplete="off"
-            autoCorrect={false}
-            autoCapitalize="characters"
-            enterKeyHint="send"
-            autoFocus
-          />
-          <View className="flex-row gap-2">
-            <Button variant="outline" className="flex-1" onPress={() => setIsDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <FormButton className="flex-1" isPending={isAddingPromotion}>
-              Aplicar
-            </FormButton>
-          </View>
-        </Form>
-      </Dialog>
-    </>
-  );
-};
-
 const ItemSeparatorComponent = React.forwardRef<Animated.View>((props, ref) => (
   <Animated.View className="h-hairline bg-gray-200" ref={ref} />
 ));
 ItemSeparatorComponent.displayName = 'ItemSeparatorComponent';
 
 const CartSummaryHeader: React.FC<
-  PromotionBadgeProps & {
+  {
     isLoading?: boolean;
     taxTotal: number;
     subtotal: number;
     discountTotal: number;
     currencyCode?: string;
   }
-> = ({ onAddPromotion, isAddingPromotion, isLoading, taxTotal, subtotal, discountTotal, currencyCode }) => {
+> = ({ isLoading, taxTotal, subtotal, discountTotal, currencyCode }) => {
   return (
     <Animated.View className="pb-4 pt-6">
-      <PromotionBadge onAddPromotion={onAddPromotion} isAddingPromotion={isAddingPromotion} />
+      {/* Sin «Añadir promoción»: el único descuento es la aseguranza del paciente,
+          y se aplica desde el cobro (ver lib/aseguranzas.ts en el servidor). */}
       <View className="gap-2">
         <View className="flex-row justify-between">
           <Text className="text-sm text-gray-400">Impuestos</Text>
@@ -415,7 +354,6 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
     return Array.from(new Set(allCodes));
   }, [draftOrder.data]);
   const addedPromotions = useDraftOrderPromotions(draftOrderPromotionCodes);
-  const addPromotion = useAddPromotion();
   const removePromotion = useRemovePromotion();
   const cancelDraftOrder = useCancelDraftOrder();
   const updateDraftOrderItem = useUpdateDraftOrderItem();
@@ -446,8 +384,6 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
     () =>
       draftOrder.data ? (
         <CartSummaryHeader
-          onAddPromotion={(code) => addPromotion.mutate(code)}
-          isAddingPromotion={addPromotion.isPending}
           isLoading={draftOrder.isFetching || isUpdatingDraftOrder > 0}
           taxTotal={draftOrder.data.draft_order.tax_total}
           subtotal={draftOrder.data.draft_order.subtotal}
@@ -455,7 +391,7 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
           currencyCode={draftOrder.data.draft_order.region?.currency_code || settings.data?.region?.currency_code}
         />
       ) : null,
-    [addPromotion, draftOrder.data, draftOrder.isFetching, isUpdatingDraftOrder, settings.data?.region?.currency_code],
+    [draftOrder.data, draftOrder.isFetching, isUpdatingDraftOrder, settings.data?.region?.currency_code],
   );
 
   const renderItem = React.useCallback<ListRenderItem<LineItemType>>(

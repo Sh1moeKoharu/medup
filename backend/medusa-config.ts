@@ -583,5 +583,9 @@ window.addEventListener('focus',revisar);
       resolve: "./src/modules/honorarios",
       key: "honorarios",
     },
+    {
+      resolve: "./src/modules/aseguranzas",
+      key: "aseguranzas",
+    },
   ]
 })

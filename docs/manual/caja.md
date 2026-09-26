@@ -181,6 +181,13 @@ mismo cobro desde Productos antes de completar.
 
 ![Cobro de la cuenta de consulta: 2 Paracetamol, total 90](img/caja/17-cobro-de-cuenta.png)
 
+**Aseguranzas.** En el alta (y en Editar) hay una lista de aseguranzas: marca las que tenga el
+paciente y anota su número de póliza. Es lo único que Caja hace con las aseguranzas: el descuento
+—sólo a medicamentos— lo aplica el servidor al cobrar, y es obligatorio. En el cobro verás
+«Aseguranza: X · n% sólo en medicamentos»; si el paciente tiene varias, elige con cuál se cobra
+(el botón se enciende al elegir). No hay códigos de promoción en el carrito: no se aplican
+descuentos generales.
+
 ### 3.7 bis · La consulta: un producto de precio variable
 
 La **Consulta** es un producto más, pero su precio lo pones tú al cobrar. Entra sola a la cuenta
@@ -291,6 +298,8 @@ Al confirmar, vuelves a la pantalla de entrada.
 | El ticket no sale | La impresora predeterminada del equipo no es la térmica | Ajustes → Impresión, sigue los pasos; prueba con «Imprimir ticket de prueba» |
 | Un paciente sale en gris como «Esperando a Enfermería» | El médico ya emitió, Enfermería aún no aplica | Espera; en cuanto apliquen, pasa a **Por cobrar** con su botón. No lo cobres desde el mostrador |
 | **Cobrar** apagado con «Abre la caja para cobrar» | No hay turno abierto a tu nombre | Fondo → Abrir caja; la lista se conserva |
+| «El paciente tiene 2 aseguranzas: elige con cuál se cobra» | Tiene más de una | Toca la aseguranza con la que se cobra; el descuento se recalcula solo |
+| «No se aplican descuentos generales» | Alguien intentó un código de promoción | Sólo la aseguranza del paciente descuenta, y sólo a medicamentos |
 | «Falta poner el precio de: Consulta» | La consulta entró con precio de referencia cero | Escribe el importe en el renglón y pulsa **Poner** |
 | Al cobrar: «tiene una orden en Enfermería sin aplicar» | Armaste el carrito a su nombre desde el mostrador mientras sigue en consulta | Espera a que Enfermería aplique; el servidor no deja cobrar ni imprimir antes, para no descontar dos veces |
 

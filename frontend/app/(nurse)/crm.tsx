@@ -7,6 +7,7 @@ import { useNotasDeAtencion } from '@/api/hooks/clinica';
 import { TarjetaDeNota } from '@/components/clinica/TarjetaDeNota';
 import { useOrdenesMedicas } from '@/api/hooks/medical-orders';
 import { FormularioPaciente } from '@/components/pacientes/FormularioPaciente';
+import { AseguranzasDelPaciente } from '@/components/pacientes/AseguranzasDelPaciente';
 import { UserRound } from '@/components/icons/user-round';
 import { SearchInput } from '@/components/SearchInput';
 import { Layout } from '@/components/ui/Layout';
@@ -103,6 +104,7 @@ const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWith
 
                 <View className="mb-6 rounded-2xl border border-gray-200 p-6 bg-gray-50">
                     <Text className="text-2xl font-bold mb-2">{[customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Sin nombre'}</Text>
+                    <AseguranzasDelPaciente customerId={customer.id} className="mb-2" />
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
@@ -123,7 +125,7 @@ const CustomerDetails = ({ customer, onClose, onEdit }: { customer: CustomerWith
 
                     {(() => {
                         const medRecord = (customer as any).medical_customer;
-                        if (!medRecord?.medical_history && !medRecord?.insurance_policy) return null;
+                        if (!medRecord?.medical_history && !medRecord?.insurance_policy && !medRecord?.insurances?.length) return null;
                         return (
                             <View className="mt-4 p-4 bg-white rounded-xl border border-info-300">
                                 <Text className="font-bold text-info-500 mb-2">Expediente médico</Text>

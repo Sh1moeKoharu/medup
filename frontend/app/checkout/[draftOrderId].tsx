@@ -22,6 +22,7 @@ import { formatDate } from '@/utils/date';
 import { LOCALE_DINERO, MONEDA_POR_OMISION } from '@/utils/dinero';
 import { esPrecioVariable, renglonesSinPrecio } from '@/utils/precio-variable';
 import { PrecioVariable } from '@/components/caja/PrecioVariable';
+import { AseguranzaDelCobro } from '@/components/caja/AseguranzaDelCobro';
 import { AdminOrderLineItem } from '@medusajs/types';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -192,6 +193,9 @@ export default function CheckoutScreen() {
   const items = draftOrder.data?.items || [];
   // El servidor tampoco cobra un precio variable en cero (lib/consulta.ts); aquí se avisa antes.
   const sinPrecio = renglonesSinPrecio(items as any);
+  // Con varias aseguranzas hay que elegir antes de cobrar (el servidor lo repite con 409).
+  const [aseguranzaPendiente, setAseguranzaPendiente] = React.useState(false);
+  const aseguranzaAplicada = (draftOrder.data as any)?.metadata?.altus_aseguranza as { name: string; discount_percent: number } | null | undefined;
 
   if (draftOrder.isLoading || settings.isLoading) {
     return <CheckoutSkeleton />;
@@ -314,6 +318,7 @@ export default function CheckoutScreen() {
               </Text>
             </View>
           )}
+          {isDraftOrder && <AseguranzaDelCobro orderId={draftOrderId} onEstado={setAseguranzaPendiente} />}
         </View>
 
         <View className="mb-6 gap-y-2 border-y border-gray-200 py-4">
@@ -339,7 +344,9 @@ export default function CheckoutScreen() {
           </View>
           {typeof draftOrder.data.discount_total === 'number' && draftOrder.data.discount_total > 0 && (
             <View className="flex-row justify-between">
-              <Text className="text-sm text-gray-400">Descuento</Text>
+              <Text className="text-sm text-gray-400">
+                {aseguranzaAplicada ? `Descuento · ${aseguranzaAplicada.name} (${aseguranzaAplicada.discount_percent}% en medicamentos)` : 'Descuento'}
+              </Text>
               <Text className="text-sm text-gray-400">
                 {(draftOrder.data.discount_total * -1)?.toLocaleString(LOCALE_DINERO, {
                   style: 'currency',
@@ -494,6 +501,7 @@ export default function CheckoutScreen() {
             disabled={
               !isDraftOrder ||
               sinPrecio.length > 0 ||
+              aseguranzaPendiente ||
               !cashSession.data ||
               (paymentMethod === 'card' && !referenciaValida) ||
               (paymentMethod === 'cash' &&

@@ -148,6 +148,7 @@ export const API_POLICIES: ApiPolicy[] = [
     ["/admin/promotions", "Promociones"],
     ["/admin/campaigns", "Campañas"],
     ["/admin/b2b-agreements", "Convenios empresariales"],
+    ["/admin/insurances", "Aseguranzas (descuento a medicamentos)"],
   ].map(([path, nota]) => ({
     path,
     write: [ROLES.ADMIN],
@@ -265,6 +266,13 @@ export const API_POLICIES: ApiPolicy[] = [
   //
   // La escritura se deja en OPERATIVOS: recepción registra la empresa de un
   // paciente con convenio al darlo de alta, y eso no es contenido clínico.
+  // Las aseguranzas del paciente las marca recepción al darlo de alta; la ruta
+  // toca sólo esa lista, no el historial (ver api/admin/patient-insurances).
+  {
+    path: "/admin/patient-insurances",
+    write: [ROLES.ADMIN, ROLES.CASHIER, ROLES.DOCTOR, ROLES.NURSE],
+    nota: "Aseguranzas de un paciente (sólo la lista, sin historial)",
+  },
   {
     path: "/admin/medical-customers",
     write: OPERATIVOS,

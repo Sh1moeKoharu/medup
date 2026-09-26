@@ -1534,6 +1534,100 @@ async function correccionesDelPanel() {
   await call("admin", "DELETE", `/admin/products/${prod.j?.product?.id}`)
 }
 
+// ── 17. Aseguranzas ─────────────────────────────────────────────────────────
+async function aseguranzas() {
+  seccion("17 · ASEGURANZAS")
+  const sello = Date.now()
+
+  // Catálogo: sólo Administración escribe; el resto lee.
+  check("Caja no da de alta aseguranzas", (await call("caja", "POST", "/admin/insurances", { name: "X", discount_percent: 10 })).code === 403)
+  check("un porcentaje fuera de rango se rechaza", (await call("admin", "POST", "/admin/insurances", { name: "Mala", discount_percent: 0 })).code === 400)
+  const gnp = (await call("admin", "POST", "/admin/insurances", { name: `GNP ${sello}`, discount_percent: 20 })).j?.insurance
+  const axa = (await call("admin", "POST", "/admin/insurances", { name: `AXA ${sello}`, discount_percent: 10 })).j?.insurance
+  check("Administración da de alta aseguranzas, cada una con su promoción", !!gnp?.promotion_code && !!axa?.promotion_code && gnp.promotion_code.startsWith("ASEG-"), JSON.stringify(gnp ?? "sin alta").slice(0, 160))
+  check("Caja lee el catálogo", ((await call("caja", "GET", "/admin/insurances")).j?.insurances ?? []).some((i) => i.id === gnp?.id))
+
+  // Un medicamento (tipo Medicamento) y un insumo (sin tipo).
+  const tipos = (await call("admin", "GET", "/admin/product-types?limit=50")).j?.product_types ?? []
+  const tipoMed = tipos.find((t) => t.value === "Medicamento")?.id
+  check("existe el tipo de producto Medicamento (lo crea la primera aseguranza)", !!tipoMed)
+  const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]?.id
+  const region = (await call("admin", "GET", "/admin/regions?limit=1")).j?.regions?.[0]
+  const crear = async (titulo, precio, type_id) =>
+    (await call("admin", "POST", "/admin/products", {
+      title: titulo, status: "published", type_id, sales_channels: canal ? [{ id: canal }] : undefined,
+      options: [{ title: "Presentación", values: ["Default"] }],
+      variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: precio, currency_code: "mxn" }] }],
+    })).j?.product
+  const med = await crear(`Medicamento aseg ${sello}`, 100, tipoMed)
+  const insumo = await crear(`Insumo aseg ${sello}`, 50, undefined)
+  const vMed = med?.variants?.[0]?.id
+  const vIns = insumo?.variants?.[0]?.id
+
+  // Paciente con UNA aseguranza.
+  const p1 = (await call("caja", "POST", "/admin/customers", { first_name: "Asegurado", last_name: `Uno ${sello}` })).j?.customer
+  const fichaP1 = await call("caja", "POST", `/admin/patient-insurances/${p1?.id}`, { insurances: [{ insurance_id: gnp?.id, policy_number: "POL-1" }] })
+  check("Caja marca la aseguranza del paciente con su póliza", fichaP1.code === 200 && fichaP1.j?.insurances?.[0]?.policy_number === "POL-1", `HTTP ${fichaP1.code} ${JSON.stringify(fichaP1.j).slice(0, 120)}`)
+  check("una lista mal formada se rechaza", (await call("caja", "POST", `/admin/patient-insurances/${p1?.id}`, { insurances: "GNP" })).code === 400)
+  check("Farmacia no marca aseguranzas", (await call("farmacia", "POST", `/admin/patient-insurances/${p1?.id}`, { insurances: [] })).code === 403)
+  check("y la lista se lee de vuelta", ((await call("caja", "GET", `/admin/patient-insurances/${p1?.id}`)).j?.insurances ?? []).length === 1)
+
+  const carrito = async (customer_id) =>
+    (await call("caja", "POST", "/admin/draft-orders", { region_id: region?.id, sales_channel_id: canal, customer_id, items: [{ variant_id: vMed, quantity: 2 }, { variant_id: vIns, quantity: 1 }] })).j?.draft_order
+  const c1 = await carrito(p1?.id)
+  const estado1 = (await call("caja", "GET", `/admin/draft-orders/${c1?.id}/aseguranza`)).j
+  check("el cobro sabe qué aseguranza tiene el paciente y que aún no está aplicada", estado1?.aseguranzas?.length === 1 && estado1?.aplicada === null, JSON.stringify(estado1).slice(0, 160))
+
+  // Descuento general: rechazado por el punto de venta.
+  const promoGeneral = (await call("admin", "POST", "/admin/promotions", { code: `GEN${sello}`, type: "standard", status: "active", is_automatic: false, application_method: { type: "percentage", value: 50, target_type: "items", allocation: "across" } })).j?.promotion
+  await call("caja", "POST", `/admin/draft-orders/${c1?.id}/edit`, {})
+  const general = await call("caja", "POST", `/admin/draft-orders/${c1?.id}/edit/promotions`, { promo_codes: [promoGeneral?.code ?? `GEN${sello}`] })
+  await call("caja", "DELETE", `/admin/draft-orders/${c1?.id}/edit`)
+  check("Caja no aplica descuentos generales", general.code === 409 && general.j?.type === "descuento_no_permitido", `HTTP ${general.code} ${general.j?.message ?? ""}`)
+
+  // Cobrar: el servidor aplica la aseguranza solo.
+  if (!(await call("caja", "GET", "/admin/cash-sessions/current")).j?.session) await call("caja", "POST", "/admin/cash-sessions", { opening_amount: 0 })
+  const cobro1 = await call("caja", "POST", `/admin/draft-orders/${c1?.id}/convert-to-order`)
+  const orden1 = (await call("caja", "GET", `/admin/orders/${c1?.id}`)).j?.order
+  check("con una sola aseguranza, el cobro la aplica solo: 20 % a los medicamentos y nada al insumo", cobro1.code === 200 && Number(orden1?.discount_total) === 40 && Number(orden1?.total) === 210, `HTTP ${cobro1.code} ${cobro1.j?.message ?? ""} descuento=${orden1?.discount_total} total=${orden1?.total}`)
+  check("y queda anotada en el pedido para el ticket", orden1?.metadata?.altus_aseguranza?.name === gnp?.name, JSON.stringify(orden1?.metadata))
+  const recibo1 = (await call("caja", "GET", `/admin/receipts/${c1?.id}`)).j?.recibo
+  check("el ticket dice de qué aseguranza es el descuento", recibo1?.aseguranza?.name === gnp?.name && Number(recibo1?.descuentos) === 40, JSON.stringify({ a: recibo1?.aseguranza, d: recibo1?.descuentos }))
+
+  // Paciente con DOS aseguranzas: hay que elegir.
+  const p2 = (await call("caja", "POST", "/admin/customers", { first_name: "Asegurado", last_name: `Dos ${sello}` })).j?.customer
+  await call("caja", "POST", `/admin/patient-insurances/${p2?.id}`, { insurances: [{ insurance_id: gnp?.id }, { insurance_id: axa?.id, policy_number: "AX-9" }] })
+  const c2 = await carrito(p2?.id)
+  const sinElegir = await call("caja", "POST", `/admin/draft-orders/${c2?.id}/convert-to-order`)
+  check("con dos aseguranzas, cobrar sin elegir devuelve 409 y las lista", sinElegir.code === 409 && sinElegir.j?.type === "aseguranza_pendiente" && sinElegir.j?.aseguranzas?.length === 2, `HTTP ${sinElegir.code} ${sinElegir.j?.message ?? ""}`)
+  check("una aseguranza ajena se rechaza", (await call("caja", "POST", `/admin/draft-orders/${c2?.id}/aseguranza`, { insurance_id: "ins_ajena" })).code === 400)
+  const elegida = await call("caja", "POST", `/admin/draft-orders/${c2?.id}/aseguranza`, { insurance_id: axa?.id })
+  check("Caja elige AXA y queda aplicada con su póliza", elegida.code === 200 && elegida.j?.aplicada?.id === axa?.id && elegida.j?.aplicada?.policy_number === "AX-9", JSON.stringify(elegida.j).slice(0, 160))
+  const cambio = await call("caja", "POST", `/admin/draft-orders/${c2?.id}/aseguranza`, { insurance_id: gnp?.id })
+  const cobro2 = await call("caja", "POST", `/admin/draft-orders/${c2?.id}/convert-to-order`)
+  const orden2 = (await call("caja", "GET", `/admin/orders/${c2?.id}`)).j?.order
+  check("cambia a GNP y el cobro lleva el 20 %, no los dos", cambio.code === 200 && cobro2.code === 200 && Number(orden2?.discount_total) === 40, `HTTP ${cambio.code}/${cobro2.code} descuento=${orden2?.discount_total}`)
+
+  // Sin aseguranza, íntegro. Vencida, como si no tuviera.
+  const p3 = (await call("caja", "POST", "/admin/customers", { first_name: "Sin", last_name: `Aseguranza ${sello}` })).j?.customer
+  const c3 = await carrito(p3?.id)
+  const cobro3 = await call("caja", "POST", `/admin/draft-orders/${c3?.id}/convert-to-order`)
+  const orden3 = (await call("caja", "GET", `/admin/orders/${c3?.id}`)).j?.order
+  check("sin aseguranza se cobra íntegro", cobro3.code === 200 && Number(orden3?.discount_total) === 0 && Number(orden3?.total) === 250, `HTTP ${cobro3.code} total=${orden3?.total}`)
+  await call("admin", "POST", `/admin/insurances/${gnp?.id}`, { valid_until: "2020-01-01" })
+  const c4 = await carrito(p1?.id)
+  const cobro4 = await call("caja", "POST", `/admin/draft-orders/${c4?.id}/convert-to-order`)
+  const orden4 = (await call("caja", "GET", `/admin/orders/${c4?.id}`)).j?.order
+  check("una aseguranza vencida ya no descuenta", cobro4.code === 200 && Number(orden4?.discount_total) === 0, `HTTP ${cobro4.code} descuento=${orden4?.discount_total}`)
+
+  // Limpieza.
+  const turno = (await call("caja", "GET", "/admin/cash-sessions/current")).j?.session
+  if (turno) await call("caja", "POST", `/admin/cash-sessions/${turno.id}/close`, { actual_closing_amount: 0, notes: "Cierre de verificación" })
+  for (const id of [gnp?.id, axa?.id]) if (id) await call("admin", "DELETE", `/admin/insurances/${id}`)
+  if (promoGeneral?.id) await call("admin", "DELETE", `/admin/promotions/${promoGeneral.id}`)
+  for (const p of [med, insumo]) if (p?.id) await call("admin", "DELETE", `/admin/products/${p.id}`)
+}
+
 // ── Ejecución ───────────────────────────────────────────────────────────────
 ;(async () => {
   console.log(`\nVerificación de la API — ${BASE}\n`)
@@ -1569,6 +1663,7 @@ async function correccionesDelPanel() {
   await enfermeriaYFarmacia()
   await nomina()
   await correccionesDelPanel()
+  await aseguranzas()
 
   console.log(`\n${"═".repeat(64)}`)
   console.log(

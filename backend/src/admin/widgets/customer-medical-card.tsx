@@ -21,6 +21,16 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
     const [companyName, setCompanyName] = useState("");
     const [customerType, setCustomerType] = useState("b2c");
     const [insurancePolicy, setInsurancePolicy] = useState("");
+    // Aseguranzas del paciente: cuáles tiene y su póliza. El catálogo lo da /admin/insurances.
+    const [insurances, setInsurances] = useState<{ insurance_id: string; policy_number: string | null }[]>([]);
+    const [originalInsurances, setOriginalInsurances] = useState("[]");
+    const [catalogoAseguranzas, setCatalogoAseguranzas] = useState<{ id: string; name: string; discount_percent: number }[]>([]);
+    useEffect(() => {
+        fetch("/admin/insurances?status=active", { credentials: "include" })
+            .then((r) => (r.ok ? r.json() : { insurances: [] }))
+            .then((d) => setCatalogoAseguranzas(d.insurances || []))
+            .catch(() => {});
+    }, []);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
     // Password protection state
@@ -66,6 +76,8 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                     setCompanyName(mc.company_name || customer?.company_name || "");
                     setCustomerType(mc.customer_type || "b2c");
                     setInsurancePolicy(mc.insurance_policy || "");
+                    setInsurances(Array.isArray(mc.insurances) ? mc.insurances : []);
+                    setOriginalInsurances(JSON.stringify(Array.isArray(mc.insurances) ? mc.insurances : []));
                     // Store originals for comparison
                     setOriginalEmployeeNumber(mc.employee_number || "");
                     setOriginalInsurancePolicy(mc.insurance_policy || "");
@@ -95,7 +107,8 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
     const protectedFieldsChanged = () => {
         const empChanged = (employeeNumber || "") !== (originalEmployeeNumber || "");
         const polChanged = (insurancePolicy || "") !== (originalInsurancePolicy || "");
-        return empChanged || polChanged;
+        const asegChanged = JSON.stringify(insurances) !== originalInsurances;
+        return empChanged || polChanged || asegChanged;
     };
 
     const handleAuthenticate = async () => {
@@ -150,6 +163,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                     company_name: companyName || null,
                     customer_type: customerType,
                     insurance_policy: insurancePolicy || null,
+                    insurances,
                 }),
             });
 
@@ -158,6 +172,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                 setMedicalData(data.medical_customer);
                 setOriginalEmployeeNumber(employeeNumber);
                 setOriginalInsurancePolicy(insurancePolicy);
+                setOriginalInsurances(JSON.stringify(insurances));
 
                 // Sync company_name to the native Medusa customer field
                 try {
@@ -213,6 +228,7 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
             setCompanyName(medicalData.company_name || customer?.company_name || "");
             setCustomerType(medicalData.customer_type || "b2c");
             setInsurancePolicy(medicalData.insurance_policy || "");
+            setInsurances(Array.isArray(medicalData.insurances) ? medicalData.insurances : []);
         }
     };
 
@@ -308,6 +324,23 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                             <Text className="text-ui-fg-base text-sm font-medium">
                                 {medicalData.insurance_policy || "—"}
                             </Text>
+                        </div>
+                        <div>
+                            <Text className="text-ui-fg-muted text-xs uppercase tracking-wider font-semibold mb-1">
+                                Aseguranzas
+                            </Text>
+                            {(Array.isArray(medicalData.insurances) ? medicalData.insurances : []).length === 0 ? (
+                                <Text className="text-ui-fg-base text-sm font-medium">—</Text>
+                            ) : (
+                                (medicalData.insurances as any[]).map((i: any) => {
+                                    const a = catalogoAseguranzas.find((c) => c.id === i.insurance_id);
+                                    return (
+                                        <Text key={i.insurance_id} className="text-ui-fg-base text-sm font-medium">
+                                            {a?.name ?? "Aseguranza"}{i.policy_number ? ` · póliza ${i.policy_number}` : ""}{a ? ` · ${a.discount_percent}% en medicamentos` : ""}
+                                        </Text>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 )}
@@ -447,6 +480,48 @@ const CustomerMedicalWidget = ({ data: customer }: { data: any }) => {
                                     />
                                     <Text className="text-ui-fg-muted text-xs mt-1">
                                         Número de póliza o convenio corporativo
+                                    </Text>
+                                </div>
+
+                                {/* Aseguranzas: descuento obligatorio a medicamentos, al cobrar */}
+                                <div className="md:col-span-2">
+                                    <Label className="text-sm font-medium text-ui-fg-base mb-1.5">Aseguranzas</Label>
+                                    {catalogoAseguranzas.length === 0 ? (
+                                        <Text className="text-ui-fg-muted text-xs">No hay aseguranzas dadas de alta (Aseguranzas, en el menú).</Text>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {catalogoAseguranzas.map((a) => {
+                                                const propia = insurances.find((i) => i.insurance_id === a.id);
+                                                return (
+                                                    <div key={a.id} className="flex items-center gap-3">
+                                                        <label className="flex items-center gap-2 text-sm text-ui-fg-base min-w-[220px]">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={!!propia}
+                                                                disabled={protectedFieldsLocked}
+                                                                onChange={(e) =>
+                                                                    setInsurances(e.target.checked
+                                                                        ? [...insurances, { insurance_id: a.id, policy_number: null }]
+                                                                        : insurances.filter((i) => i.insurance_id !== a.id))
+                                                                }
+                                                            />
+                                                            {a.name} · {a.discount_percent}%
+                                                        </label>
+                                                        {propia && (
+                                                            <Input
+                                                                placeholder="Número de póliza"
+                                                                value={propia.policy_number ?? ""}
+                                                                disabled={protectedFieldsLocked}
+                                                                onChange={(e) => setInsurances(insurances.map((i) => (i.insurance_id === a.id ? { ...i, policy_number: e.target.value || null } : i)))}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    <Text className="text-ui-fg-muted text-xs mt-1">
+                                        El descuento se aplica solo al cobrar, únicamente a medicamentos. Con varias, Caja elige con cuál se cobra.
                                     </Text>
                                 </div>
                             </div>

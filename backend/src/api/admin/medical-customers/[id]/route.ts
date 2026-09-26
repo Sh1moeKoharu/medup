@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { normalizarAseguranzasDePaciente } from "../../../../lib/aseguranzas"
 import { Modules } from "@medusajs/framework/utils"
 
 // GET /admin/medical-customers/:id — get medical data for a specific customer
@@ -45,7 +46,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
     try {
         const customerId = req.params.id
-        const { employee_number, company_name, customer_type, insurance_policy } = req.body as any
+        const { employee_number, company_name, customer_type, insurance_policy, insurances } = req.body as any
+        // Las aseguranzas van como lista limpia; una lista mal formada no entra.
+        const aseg = insurances !== undefined ? normalizarAseguranzasDePaciente(insurances) : null
+        if (aseg?.error) {
+            return res.status(400).json({ error: aseg.error })
+        }
         const query = req.scope.resolve("query")
         const medicalCustomerService = req.scope.resolve("medical_customer") as any
         const remoteLink = req.scope.resolve("remoteLink") as any
@@ -72,6 +78,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
                 ...(company_name !== undefined && { company_name }),
                 ...(customer_type !== undefined && { customer_type }),
                 ...(insurance_policy !== undefined && { insurance_policy }),
+                ...(aseg && { insurances: aseg.lista }),
             })
         } else {
             // Create new medical customer and link it
@@ -80,6 +87,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
                 company_name: company_name || null,
                 customer_type: customer_type || "b2c",
                 insurance_policy: insurance_policy || null,
+                insurances: aseg ? aseg.lista : null,
             })
 
             await remoteLink.create({

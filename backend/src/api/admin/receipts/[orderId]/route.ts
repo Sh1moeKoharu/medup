@@ -182,6 +182,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 "tax_total",
                 "discount_total",
                 "total",
+                "metadata",
                 "customer.first_name",
                 "customer.last_name",
                 "items.*",
@@ -287,6 +288,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
                 moneda: String(orden.currency_code ?? "mxn").toUpperCase(),
                 subtotal: Number(orden.subtotal ?? 0),
                 descuentos: Number(orden.discount_total ?? 0),
+                // Si el descuento es de una aseguranza, el ticket lo dice (ver lib/aseguranzas.ts).
+                aseguranza: (orden as any).metadata?.altus_aseguranza ?? null,
                 impuestos: Number(orden.tax_total ?? 0),
                 total: Number(orden.total ?? 0),
                 metodo_pago: metodoPago,
