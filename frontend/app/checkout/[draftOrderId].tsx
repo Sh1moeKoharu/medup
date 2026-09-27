@@ -23,6 +23,7 @@ import { LOCALE_DINERO, MONEDA_POR_OMISION } from '@/utils/dinero';
 import { esPrecioVariable, renglonesSinPrecio } from '@/utils/precio-variable';
 import { PrecioVariable } from '@/components/caja/PrecioVariable';
 import { AseguranzaDelCobro } from '@/components/caja/AseguranzaDelCobro';
+import { paqueteDelRenglon } from '@/api/hooks/paquetes';
 import { AdminOrderLineItem } from '@medusajs/types';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -47,7 +48,8 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
 
   // La cuenta de consulta llega aquí directo desde «Por cobrar», sin pasar por
   // el carrito: el precio de la consulta se pone (o se quita) en esta fila.
-  if (esPrecioVariable(item)) {
+  const paquete = paqueteDelRenglon(item);
+  if (esPrecioVariable(item) && !paquete) {
     return (
       <View className="flex-row gap-4 bg-white py-6">
         <View className="h-[5.25rem] w-[5.25rem] items-center justify-center overflow-hidden rounded-xl bg-info-200">
@@ -76,6 +78,7 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem }> = ({ item }) => {
       </View>
       <View className="flex-1 flex-col gap-2">
         <Text>{item.product_title}</Text>
+        {paquete && <Text className="text-xs text-info-500">Paquete {paquete.name}</Text>}
         {/* En un catálogo de una sola presentación, la opción se llama «Default»: no dice nada. */}
         {item.variant?.options?.some((o) => o.value && o.value !== 'Default') && (
           <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">

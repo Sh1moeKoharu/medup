@@ -587,5 +587,9 @@ window.addEventListener('focus',revisar);
       resolve: "./src/modules/aseguranzas",
       key: "aseguranzas",
     },
+    {
+      resolve: "./src/modules/paquetes",
+      key: "paquetes",
+    },
   ]
 })

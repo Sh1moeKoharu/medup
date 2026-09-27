@@ -59,7 +59,8 @@ export function esConsulta(r: RenglonConPrecio): boolean {
 /** Renglones de precio variable que siguen en cero: no se pueden cobrar así. */
 export function renglonesSinPrecio(items: RenglonConPrecio[]): string[] {
   return items
-    .filter((r) => esPrecioVariable(r) && (Number(r.quantity ?? 1) || 0) > 0 && (Number(r.unit_price) || 0) <= 0)
+    // Dentro de un paquete el precio es el del paquete, prorrateado: no cuenta aquí.
+    .filter((r) => esPrecioVariable(r) && !(r.metadata as any)?.altus_paquete_id && (Number(r.quantity ?? 1) || 0) > 0 && (Number(r.unit_price) || 0) <= 0)
     .map((r) => r.product_title || r.title || "Consulta")
 }
 

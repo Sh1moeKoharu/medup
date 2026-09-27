@@ -243,7 +243,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
         const lineas = (orden.items ?? []).map((it: any) => {
             const controlado = esControlado(it.product?.metadata);
-            const nombreReal = it.product_title || it.title || "Producto";
+            const nombreReal = (it.product_title || it.title || "Producto") + (it.metadata?.altus_paquete ? ` (paquete ${it.metadata.altus_paquete})` : "");
 
             if (controlado && OCULTAR_CONTROLADOS) {
                 controladosOcultos++;

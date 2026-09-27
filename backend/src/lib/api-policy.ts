@@ -149,6 +149,7 @@ export const API_POLICIES: ApiPolicy[] = [
     ["/admin/campaigns", "Campañas"],
     ["/admin/b2b-agreements", "Convenios empresariales"],
     ["/admin/insurances", "Aseguranzas (descuento a medicamentos)"],
+    ["/admin/packages", "Paquetes a precio cerrado"],
   ].map(([path, nota]) => ({
     path,
     write: [ROLES.ADMIN],

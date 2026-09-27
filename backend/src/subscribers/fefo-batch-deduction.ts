@@ -4,7 +4,7 @@ import { recordInventoryMovement } from "../lib/inventory-ledger";
 import { planificarFefo, aplicarFefo } from "../lib/fefo";
 import { almacenDeFarmacia } from "../lib/almacenes";
 import { CLAVE_CONSUMO_EN_CONSULTA } from "../lib/cuentas-de-paciente";
-import { esPrecioVariable } from "../lib/consulta";
+import { esConsulta, esPrecioVariable } from "../lib/consulta";
 
 /**
  * Descuento de lotes por FEFO cuando se cobra una venta.
@@ -66,7 +66,7 @@ export default async function fefoBatchDeductionSubscriber({
                 continue;
             }
             // La consulta es un servicio: no tiene lotes ni existencia.
-            if (esPrecioVariable(item as any)) {
+            if (esPrecioVariable(item as any) || esConsulta(item as any)) {
                 continue;
             }
 

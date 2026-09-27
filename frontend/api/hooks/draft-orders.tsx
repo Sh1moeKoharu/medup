@@ -80,7 +80,7 @@ const useGetOrSetDefaultCustomer = () => {
   }, [sdk]);
 };
 
-const useGetOrSetDraftOrderId = () => {
+export const useGetOrSetDraftOrderId = () => {
   const sdk = useMedusaSdk();
   const settings = useSettings();
   const getOrSetDefaultCustomer = useGetOrSetDefaultCustomer();

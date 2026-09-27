@@ -37,6 +37,8 @@ import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { color } from '@/theme/tokens';
 import { formatearDinero } from '@/utils/dinero';
 import { esPrecioVariable } from '@/utils/precio-variable';
+import { paqueteDelRenglon, useQuitarPaquete } from '@/api/hooks/paquetes';
+import { ElegirPaquete } from '@/components/caja/ElegirPaquete';
 import { PrecioVariable } from '@/components/caja/PrecioVariable';
 
 interface TPromotionItem extends AdminPromotion {
@@ -85,6 +87,8 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
   const settings = useSettings();
   const draftOrder = useCurrentDraftOrder();
   const updateDraftOrderItem = useUpdateDraftOrderItem();
+  // Un renglón de paquete no se edita suelto: ni cantidad ni precio. Se quita el paquete entero.
+  const paquete = paqueteDelRenglon(item);
   const thumbnail = item.thumbnail || item.product?.thumbnail || item.product?.images?.[0]?.url;
 
   return (
@@ -121,22 +125,28 @@ const DraftOrderItem: React.FC<{ item: AdminOrderLineItem; onRemove?: (item: Adm
               ))}
             </View>
           )}
-          <QuantityPicker
-            quantity={item.quantity}
-            max={item.variant?.inventory_quantity}
-            onQuantityChange={(quantity) =>
-              updateDraftOrderItem.mutate({
-                id: item.id,
-                update: {
-                  quantity,
-                },
-              })
-            }
-            className="self-start"
-          />
+          {paquete ? (
+            <Text className="self-start rounded-full bg-info-200 px-3 py-1 text-xs text-info-500">
+              Paquete {paquete.name} · {item.quantity} {item.quantity === 1 ? 'pieza' : 'piezas'}
+            </Text>
+          ) : (
+            <QuantityPicker
+              quantity={item.quantity}
+              max={item.variant?.inventory_quantity}
+              onQuantityChange={(quantity) =>
+                updateDraftOrderItem.mutate({
+                  id: item.id,
+                  update: {
+                    quantity,
+                  },
+                })
+              }
+              className="self-start"
+            />
+          )}
         </View>
         <View className="ml-auto items-end justify-between">
-          {esPrecioVariable(item) ? (
+          {esPrecioVariable(item) && !paquete ? (
             <PrecioVariable
               precio={item.unit_price}
               currencyCode={draftOrder.data?.draft_order.region?.currency_code || settings.data?.region?.currency_code}
@@ -357,6 +367,7 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
   const removePromotion = useRemovePromotion();
   const cancelDraftOrder = useCancelDraftOrder();
   const updateDraftOrderItem = useUpdateDraftOrderItem();
+  const quitarPaquete = useQuitarPaquete();
   const isUpdatingDraftOrder = useIsMutating({ mutationKey: ['draft-order'], exact: false });
   const itemsListRef = React.useRef<FlashListRef<LineItemType>>(null);
 
@@ -364,10 +375,16 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
 
   const onItemRemove = React.useCallback(
     (item: AdminOrderLineItem) => {
-      updateDraftOrderItem.mutate({ id: item.id, update: { quantity: 0 } });
+      const paquete = paqueteDelRenglon(item);
+      if (paquete) {
+        // Quitar un renglón de paquete quita el paquete entero: el precio es cerrado.
+        quitarPaquete.mutate(paquete.id);
+      } else {
+        updateDraftOrderItem.mutate({ id: item.id, update: { quantity: 0 } });
+      }
       itemsListRef.current?.prepareForLayoutAnimationRender();
     },
-    [updateDraftOrderItem],
+    [updateDraftOrderItem, quitarPaquete],
   );
 
   const onPromotionRemove = React.useCallback(
@@ -430,7 +447,10 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
   if (draftOrder.isError || settings.isError) {
     return (
       <Layout className={`pb-6 ${isSidebar ? 'px-4 md:px-4 lg:px-4 xl:px-4' : ''}`}>
-        <Text className="mt-8 text-4xl">Carrito</Text>
+        <View className="mt-8 flex-row items-center justify-between">
+          <Text className="text-4xl">Carrito</Text>
+          <ElegirPaquete />
+        </View>
         <View className="flex-1 items-center  justify-center gap-2">
           <InfoBanner variant="ghost" colorScheme="error" className="w-40">
             Error al cargar el carrito
@@ -453,7 +473,10 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
   if (!draftOrder.data?.draft_order || !draftOrder.data?.draft_order.items.length) {
     return (
       <Layout className={`pb-6 ${isSidebar ? 'px-4 md:px-4 lg:px-4 xl:px-4' : ''}`}>
-        <Text className="mt-8 text-4xl">Carrito</Text>
+        <View className="mt-8 flex-row items-center justify-between">
+          <Text className="text-4xl">Carrito</Text>
+          <ElegirPaquete />
+        </View>
         <View className="flex-1 items-center justify-center gap-1">
           <ShoppingCart size={24} />
           <Text className="text-xl">Tu carrito está vacío</Text>
@@ -501,7 +524,10 @@ export default function CartScreen({ isSidebar }: { isSidebar?: boolean }) {
   return (
     <>
       <Layout className={`pb-6 ${isSidebar ? 'px-4 md:px-4 lg:px-4 xl:px-4' : ''}`}>
-        <Text className="mt-8 mb-6 text-4xl">Carrito</Text>
+        <View className="mt-8 mb-6 flex-row items-center justify-between">
+          <Text className="text-4xl">Carrito</Text>
+          <ElegirPaquete />
+        </View>
         <CustomerBadge customer={draftOrder.data.draft_order.customer} />
         <FlashList
           ref={itemsListRef}

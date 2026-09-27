@@ -350,6 +350,19 @@ Tres reglas que el sistema cumple solo y conviene saber:
 A cada paciente se le marcan sus aseguranzas en su ficha (Clientes → el paciente → Expediente →
 Editar), con su número de póliza. Retirar una aseguranza no cambia los cobros anteriores.
 
+## 10 ter. Paquetes
+
+En **Paquetes** (menú) se arma cada combo a **precio cerrado**: nombre, especialista, qué incluye
+(productos con cantidad y, si se quiere, la consulta), precio, vigencia y notas. El mismo
+«Nacimiento» puede existir para dos especialistas con precio distinto: son dos paquetes.
+
+Caja lo añade entero al carrito con el botón **Paquete**. Sus renglones entran con el precio del
+paquete repartido según el precio de lista de cada producto, así que el inventario se descuenta
+renglón por renglón, la aseguranza descuenta sólo a los medicamentos del paquete y el ticket dice
+qué llevó y de qué paquete. Si la Consulta no tiene precio de referencia, dentro del paquete sale en
+$0 («incluida»); ponle precio en Productos → Consulta si quieres que lleve su parte. Los renglones de un paquete no se editan sueltos: se quita el paquete
+entero o nada. Retirar un paquete no cambia los cobros anteriores.
+
 ## 11. La ficha del paciente
 
 Al abrir un paciente aparecen los **datos corporativos** —número de empleado, empresa, tipo de

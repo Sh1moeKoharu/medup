@@ -127,6 +127,12 @@ imprimir, el sistema ofrece imprimir, ver la venta o volver al catálogo.
 
 ![Aviso de venta registrada con el catálogo listo para la siguiente venta](img/caja/09-venta-registrada.png)
 
+**Paquetes.** Arriba del carrito, **Paquete** abre la lista de paquetes vigentes (nombre,
+especialista, qué incluye, precio). Al tocar uno entra entero: cada producto y, si lo incluye, la
+consulta, con el precio cerrado repartido entre ellos. Sus renglones llevan la etiqueta «Paquete X»
+y no se editan sueltos; al quitar uno se quita el paquete completo. La aseguranza del paciente
+descuenta igual, sólo a los medicamentos del paquete.
+
 ### 3.5 Cobrar con tarjeta: la referencia de la terminal
 
 Con **Tarjeta** aparece un campo más: la **referencia de la terminal**, los 4 a 6 dígitos del
@@ -298,6 +304,7 @@ Al confirmar, vuelves a la pantalla de entrada.
 | El ticket no sale | La impresora predeterminada del equipo no es la térmica | Ajustes → Impresión, sigue los pasos; prueba con «Imprimir ticket de prueba» |
 | Un paciente sale en gris como «Esperando a Enfermería» | El médico ya emitió, Enfermería aún no aplica | Espera; en cuanto apliquen, pasa a **Por cobrar** con su botón. No lo cobres desde el mostrador |
 | **Cobrar** apagado con «Abre la caja para cobrar» | No hay turno abierto a tu nombre | Fondo → Abrir caja; la lista se conserva |
+| «El paquete ya está en el carrito» | Se tocó dos veces | Un paquete entra una vez; para dos, quítalo y vuelve a añadirlo con la cantidad que se acuerde |
 | «El paciente tiene 2 aseguranzas: elige con cuál se cobra» | Tiene más de una | Toca la aseguranza con la que se cobra; el descuento se recalcula solo |
 | «No se aplican descuentos generales» | Alguien intentó un código de promoción | Sólo la aseguranza del paciente descuenta, y sólo a medicamentos |
 | «Falta poner el precio de: Consulta» | La consulta entró con precio de referencia cero | Escribe el importe en el renglón y pulsa **Poner** |

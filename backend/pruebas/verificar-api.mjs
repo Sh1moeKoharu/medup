@@ -1576,7 +1576,8 @@ async function aseguranzas() {
     (await call("caja", "POST", "/admin/draft-orders", { region_id: region?.id, sales_channel_id: canal, customer_id, items: [{ variant_id: vMed, quantity: 2 }, { variant_id: vIns, quantity: 1 }] })).j?.draft_order
   const c1 = await carrito(p1?.id)
   const estado1 = (await call("caja", "GET", `/admin/draft-orders/${c1?.id}/aseguranza`)).j
-  check("el cobro sabe qué aseguranza tiene el paciente y que aún no está aplicada", estado1?.aseguranzas?.length === 1 && estado1?.aplicada === null, JSON.stringify(estado1).slice(0, 160))
+  // Con una sola aseguranza, abrir el cobro ya la aplica (el total que ve Caja lleva el descuento).
+  check("el cobro sabe qué aseguranza tiene el paciente y, al ser una sola, ya la aplicó", estado1?.aseguranzas?.length === 1 && estado1?.aplicada?.id === gnp?.id, JSON.stringify(estado1).slice(0, 160))
 
   // Descuento general: rechazado por el punto de venta.
   const promoGeneral = (await call("admin", "POST", "/admin/promotions", { code: `GEN${sello}`, type: "standard", status: "active", is_automatic: false, application_method: { type: "percentage", value: 50, target_type: "items", allocation: "across" } })).j?.promotion
@@ -1628,6 +1629,58 @@ async function aseguranzas() {
   for (const p of [med, insumo]) if (p?.id) await call("admin", "DELETE", `/admin/products/${p.id}`)
 }
 
+// ── 18. Paquetes ────────────────────────────────────────────────────────────
+async function paquetes() {
+  seccion("18 · PAQUETES")
+  const sello = Date.now()
+  const canal = (await call("admin", "GET", "/admin/sales-channels?limit=1")).j?.sales_channels?.[0]?.id
+  const region = (await call("admin", "GET", "/admin/regions?limit=1")).j?.regions?.[0]
+  const crear = async (titulo, precio) =>
+    (await call("admin", "POST", "/admin/products", {
+      title: titulo, status: "published", sales_channels: canal ? [{ id: canal }] : undefined,
+      options: [{ title: "Presentación", values: ["Default"] }],
+      variants: [{ title: "Default", options: { Presentación: "Default" }, manage_inventory: false, prices: [{ amount: precio, currency_code: "mxn" }] }],
+    })).j?.product
+  const a = await crear(`Paquete med A ${sello}`, 300)
+  const b = await crear(`Paquete ins B ${sello}`, 200)
+  const vA = a?.variants?.[0]?.id
+  const vB = b?.variants?.[0]?.id
+
+  check("Caja no da de alta paquetes", (await call("caja", "POST", "/admin/packages", { name: "X", price: 1, items: [] })).code === 403)
+  check("un paquete sin precio se rechaza", (await call("admin", "POST", "/admin/packages", { name: "Malo", price: 0, items: [{ variant_id: vA, quantity: 1 }] })).code === 400)
+  check("y uno sin nada dentro también", (await call("admin", "POST", "/admin/packages", { name: "Vacío", price: 100, items: [], includes_consultation: false })).code === 400)
+  const paq = (await call("admin", "POST", "/admin/packages", {
+    name: `Nacimiento ${sello}`, price: 1000, specialist_name: "Médico Pruebas", includes_consultation: true,
+    items: [{ variant_id: vA, product_title: a?.title, quantity: 2 }, { variant_id: vB, product_title: b?.title, quantity: 1 }],
+  })).j?.package
+  check("Administración da de alta un paquete con dos productos y la consulta", !!paq?.id && paq.includes_consultation === true, JSON.stringify(paq).slice(0, 160))
+  check("Caja lo lee en el catálogo", ((await call("caja", "GET", "/admin/packages?status=active")).j?.packages ?? []).some((p) => p.id === paq?.id))
+
+  const paciente = ((await call("admin", "GET", "/admin/customers?limit=50")).j?.customers ?? []).find((c) => !/pos-guest/.test(c.email ?? ""))
+  const carrito = (await call("caja", "POST", "/admin/draft-orders", { region_id: region?.id, sales_channel_id: canal, customer_id: paciente?.id, items: [] })).j?.draft_order
+  const puesto = await call("caja", "POST", `/admin/draft-orders/${carrito?.id}/paquete`, { package_id: paq?.id })
+  const conPaquete = (await call("caja", "GET", `/admin/draft-orders/${carrito?.id}`)).j?.draft_order
+  const suyos = (conPaquete?.items ?? []).filter((i) => i.metadata?.altus_paquete_id === paq?.id)
+  const suma = suyos.reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0)
+  check("Caja lo añade entero: tres renglones marcados con el paquete", puesto.code === 200 && suyos.length === 3, `HTTP ${puesto.code} ${puesto.j?.error ?? ""} renglones=${suyos.length}`)
+  check("y la suma de sus renglones es el precio cerrado", Math.abs(suma - 1000) < 0.01 && Number(conPaquete?.total) === 1000, `suma=${suma} total=${conPaquete?.total}`)
+  const medA = suyos.find((i) => i.variant_id === vA)
+  const insB = suyos.find((i) => i.variant_id === vB)
+  check("repartido según el precio de lista (600 y 200 de 800 de lista)", medA && insB && Number(medA.unit_price) * 2 > Number(insB.unit_price), `A=${medA?.unit_price} B=${insB?.unit_price}`)
+  check("la consulta del paquete no pide precio", ((await call("caja", "POST", `/admin/draft-orders/${carrito?.id}/convert-to-order`)).j?.type ?? "") !== "precio_pendiente")
+  check("el mismo paquete no entra dos veces", (await call("caja", "POST", `/admin/draft-orders/${carrito?.id}/paquete`, { package_id: paq?.id })).code === 400)
+  const quitado = await call("caja", "POST", `/admin/draft-orders/${carrito?.id}/paquete`, { package_id: paq?.id, quitar: true })
+  const sinPaquete = (await call("caja", "GET", `/admin/draft-orders/${carrito?.id}`)).j?.draft_order
+  check("quitar el paquete se lleva sus tres renglones", quitado.code === 200 && quitado.j?.renglones === 3 && (sinPaquete?.items ?? []).length === 0, `HTTP ${quitado.code} quedan=${(sinPaquete?.items ?? []).length}`)
+  await call("admin", "POST", `/admin/packages/${paq?.id}`, { status: "inactive" })
+  check("un paquete inactivo ya no se añade", (await call("caja", "POST", `/admin/draft-orders/${carrito?.id}/paquete`, { package_id: paq?.id })).code === 400)
+
+  // Limpieza.
+  if (carrito?.id) await call("admin", "DELETE", `/admin/draft-orders/${carrito.id}`)
+  if (paq?.id) await call("admin", "DELETE", `/admin/packages/${paq.id}`)
+  for (const p of [a, b]) if (p?.id) await call("admin", "DELETE", `/admin/products/${p.id}`)
+}
+
 // ── Ejecución ───────────────────────────────────────────────────────────────
 ;(async () => {
   console.log(`\nVerificación de la API — ${BASE}\n`)
@@ -1664,6 +1717,7 @@ async function aseguranzas() {
   await nomina()
   await correccionesDelPanel()
   await aseguranzas()
+  await paquetes()
 
   console.log(`\n${"═".repeat(64)}`)
   console.log(
