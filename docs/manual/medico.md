@@ -158,8 +158,10 @@ dice quién la corrigió. Sólo corriges las tuyas.
 
 ### 3.8 El paciente y emitir
 
-Pulsa **Seleccionar paciente**. Se busca por nombre; si no existe, **Nuevo paciente** lo da de alta
-ahí mismo. Toca su nombre y confirma con **Asignar a …**.
+El paciente se elige en el apartado **Pacientes**, el único sitio donde se buscan y se dan de alta.
+Si la receta aún no tiene paciente, su botón **Elige un paciente** te lleva ahí: búscalo, abre su
+ficha y pulsa **Nueva receta**; queda puesto y vuelves al catálogo. En la receta se ve siempre quién
+la lleva: tocar su nombre vuelve a Pacientes para cambiarlo y la ✕ lo quita.
 
 ![Búsqueda de paciente con María Ramírez elegida y el botón Asignar](img/medico/12-elegir-paciente.png)
 

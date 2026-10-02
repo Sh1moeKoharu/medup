@@ -21,7 +21,8 @@ import * as React from 'react';
 import { Image, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import DoctorCartScreen from './cart';
 import DoctorCRMScreen from './crm';
-import { Apartado, Apartados } from '@/components/medico/Apartados';
+import { Apartados } from '@/components/medico/Apartados';
+import { useApartadoDelMedico } from '@/contexts/apartado-medico';
 import { ListaRecetas } from '@/components/receta/ListaRecetas';
 
 const isPlaceholderProduct = (
@@ -146,8 +147,9 @@ export default function DoctorProductsScreen() {
   // components/medico/Apartados.tsx). Sin paciente en la receta se empieza por
   // Pacientes —es por donde arranca la consulta—; con uno ya elegido, por el
   // catálogo.
-  const receta = useReceta();
-  const [apartado, setApartado] = React.useState<Apartado>(() => (receta.paciente ? 'productos' : 'pacientes'));
+  // El apartado vive en un contexto porque la receta también lo cambia:
+  // «Elige un paciente» lleva aquí al apartado Pacientes (contexts/apartado-medico.tsx).
+  const { apartado, setApartado } = useApartadoDelMedico()!;
   const cabecera = <Apartados valor={apartado} onChange={setApartado} className="mt-8 mx-auto w-full max-w-2xl" />;
   
   const productsQuery = useProducts({

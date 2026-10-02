@@ -16,6 +16,7 @@ import { VistaPreviaDeReceta } from '@/components/receta/VistaPreviaDeReceta';
 import { QuantityPicker } from '@/components/ui/QuantityPicker';
 import { Text } from '@/components/ui/Text';
 import { RenglonReceta, useReceta } from '@/contexts/receta';
+import { useApartadoDelMedico } from '@/contexts/apartado-medico';
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { router } from 'expo-router';
@@ -49,18 +50,35 @@ const nombreDe = (p: { first_name?: string | null; last_name?: string | null; em
 
 // ── Paciente ────────────────────────────────────────────────────────────────
 
+/**
+ * El paciente de la receta.
+ *
+ * Para el MÉDICO ya no abre una ventana de búsqueda aparte: su pantalla tiene
+ * un apartado Pacientes con búsqueda, alta, historial y «Nueva receta», y dos
+ * puertas para lo mismo confundían. Aquí se ve quién lleva la receta, se quita
+ * con la ✕ y, al tocar, se va a ese apartado a elegir o cambiar.
+ *
+ * Enfermería comparte esta receta pero no esa pantalla: fuera del proveedor
+ * del médico conserva la ventana de búsqueda.
+ */
 const PacienteBadge: React.FC = () => {
   const receta = useReceta();
+  const apartados = useApartadoDelMedico();
+
+  const elegir = (customerId?: string) => {
+    if (apartados) {
+      apartados.setApartado('pacientes');
+      // En pantalla ancha ya se está ahí; en teléfono la receta es otra pestaña.
+      router.navigate('/(doctor)/products');
+      return;
+    }
+    router.push({ pathname: '/customer-lookup', params: { destino: 'receta', ...(customerId ? { customerId } : {}) } });
+  };
 
   if (!receta.paciente) {
     return (
-      <Button
-        onPress={() => router.push({ pathname: '/customer-lookup', params: { destino: 'receta' } })}
-        variant="outline"
-        icon={<UserRoundPlus size={20} />}
-        className="mb-6 justify-between"
-      >
-        Seleccionar paciente
+      <Button onPress={() => elegir()} variant="outline" icon={<UserRoundPlus size={20} />} className="mb-6 justify-between">
+        {apartados ? 'Elige un paciente' : 'Seleccionar paciente'}
       </Button>
     );
   }
@@ -69,9 +87,7 @@ const PacienteBadge: React.FC = () => {
 
   return (
     <TouchableOpacity
-      onPress={() =>
-        router.push({ pathname: '/customer-lookup', params: { destino: 'receta', customerId: p.id } })
-      }
+      onPress={() => elegir(p.id)}
       className="mb-6 flex-row items-center justify-between border-b border-gray-200 pb-6"
       accessibilityLabel="Cambiar paciente"
     >

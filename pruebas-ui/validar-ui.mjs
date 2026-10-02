@@ -329,13 +329,17 @@ const validarMedico = async (datos) => {
   await escribir(page, "Diagnóstico, procedimiento, tratamiento, recomendaciones…", "Cefalea tensional. Paracetamol y reposo.")
   check("la nota de atención trae la fecha de hoy (punto 11)", await hay(page, "Fecha de la atención"))
 
-  await clic(page, "Seleccionar paciente", 2500)
-  await escribir(page, "Buscar pacientes...", "María")
+  // El paciente se elige en el apartado Pacientes de la misma pantalla: la
+  // receta ya no abre una ventana de búsqueda aparte.
+  await clic(page, "Elige un paciente", 2500)
+  check("«Elige un paciente» lleva al apartado Pacientes, sin ventana aparte", (await hay(page, "Buscar paciente por nombre...")) && !(await hay(page, "Búsqueda de paciente")))
+  await escribir(page, "Buscar paciente por nombre...", "María")
   await page.waitForTimeout(2500)
-  await page.locator('[aria-label^="Elegir a "]').first().click({ force: true })
-  await page.waitForTimeout(1200)
-  await page.getByText(/^Asignar a /).first().click({ force: true })
+  await page.getByText("Historial", { exact: false }).filter({ visible: true }).first().click({ force: true })
+  await page.waitForTimeout(2000)
+  await page.locator('[aria-label^="Nueva receta para "]').first().click({ force: true })
   await page.waitForTimeout(2500)
+  check("«Nueva receta» deja al paciente en la receta y vuelve al catálogo", (await hay(page, "Buscar medicamentos o insumos...")) && (await page.getByLabel("Cambiar paciente").count()) > 0)
   await page.getByText(/^Ver y emitir/).first().click({ force: true })
   await page.waitForTimeout(1500)
   check("antes de enviar se ve la receta tal como saldrá, con la cédula y el paciente", (await hay(page, "Vista previa de la receta")) && (await hay(page, "Céd. prof. 12345678")) && (await hay(page, "Prescripción")))

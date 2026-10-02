@@ -1,4 +1,5 @@
 import { GuardaDeRol } from '@/components/GuardaDeRol';
+import { ProveedorDeApartado } from '@/contexts/apartado-medico';
 import { ROLES_MEDICO } from '@/constants/acceso';
 import { Tabs } from 'expo-router';
 import { color } from '@/theme/tokens';
@@ -24,6 +25,7 @@ export default function DoctorTabLayout() {
 
   return (
     <GuardaDeRol permitidos={ROLES_MEDICO}>
+    <ProveedorDeApartado>
     <Tabs
       detachInactiveScreens={false}
       screenOptions={{
@@ -82,6 +84,7 @@ export default function DoctorTabLayout() {
         }}
       />
     </Tabs>
+    </ProveedorDeApartado>
     </GuardaDeRol>
   );
 }
