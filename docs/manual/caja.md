@@ -162,6 +162,13 @@ Al tocar una orden se abre su detalle: los renglones, el estado y el resumen. El
 > sistema de pedidos y **no** significan que falte cobrar: la venta ya está registrada en tu
 > turno. Está anotado para corregirlo en una versión próxima.
 
+**Qué dice cada orden.** Arriba de la lista van las cuentas **Por cobrar**, las mismas que en la
+pestaña Caja, con su botón. Debajo, las ventas ya hechas: **Cobrada** en verde, o **Sin cerrar** en
+amarillo si la venta se registró pero se cortó antes de completarse; al abrirla, **Cerrar la venta**
+la termina sin volver a cobrar. En el detalle, **Forma de pago** dice cómo se pagó (efectivo,
+tarjeta con su referencia o transferencia). Las ventas de mostrador sin paciente salen como
+«Mostrador».
+
 ### 3.7 Pacientes: alta, ficha y cuenta de consulta
 
 **Pacientes** es el directorio. Se busca por nombre o teléfono, y cada tarjeta lleva a los

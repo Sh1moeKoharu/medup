@@ -21,7 +21,7 @@ import { clx } from '@/utils/clx';
 import { AdminCustomer } from '@medusajs/types';
 import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, SafeAreaView, ScrollView, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, SafeAreaView, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 type CustomerWithMedical = AdminCustomer & { medical_customer?: any };
 
@@ -156,7 +156,12 @@ const CustomerDetails = ({ customer, onClose, onEdit, onNuevaReceta }: { custome
     );
 };
 
-export default function DoctorCRMScreen() {
+/**
+ * Pacientes del médico. Como pantalla propia lleva su título; como APARTADO de
+ * la pantalla de Productos recibe la `cabecera` (los apartados) y, al pulsar
+ * «Nueva receta», avisa en vez de navegar: el catálogo está en la misma pantalla.
+ */
+export default function DoctorCRMScreen({ cabecera, onNuevaReceta }: { cabecera?: React.ReactNode; onNuevaReceta?: () => void }) {
     const [searchQuery, setSearchQuery] = useState('');
   // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
   const busqueda = useDebouncedValue(searchQuery);
@@ -170,9 +175,15 @@ export default function DoctorCRMScreen() {
     const nuevaRecetaPara = (c: CustomerWithMedical) => {
         receta.asignarPaciente(c);
         setSelectedCustomer(null);
-        router.push('/(doctor)/products');
+        if (onNuevaReceta) onNuevaReceta();
+        else router.push('/(doctor)/products');
     };
-    const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
+    // Como apartado comparte el ancho con la receta lateral: con tres columnas
+    // las tarjetas quedaban tan estrechas que el teléfono se partía letra por
+    // letra. Ahí va una columna, y dos sólo en pantallas muy anchas.
+    const { width: anchoDeVentana } = useWindowDimensions();
+    const columnasSueltas = useBreakpointValue({ base: 1, md: 2, xl: 3 });
+    const numColumns = cabecera ? (anchoDeVentana >= 1600 ? 2 : 1) : columnasSueltas;
 
     const customersQuery = useCustomers({
         ...(busqueda ? { q: busqueda } : {})
@@ -241,8 +252,9 @@ export default function DoctorCRMScreen() {
 
     return (
         <Layout>
-            <View className="mt-8 mb-2 flex-row items-center justify-between">
-                <Text className="text-4xl">Pacientes</Text>
+            {cabecera}
+            <View className={`${cabecera ? 'mt-4' : 'mt-8'} mb-2 flex-row items-center justify-between`}>
+                <Text className={cabecera ? 'text-2xl' : 'text-4xl'}>Pacientes</Text>
                 <Button variant="outline" onPress={() => setCreando(true)}>
                     Nuevo paciente
                 </Button>

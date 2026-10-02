@@ -40,7 +40,8 @@ export const INICIO_POR_ROL: Record<Role, string> = {
   // El médico entra a sus pacientes, con los que tienen orden pendiente
   // arriba: es su trabajo del día. El catálogo es "una tienda" hasta que hay
   // un paciente elegido; desde la ficha, «Nueva receta» lleva a él.
-  [ROLES.DOCTOR]: '/(doctor)/crm',
+  // (Pacientes es un apartado de la pantalla única del médico, y es el que abre por omisión.)
+  [ROLES.DOCTOR]: '/(doctor)/products',
   // Enfermería entra a su bandeja: lo pendiente de aplicar es su trabajo del día.
   [ROLES.NURSE]: '/(nurse)/bandeja',
   // Auditoría / Dirección es de SOLO LECTURA: no cobra, no dispensa y no

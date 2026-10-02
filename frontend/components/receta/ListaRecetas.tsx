@@ -97,7 +97,8 @@ const TarjetaReceta: React.FC<{ orden: OrdenMedica; onCancelar: (o: OrdenMedica)
   );
 };
 
-export function ListaRecetas() {
+/** `cabecera`: los apartados, cuando se muestra dentro de la pantalla del médico. */
+export function ListaRecetas({ cabecera }: { cabecera?: React.ReactNode } = {}) {
   const { user } = useAuthenticated();
   const ordenes = useOrdenesMedicas({ creator_id: user.id });
   const cancelar = useCancelarOrdenMedica();
@@ -111,7 +112,8 @@ export function ListaRecetas() {
   return (
     <>
       <Layout className="pb-6">
-        <Text className="mt-8 mb-2 text-4xl">Mis recetas</Text>
+        {cabecera}
+        <Text className={cabecera ? 'mt-4 mb-2 text-2xl' : 'mt-8 mb-2 text-4xl'}>Mis recetas</Text>
         <EncabezadoDeReceta compacto />
 
         {ordenes.isError ? (

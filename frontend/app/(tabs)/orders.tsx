@@ -1,6 +1,8 @@
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL } from '@/api/hooks/draft-orders';
 import { useOrders } from '@/api/hooks/orders';
+import { useCurrentCashSession } from '@/api/hooks/cash-session';
+import { PorCobrar } from '@/components/caja/PorCobrar';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { CircleAlert } from '@/components/icons/circle-alert';
 import { UserRound } from '@/components/icons/user-round';
@@ -62,6 +64,10 @@ export default function OrdersScreen() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<{ startDate: Date; endDate: Date } | null>(null);
   const numColumns = useBreakpointValue({ base: 1, md: 2, xl: 3 });
+  // Las cuentas por cobrar son pedidos en borrador: no salen en la lista de
+  // órdenes (que son ventas ya hechas). El tester las buscó aquí con su botón
+  // de cobrar, así que van arriba, las mismas que en la pestaña Caja.
+  const cashSession = useCurrentCashSession();
 
   const validatedStatusFilter = statusFilter.filter(isValidOrderStatus);
 
@@ -95,7 +101,7 @@ export default function OrdersScreen() {
         item.customer?.first_name && item.customer?.last_name
           ? `${item.customer.first_name} ${item.customer.last_name}`
           : item.customer?.email === DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL
-            ? 'POS'
+            ? 'Mostrador'
             : item.customer?.email || 'Paciente Desconocido';
 
       return (
@@ -106,33 +112,26 @@ export default function OrdersScreen() {
           })}
         >
           <TouchableOpacity
-            className="w-full flex-row justify-between gap-4 rounded-2xl border border-gray-200 p-4"
+            className="w-full gap-3 rounded-2xl border border-gray-200 bg-white p-4"
             onPress={() => handleOrderPress(item)}
             activeOpacity={0.7}
           >
-            <View className="flex-1 gap-4">
-              <View className="flex-1">
-                <Text textBreakStrategy="balanced" className="shrink text-xl">
-                  Orden #{item.display_id || item.id.slice(-6)}
-                </Text>
-              </View>
-              <View className="flex-row gap-2">
-                <UserRound size={16} className="mt-1" />
-                <View className="flex-1">
-                  <Text textBreakStrategy="balanced" className="shrink">
-                    {customerName}
-                  </Text>
-                </View>
-              </View>
-              <Text>
-                {formatearDinero(item.total, item.currency_code)}
+            {/* Antes el número, el nombre y el importe compartían columna con
+                la fecha larga y el estado: al paciente le quedaba tan poco
+                ancho que el nombre se partía a media palabra. */}
+            <View className="flex-row items-center justify-between gap-3">
+              <Text className="text-xl">Orden #{item.display_id || item.id.slice(-6)}</Text>
+              <OrderListStatus order={item} />
+            </View>
+            <View className="flex-row items-center gap-2">
+              <UserRound size={16} />
+              <Text numberOfLines={1} className="flex-1">
+                {customerName}
               </Text>
             </View>
-            <View className="items-end gap-4">
-              <View className="flex-1">
-                <Text className="mb-auto text-right text-gray-300">{formatDate(item.created_at)}</Text>
-              </View>
-              <OrderListStatus order={item} />
+            <View className="flex-row items-center justify-between gap-3">
+              <Text>{formatearDinero(item.total, item.currency_code)}</Text>
+              <Text className="text-sm text-gray-300">{formatDate(item.created_at)}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -159,7 +158,7 @@ export default function OrdersScreen() {
 
   return (
     <Layout>
-      <Text className="mt-8 mb-6 text-4xl">Mis órdenes</Text>
+      <Text className="mt-8 mb-6 text-4xl">Órdenes</Text>
 
       <SearchInput
         value={searchQuery}
@@ -173,8 +172,8 @@ export default function OrdersScreen() {
           variant="secondary"
           placeholder="Estado"
           options={[
-            { label: 'Pendiente', value: 'pending' },
-            { label: 'Completada', value: 'completed' },
+            { label: 'Sin cerrar', value: 'pending' },
+            { label: 'Cobrada', value: 'completed' },
             { label: 'Cancelada', value: 'canceled' },
           ]}
           className="flex-1"
@@ -198,6 +197,11 @@ export default function OrdersScreen() {
         refreshing={ordersQuery.isRefetching}
         ItemSeparatorComponent={() => <View className="h-4 w-full" />}
         automaticallyAdjustKeyboardInsets
+        ListHeaderComponent={
+          <View className="mb-4">
+            <PorCobrar puedeCobrar={!!cashSession.data} soloSiHay />
+          </View>
+        }
         ListEmptyComponent={
           <View className="mt-32 flex-1 items-center">
             <CircleAlert size={24} />

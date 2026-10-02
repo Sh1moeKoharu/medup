@@ -20,6 +20,9 @@ import { router } from 'expo-router';
 import * as React from 'react';
 import { Image, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import DoctorCartScreen from './cart';
+import DoctorCRMScreen from './crm';
+import { Apartado, Apartados } from '@/components/medico/Apartados';
+import { ListaRecetas } from '@/components/receta/ListaRecetas';
 
 const isPlaceholderProduct = (
   product: AdminProduct | { id: `placeholder_${string}` },
@@ -138,6 +141,14 @@ export default function DoctorProductsScreen() {
   const [searchQuery, setSearchQuery] = React.useState('');
   // El campo se actualiza al instante; la búsqueda espera a que dejes de teclear.
   const busqueda = useDebouncedValue(searchQuery);
+
+  // Productos, Pacientes y Mis recetas son apartados de ESTA pantalla (ver
+  // components/medico/Apartados.tsx). Sin paciente en la receta se empieza por
+  // Pacientes —es por donde arranca la consulta—; con uno ya elegido, por el
+  // catálogo.
+  const receta = useReceta();
+  const [apartado, setApartado] = React.useState<Apartado>(() => (receta.paciente ? 'productos' : 'pacientes'));
+  const cabecera = <Apartados valor={apartado} onChange={setApartado} className="mt-8 mx-auto w-full max-w-2xl" />;
   
   const productsQuery = useProducts({
     q: busqueda ? busqueda : undefined,
@@ -195,6 +206,7 @@ export default function DoctorProductsScreen() {
 
   const content = (
     <Layout className="gap-4 flex-1">
+      {cabecera}
       {/* La pantalla de inicio del médico lleva el encabezado de su receta:
           clínica, nombre, especialidad y cédula (puntos 13 y 15). */}
       <EncabezadoDeReceta className="mx-auto w-full max-w-2xl" />
@@ -245,11 +257,22 @@ export default function DoctorProductsScreen() {
     </Layout>
   );
 
+  // El apartado elegido. La receta en curso (columna lateral en pantalla ancha)
+  // se queda donde está al cambiar de apartado.
+  const principal =
+    apartado === 'pacientes' ? (
+      <DoctorCRMScreen cabecera={cabecera} onNuevaReceta={() => setApartado('productos')} />
+    ) : apartado === 'recetas' ? (
+      <ListaRecetas cabecera={cabecera} />
+    ) : (
+      content
+    );
+
   if (isLargeScreen) {
     return (
       <View className="flex-1 flex-row bg-canvas">
         <View className="flex-[3] pr-2">
-          {content}
+          {principal}
         </View>
         <View className="w-96 border-l border-gray-200 shadow-sm z-10 bg-white">
           <DoctorCartScreen isSidebar={true} />
@@ -260,7 +283,7 @@ export default function DoctorProductsScreen() {
 
   return (
     <View className="flex-1 bg-canvas">
-      {content}
+      {principal}
     </View>
   );
 }

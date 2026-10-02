@@ -289,6 +289,7 @@ const validarMedico = async (datos) => {
 
   // El médico entra a sus pacientes, con quien firma a la vista y el alta a mano.
   check("el médico aterriza en Pacientes, no en el catálogo", await hay(page, "Buscar paciente por nombre..."))
+  check("Productos, Pacientes y Mis recetas son apartados de una sola pantalla", (await page.getByRole("tab", { name: "Productos" }).count()) > 0 && (await page.getByRole("tab", { name: "Mis recetas" }).count()) > 0)
   check("quién firma se ve también fuera del catálogo (cédula en Pacientes)", await hay(page, "Céd. prof. 12345678"))
   check("puede dar de alta un paciente desde su propia vista", (await page.getByText("Nuevo paciente", { exact: true }).filter({ visible: true }).count()) > 0)
   check("y desde la ficha se arranca la receta con el paciente puesto", (await page.getByLabel(/^Nueva receta para /).count()) >= 0)

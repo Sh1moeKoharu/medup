@@ -74,6 +74,12 @@ derecha.
 
 ![Catálogo con el encabezado del médico, existencias por almacén y la receta vacía](img/medico/02-catalogo-y-receta.png)
 
+**Una sola pantalla.** Productos, Pacientes y Mis recetas ya no son pestañas separadas: son tres
+**apartados** de la misma pantalla, **Consulta**, con un selector arriba. Se cambia de apartado sin
+salir y sin perder la receta en curso; en pantalla ancha la receta sigue a la derecha en los tres.
+Al entrar se abre **Pacientes**; al pulsar **Nueva receta** en una ficha se pasa solo a
+**Productos**, con el paciente ya puesto.
+
 ### 3.3 Abrir tu turno
 
 Ve a **Ajustes**. La primera sección es **Mi turno**: si no hay uno abierto, lo dice y ofrece

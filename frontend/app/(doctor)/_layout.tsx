@@ -12,7 +12,7 @@ import { Store } from '@/components/icons/store';
 import { UserRound } from '@/components/icons/user-round';
 
 export const unstable_settings = {
-  initialRouteName: 'crm',
+  initialRouteName: 'products',
   detachInactiveScreens: false,
 };
 
@@ -37,7 +37,9 @@ export default function DoctorTabLayout() {
       <Tabs.Screen
         name="products"
         options={{
-          title: 'Productos',
+          // Una sola pantalla: Productos, Pacientes y Mis recetas son sus
+          // apartados (components/medico/Apartados.tsx).
+          title: 'Consulta',
           tabBarIcon: ({ color }) => <Store size={20} color={color} />,
         }}
       />
@@ -45,6 +47,8 @@ export default function DoctorTabLayout() {
       <Tabs.Screen
         name="crm"
         options={{
+          // Ya es un apartado de Consulta; la ruta sigue existiendo, sin pestaña.
+          href: null,
           title: 'Pacientes',
           tabBarIcon: ({ color }) => <UserRound size={20} color={color} />,
         }}
@@ -64,6 +68,7 @@ export default function DoctorTabLayout() {
       <Tabs.Screen
         name="recetas"
         options={{
+          href: null,
           title: 'Mis recetas',
           tabBarIcon: ({ color }) => <ClipboardList size={20} color={color} />,
         }}

@@ -1,13 +1,13 @@
 import { KEYBOARD_DISMISS_MODE } from '@/utils/keyboard';
 import { DRAFT_ORDER_DEFAULT_CUSTOMER_EMAIL } from '@/api/hooks/draft-orders';
-import { useOrder, useRecibo } from '@/api/hooks/orders';
+import { useCerrarVenta, useFormaDePago, useOrder, useRecibo } from '@/api/hooks/orders';
 import { Button } from '@/components/ui/Button';
 import { imprimirRecibo } from '@/utils/imprimir-recibo';
 import Toast from 'react-native-toast-message';
 import { InfoBanner } from '@/components/InfoBanner';
 import { LoadingBanner } from '@/components/LoadingBanner';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { FulfillmentStatus, OrderStatus, PaymentStatus } from '@/components/ui/OrderStatus';
+import { OrderStatus } from '@/components/ui/OrderStatus';
 import { Text } from '@/components/ui/Text';
 import { useSettings } from '@/contexts/settings';
 import { AdminOrder, AdminOrderLineItem } from '@medusajs/types';
@@ -94,8 +94,31 @@ const OrderInformation: React.FC<{
     }
   };
 
+  // En el mostrador el cobro se registra en la caja, no en un procesador de
+  // pagos: el "estado del pago" de Medusa siempre diría «Sin pagar». Lo que
+  // sirve es CÓMO se pagó.
+  const pago = useFormaDePago(order.id, order.status !== 'draft');
+  const METODOS: Record<string, string> = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' };
+  const formaDePago = pago.isLoading
+    ? '…'
+    : pago.data?.metodo_pago
+      ? `${METODOS[pago.data.metodo_pago] ?? 'Otro'}${pago.data.metodo_pago === 'card' && pago.data.referencia ? ` · ref. ${pago.data.referencia}` : ''}`
+      : 'Sin registrar';
+  const cerrar = useCerrarVenta(order.id);
+
   return (
     <>
+      {order.status === 'pending' && (
+        <View className="mb-4 gap-2 rounded-2xl border border-warning-300 bg-warning-200 p-4">
+          <Text className="font-semibold text-warning-500">Esta venta quedó sin cerrar</Text>
+          <Text className="text-sm text-warning-500">
+            Se registró pero no terminó de completarse (suele pasar si se corta la conexión al cobrar). Cerrarla no vuelve a cobrar nada.
+          </Text>
+          <Button className="self-start px-4 py-2" onPress={() => cerrar.mutate()} isPending={cerrar.isPending}>
+            Cerrar la venta
+          </Button>
+        </View>
+      )}
       <View className="mb-4 flex-row items-center justify-between gap-3">
         <Text className="text-xl">Detalle del pedido</Text>
         <Button variant="outline" className="px-4 py-2" onPress={reimprimir} isPending={recibo.isFetching}>
@@ -111,15 +134,9 @@ const OrderInformation: React.FC<{
         </View>
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
-            <Text className="text-sm text-gray-300">Estado del pago</Text>
+            <Text className="text-sm text-gray-300">Forma de pago</Text>
           </View>
-          <PaymentStatus order={order} />
-        </View>
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-sm text-gray-300">Estado del surtido</Text>
-          </View>
-          <FulfillmentStatus order={order} />
+          <Text className="text-right text-sm">{formaDePago}</Text>
         </View>
       </View>
       <CustomerInformation order={order} />
@@ -185,56 +202,11 @@ const OrderInformation: React.FC<{
             </Text>
           </View>
         </View>
-        <View className="h-hairline w-full bg-gray-200" />
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-sm text-gray-300">Total pagado</Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-right text-sm">
-              {order.payment_collections
-                .reduce(
-                  (acc, collection) => acc + (collection.captured_amount ?? 0) - (collection.refunded_amount ?? 0),
-                  0,
-                )
-                .toLocaleString(LOCALE_DINERO, {
-                  style: 'currency',
-                  currency,
-                  currencyDisplay: 'narrowSymbol',
-                })}
-            </Text>
-          </View>
-        </View>
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-sm text-gray-300">Total de notas de crédito</Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-right text-sm">
-              {(order.credit_lines ?? [])
-                .reduce((acc, collection) => acc + ((collection.amount as unknown as number) ?? 0), 0)
-                .toLocaleString(LOCALE_DINERO, {
-                  style: 'currency',
-                  currency,
-                  currencyDisplay: 'narrowSymbol',
-                })}
-            </Text>
-          </View>
-        </View>
-        <View className="flex-row items-center justify-between gap-4">
-          <View className="flex-1">
-            <Text className="text-sm text-gray-300">Saldo pendiente</Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-right text-sm">
-              {(order.summary.pending_difference ?? 0).toLocaleString(LOCALE_DINERO, {
-                style: 'currency',
-                currency,
-                currencyDisplay: 'narrowSymbol',
-              })}
-            </Text>
-          </View>
-        </View>
+        {/* Aquí iban «Total pagado», «Notas de crédito» y «Saldo pendiente» de
+            Medusa. En el mostrador el cobro se registra en la caja, no en un
+            procesador de pagos, así que una venta YA COBRADA salía con «Total
+            pagado $0.00» y «Saldo pendiente» por todo el importe. Lo que vale
+            es el estado (Cobrada) y la forma de pago, arriba. */}
       </View>
       <View className="my-4 h-hairline w-full bg-gray-200" />
       <View className="flex-row items-center justify-between gap-4">

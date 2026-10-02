@@ -38,7 +38,7 @@ const orderStatuses: Record<
     icon: X,
   },
   completed: {
-    label: 'Completada',
+    label: 'Cobrada',
     color: 'green',
     icon: CheckCircle,
   },
@@ -48,7 +48,7 @@ const orderStatuses: Record<
     icon: FilePen,
   },
   pending: {
-    label: 'Pendiente',
+    label: 'Sin cerrar',
     color: 'yellow',
     icon: AlertCircle,
   },
@@ -215,42 +215,24 @@ export const OrderListStatus: React.FC<OrderStatusProps> = ({ order, className }
     );
   }
 
-  const fulfillmentStatus = fulfillmentStatuses[order.fulfillment_status];
-
-  if (!fulfillmentStatus) {
+  // En la clínica la venta se entrega en el mostrador: no hay "surtido" que
+  // seguir. Lo que importa de una orden es si se cobró o quedó a medias. Antes
+  // este chip pintaba el estado de envío y TODA venta cobrada salía «Sin surtir».
+  if (order.status === 'completed') {
     return (
-      <View className={clx('flex-row gap-2 rounded-full bg-gray-100 px-4 py-2', className)}>
-        <HelpCircle size={16} color={color.iconoNeutro} />
-        <Text className="text-sm text-gray-500">Desconocido</Text>
+      <View className={clx('flex-row gap-2 rounded-full bg-success-200 px-4 py-2', className)}>
+        <CheckCircle size={16} color={color.iconoExito} />
+        <Text className="text-sm text-success-500">Cobrada</Text>
       </View>
     );
   }
 
-  const Icon = fulfillmentStatus.icon;
-
-  switch (fulfillmentStatus.color) {
-    case 'yellow':
-      return (
-        <View className={clx('flex-row gap-2 rounded-full bg-warning-200 px-4 py-2', className)}>
-          <Icon size={16} color={color.iconoAviso} />
-          <Text className="text-sm text-warning-500">{fulfillmentStatus.label}</Text>
-        </View>
-      );
-    case 'green':
-      return (
-        <View className={clx('flex-row gap-2 rounded-full bg-success-200 px-4 py-2', className)}>
-          <Icon size={16} color={color.iconoExito} />
-          <Text className="text-sm text-success-500">{fulfillmentStatus.label}</Text>
-        </View>
-      );
-    case 'red':
-      return (
-        <View className={clx('flex-row gap-2 rounded-full bg-error-200 px-4 py-2', className)}>
-          <Icon size={16} color={color.iconoError} />
-          <Text className="text-sm text-error-500">{fulfillmentStatus.label}</Text>
-        </View>
-      );
-  }
+  return (
+    <View className={clx('flex-row gap-2 rounded-full bg-warning-200 px-4 py-2', className)}>
+      <AlertCircle size={16} color={color.iconoAviso} />
+      <Text className="text-sm text-warning-500">Sin cerrar</Text>
+    </View>
+  );
 };
 
 export const FulfillmentStatus: React.FC<OrderStatusProps> = ({ order, className }) => {
